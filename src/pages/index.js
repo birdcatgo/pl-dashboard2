@@ -15,7 +15,13 @@ import MediaBuyerSpend from '../components/dashboard/MediaBuyerSpend';
 import FinancialResources from '../components/dashboard/FinancialResources';
 import PLDashboardComponent from '../components/dashboard/PLDashboard';
 import EnhancedOverviewV2 from '../components/dashboard/EnhancedOverviewV2';
-
+import InvoicesTable from '../components/dashboard/InvoicesTable';
+import UpcomingExpensesTable from '../components/dashboard/UpcomingExpensesTable';
+import EnhancedCashFlowProjection from '../components/dashboard/EnhancedCashFlowProjection';
+import ProjectionsTab from '../components/dashboard/ProjectionsTab';
+import NetworkCapsTab from '../components/dashboard/NetworkCapsTab';
+import CashCreditBalancesTab from '../components/dashboard/CashCreditBalancesTab';
+import DailySpendCalculatorTab from '../components/dashboard/DailySpendCalculatorTab';
 
 export default function DashboardPage() {
   const [plData, setPlData] = useState(null);
@@ -36,30 +42,62 @@ export default function DashboardPage() {
   const [performanceData, setPerformanceData] = useState([]);
   const [cashManagementData, setCashManagementData] = useState(null);
   const [networkPaymentsData, setNetworkPaymentsData] = useState([]);
+  const [invoicesData, setInvoicesData] = useState([]);
+  const [payrollData, setPayrollData] = useState([]);
 
   const tabs = [
     { id: 'overview-v2', label: 'Overview' },
+    { id: 'cash-credit', label: 'Credit Line' },
+    { id: 'network-caps', label: 'Network Caps' },
+    { id: 'daily-spend', label: 'Daily Spend' },
     { id: 'cash-flow', label: 'Cash Flow' }, 
+    { id: 'projections', label: 'Projections' },
     { id: 'pl', label: 'Profit & Loss' },
-    { id: 'network', label: 'Network Performance' },
+    { id: 'network', label: 'Offer Performance' },
     { id: 'media-buyers', label: 'Media Buyers' },
-  ];
+    { id: 'invoices', label: 'Invoices' },
+    { id: 'upcoming-expenses', label: 'Expenses' },
+];
 
+// Update the processSheetData function in index.js
+const processSheetData = (data) => {
+  try {
+    console.log('Processing sheet data:', data);
 
-  const processSheetData = (data) => {
+    // Check for invoices in rawData
+    if (data.rawData?.invoices) {
+      console.log('Raw invoices data:', data.rawData.invoices);
+      setInvoicesData(data.rawData.invoices);
+      console.log('Processed invoices data:', data.rawData.invoices);
+    }
+    if (data.rawData?.creditCardExpenses) {
+      const creditCardExpenses = data.rawData.creditCardExpenses.map(expense => ({
+        ...expense, 
+        Type: 'Credit Card',
+      }));
+      setPayrollData(prevData => [...prevData, ...creditCardExpenses]);
+    }
+    // Check for payroll in rawData
+    if (data.rawData?.payroll) {
+      console.log('Raw payroll data:', data.rawData.payroll);
+      setPayrollData(data.rawData.payroll);
+      console.log('Processed payroll data:', data.rawData.payroll);
+    }
 
-    try {
-      if (data.performanceData) {
-        setPerformanceData(data.performanceData);
-        const processed = processPerformanceData(data.performanceData, dateRange);
-        setDashboardData(processed);
-      }
-  
-      if (data.plData) {
-        setPlData(data.plData);
-      }
-  
-      // Validate and ensure cashFlowData.financialResources is an array
+    // Process performance data
+    if (data.performanceData) {
+      setPerformanceData(data.performanceData);
+      const processed = processPerformanceData(data.performanceData, dateRange);
+      setDashboardData(processed);
+    }
+
+    // Process PL data
+    if (data.plData) {
+      setPlData(data.plData);
+    }
+
+    // Process cash flow data
+    if (data.cashFlowData) {
       const validatedData = {
         ...data.cashFlowData,
         financialResources: Array.isArray(data.cashFlowData?.financialResources)
@@ -68,20 +106,19 @@ export default function DashboardPage() {
             )
           : [],
       };
-  
+
       console.log('Validated cash flow data:', validatedData);
-  
       setCashManagementData(validatedData);
-  
-      if (data.networkPaymentsData) {
-        setNetworkPaymentsData(data.networkPaymentsData);
-      }
-    } catch (error) {
-      console.error('Error processing sheet data:', error);
-      setError('Failed to process updated data');
     }
-  };
-  
+
+    if (data.networkPaymentsData) {
+      setNetworkPaymentsData(data.networkPaymentsData);
+    }
+  } catch (error) {
+    console.error('Error processing sheet data:', error);
+    setError('Failed to process updated data');
+  }
+};
 
    const loadDashboardData = async () => {
     try {
@@ -138,71 +175,84 @@ export default function DashboardPage() {
         return (
           <EnhancedOverviewV2
             performanceData={performanceData}
-            cashFlowData={cashManagementData}  
+            cashFlowData={cashManagementData}
             plData={plData}
-          />  
+          />
         );
-      case 'pl': 
-        return <PLDashboardComponent plData={plData} />;
-      case 'network':
+  
+      case 'cash-credit':
         return (
-            <NetworkPerformance
-              data={dashboardData.networkPerformance}
-              rawData={dashboardData.filteredData}
-              offerPerformance={dashboardData.offerPerformance}
-              dateRange={dateRange}
-            />
-          );
-        case 'media-buyers':  
+          <CashCreditBalancesTab 
+            financialResources={cashManagementData?.financialResources} 
+          />
+        );
+  
+        case 'network-caps':
+          console.log('Network Payments Data:', networkPaymentsData);
           return (
-            <MediaBuyerPerformance 
-              data={dashboardData.mediaBuyerPerformance}
-              rawData={dashboardData.filteredData}
-              dateRange={dateRange}  
+            <NetworkCapsTab 
+            networkPaymentsData={networkPaymentsData}
             />
           );
-        case 'cash-flow':
-        const financialResources = cashManagementData?.financialResources || [];
-
-        const totalCash = financialResources
-          .filter((resource) => {
-            if (!resource || typeof resource.account !== 'string') {
-              console.warn('Invalid financial resource:', resource);
-              return false;
-            }
-            return resource.account.toLowerCase().includes('bank') || 
-                   resource.account.toLowerCase().includes('cash');
-          })
-          .reduce((sum, resource) => sum + (parseFloat(resource.available) || 0), 0);
-
-        const totalCredit = financialResources
-          .filter((resource) => {
-            if (!resource || typeof resource.account !== 'string') {
-              console.warn('Invalid financial resource:', resource);
-              return false;
-            }
-            return resource.account.toLowerCase().includes('credit') || resource.limit;
-          })
-          .reduce((sum, resource) => sum + (parseFloat(resource.available) || 0), 0);
-
-        if (financialResources.length === 0) {
-          return <p className="text-gray-600">No financial data available.</p>;
-        }
-
+  
+      case 'daily-spend':
+        return (
+          <DailySpendCalculatorTab 
+            cashManagementData={cashManagementData}
+          />
+        );
+        
+      case 'cash-flow':
         return (
           <div className="space-y-6">
-            <div className="w-full">
-              <MediaBuyerSpend
-                cashManagementData={{
-                  currentBalance: totalCash,
-                  creditAvailable: totalCredit,
-                }}
-              />
-            </div>
-            <FinancialResources financialResources={financialResources} />
-            <ImprovedCashFlow startingBalance={totalCash} />
+            <ImprovedCashFlow 
+              startingBalance={cashManagementData?.currentBalance || 0}
+              invoicesData={invoicesData}
+              payrollData={payrollData}
+            />
           </div>
         );
+  
+      case 'projections':
+        return (
+          <ProjectionsTab 
+            cashManagementData={cashManagementData}
+            performanceData={performanceData}
+            invoicesData={invoicesData}
+            payrollData={payrollData}
+          />
+        );
+  
+      case 'pl':
+        return <PLDashboardComponent plData={plData} />;
+  
+      case 'network':
+        return (
+          <NetworkPerformance
+            data={dashboardData.networkPerformance}
+            rawData={dashboardData.filteredData}
+            offerPerformance={dashboardData.offerPerformance}
+            dateRange={dateRange}
+          />
+        );
+  
+      case 'media-buyers':
+        return (
+          <MediaBuyerPerformance
+            data={dashboardData.mediaBuyerPerformance}
+            rawData={dashboardData.filteredData}
+            dateRange={dateRange}
+          />
+        );
+  
+      case 'invoices':
+        return <InvoicesTable data={invoicesData} />;
+  
+       
+    case 'upcoming-expenses':
+      console.log('Rendering upcoming expenses table with data:', payrollData);
+      return <UpcomingExpensesTable data={payrollData} />;
+  
       default:
         return null;
     }
@@ -210,11 +260,10 @@ export default function DashboardPage() {
 
   return (
     <main className="min-h-screen bg-gray-100">
-            <div className="container mx-auto px-4 py-8">
+      <div className="container mx-auto px-4 py-8">
         <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-8">
           <h1 className="text-3xl font-bold text-gray-900">Performance Dashboard</h1>
           <div className="flex items-center gap-4">
-     
             <button
               onClick={handleRefresh}
               className={`inline-flex items-center px-4 py-2 border border-gray-300 rounded-md shadow-sm text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 ${
@@ -245,18 +294,18 @@ export default function DashboardPage() {
           </div>
         )}
 
-{isLoading ? (
+        {isLoading ? (
           <div>Loading...</div>
         ) : (
-          <div className="space-y-6"> 
+          <div className="space-y-6">
             <div className="border-b border-gray-200">
-              <nav className="-mb-px flex space-x-8">
+              <nav className="-mb-px flex space-x-8 overflow-x-auto">
                 {tabs.map((tab) => (
                   <button
                     key={tab.id}
-                    onClick={() => setActiveTab(tab.id)} 
+                    onClick={() => setActiveTab(tab.id)}
                     className={`
-                      whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm 
+                      whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm
                       ${
                         activeTab === tab.id
                           ? 'border-indigo-500 text-indigo-600'
@@ -273,7 +322,7 @@ export default function DashboardPage() {
             {['network', 'media-buyers'].includes(activeTab) && (
               <EnhancedDateSelector onDateChange={handleDateChange} />
             )}
-            
+
             <div className="mt-6">{renderTabContent()}</div>
           </div>
         )}

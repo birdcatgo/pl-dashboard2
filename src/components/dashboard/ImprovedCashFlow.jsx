@@ -13,134 +13,110 @@ const formatCurrency = (amount) => {
   }).format(amount);
 };
 
-const CustomTooltip = ({ active, payload, label }) => {
-  if (active && payload && payload.length) {
-    return (
-      <div className="bg-white p-4 shadow-lg rounded-lg border border-gray-200">
-        <p className="text-sm font-medium text-gray-900 mb-2">{label}</p>
-        {payload.map((entry, index) => (
-          <p key={index} className="text-sm" style={{ color: entry.color }}>
-            {entry.name}: {formatCurrency(entry.value)}
-          </p>
-        ))}
-      </div>
-    );
-  }
-  return null;
-};
-
-const parseDate = (dateString) => {
-  const parsedDate = new Date(dateString);
-  return isNaN(parsedDate) ? null : parsedDate;
-};
-
 const parseAmount = (amountString) => {
   if (typeof amountString === 'number') return amountString;
   return parseFloat(amountString?.replace(/[$,]/g, '') || '0') || 0;
 };
 
-const generateProjections = (invoices, payroll, initialBalance) => {
-  const projectionDays = {};
-  let runningBalance = initialBalance;
-
-  // Process invoices
-  invoices.slice(1).forEach((row) => { // Skip header row
-    const date = parseDate(row[2]); // Date in third column
-    if (!date) {
-      console.warn('Skipping invoice due to invalid date:', row);
-      return;
-    }
-
-    const amount = parseAmount(row[1]); // Amount in second column
-    const network = row[0]; // Network in first column
-    const key = date.toISOString().split('T')[0];
-    
-    if (!projectionDays[key]) {
-      projectionDays[key] = { 
-        date, 
-        inflows: [], 
-        outflows: [], 
-        invoicePayment: 0, 
-        payroll: 0, 
-        creditCardPayment: 0, 
-        balance: runningBalance 
-      };
-    }
-    projectionDays[key].inflows.push({ network, amount });
-    projectionDays[key].invoicePayment += amount;
-  });
-
-  // Process payroll
-  payroll.slice(1).forEach((row) => { // Skip header row
-    const date = parseDate(row[3]); // Date in fourth column
-    if (!date) {
-      console.warn('Skipping payroll entry due to invalid date:', row);
-      return;
-    }
-
-    const amount = parseAmount(row[2]); // Amount in third column
-    const type = row[0]; // Type in first column
-    const description = row[1]; // Description in second column
-    const key = date.toISOString().split('T')[0];
-    
-    if (!projectionDays[key]) {
-      projectionDays[key] = { 
-        date, 
-        inflows: [], 
-        outflows: [], 
-        invoicePayment: 0, 
-        payroll: 0, 
-        creditCardPayment: 0, 
-        balance: runningBalance 
-      };
-    }
-    projectionDays[key].outflows.push({ type, description, amount });
-    if (type === 'credit_card') {
-      projectionDays[key].creditCardPayment += amount;
-    } else {
-      projectionDays[key].payroll += amount;
-    }
-  });
-
-  // Calculate running balance and sort by date
-  const sortedDays = Object.values(projectionDays)
-    .sort((a, b) => new Date(a.date) - new Date(b.date));
-
-  sortedDays.forEach((day) => {
-    runningBalance += day.invoicePayment - day.payroll - day.creditCardPayment;
-    day.balance = runningBalance;
-  });
-
-  return sortedDays;
-};
-
-const ImprovedCashFlow = ({ startingBalance = 0 }) => {
+const ImprovedCashFlow = ({ startingBalance = 0, invoicesData = [], payrollData = [] }) => {
   const [projections, setProjections] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
   const [expandedRows, setExpandedRows] = useState(new Set());
 
   useEffect(() => {
-    const loadData = async () => {
-      try {
-        const response = await fetch('/api/sheets');
-        if (!response.ok) throw new Error(`API failed with status ${response.status}`);
+    const generateProjections = () => {
+      const today = new Date();
+      const projectionDays = 14;
+      const dailyProjections = [];
+      let runningBalance = startingBalance;
+
+      // Create a map to store payments by date
+      const dateMap = new Map();
+
+      // Process invoices
+      invoicesData.forEach(invoice => {
+        const date = new Date(invoice.DueDate);
+        const amount = parseAmount(invoice.AmountDue);
+        const dateKey = format(date, 'yyyy-MM-dd');
+
+        if (!dateMap.has(dateKey)) {
+          dateMap.set(dateKey, { 
+            invoices: [], 
+            payroll: [], 
+            creditCard: [] 
+          });
+        }
+
+        dateMap.get(dateKey).invoices.push({
+          source: invoice.Invoices,
+          amount
+        });
+      });
+
+      // Process payroll/credit card payments
+      // Process payroll/credit card payments
+      payrollData.forEach(expense => {
+        if (!expense.DueDate) return; // Skip if no date
         
-        const responseData = await response.json();
-        const processedProjections = generateProjections(
-          responseData.rawData?.invoices || [],
-          responseData.rawData?.payroll || [],
-          startingBalance
-        );
-        setProjections(processedProjections);
-      } catch (error) {
-        console.error('Error loading data:', error);
-      } finally {
-        setIsLoading(false);
+        const date = new Date(expense.DueDate); 
+        const amount = parseAmount(expense.Amount);
+        const type = expense.Type;
+        const dateKey = format(date, 'yyyy-MM-dd');
+      
+        if (!dateMap.has(dateKey)) {
+          dateMap.set(dateKey, { 
+            invoices: [], 
+            payroll: [],
+            creditCard: []
+          }); 
+        }
+      
+        if (type.toLowerCase() === 'credit card') {
+          dateMap.get(dateKey).creditCard.push({
+            description: expense.Description,
+            amount  
+          });
+        } else {
+          dateMap.get(dateKey).payroll.push({
+            description: expense.Description,
+            amount
+          });
+        }
+      });
+
+      // Generate daily projections
+      for (let i = 0; i < projectionDays; i++) {
+        const currentDate = new Date(today);
+        currentDate.setDate(today.getDate() + i);
+        const dateKey = format(currentDate, 'yyyy-MM-dd');
+        const dateData = dateMap.get(dateKey) || { 
+          invoices: [], 
+          payroll: [], 
+          creditCard: [] 
+        };
+
+        const invoiceTotal = dateData.invoices.reduce((sum, item) => sum + item.amount, 0);
+        const payrollTotal = dateData.payroll.reduce((sum, item) => sum + item.amount, 0);
+        const creditCardTotal = dateData.creditCard.reduce((sum, item) => sum + item.amount, 0);
+
+        runningBalance = runningBalance + invoiceTotal - payrollTotal - creditCardTotal;
+
+        dailyProjections.push({
+          date: currentDate,
+          details: dateData,
+          invoiceTotal,
+          payrollTotal,
+          creditCardTotal,
+          balance: runningBalance
+        });
       }
+
+      setProjections(dailyProjections);
+      setIsLoading(false);
     };
 
-    loadData();
-  }, [startingBalance]);
+    generateProjections();
+  }, [startingBalance, invoicesData, payrollData]);
 
   const toggleRowExpansion = (index) => {
     const newExpandedRows = new Set(expandedRows);
@@ -152,16 +128,9 @@ const ImprovedCashFlow = ({ startingBalance = 0 }) => {
     setExpandedRows(newExpandedRows);
   };
 
-  const getBalanceColor = (balance) => {
-    if (balance >= 100000) return 'text-green-600';
-    if (balance >= 50000) return 'text-yellow-600';
-    return 'text-red-600';
-  };
-
   const chartData = projections.map(day => ({
-    name: format(new Date(day.date), 'MMM dd'),
-    balance: day.balance,
-   
+    name: format(day.date, 'MMM dd'),
+    balance: day.balance
   }));
 
   if (isLoading) {
@@ -172,17 +141,17 @@ const ImprovedCashFlow = ({ startingBalance = 0 }) => {
     );
   }
 
-  const totalInflows = projections.reduce((sum, day) => sum + day.invoicePayment, 0);
-  const totalOutflows = projections.reduce((sum, day) => sum + day.payroll + day.creditCardPayment, 0);
+  const totalInvoices = projections.reduce((sum, day) => sum + day.invoiceTotal, 0);
+  const totalPayroll = projections.reduce((sum, day) => sum + day.payrollTotal, 0);
+  const totalCreditCard = projections.reduce((sum, day) => sum + day.creditCardTotal, 0);
   const finalBalance = projections[projections.length - 1]?.balance || startingBalance;
 
   return (
     <div className="bg-white rounded-lg shadow">
-      {/* Header Section with Summary Metrics */}
       <div className="p-6 border-b border-gray-200">
         <div className="flex items-center justify-between mb-4">
           <h3 className="text-lg font-semibold text-gray-900">Cash Flow Projections</h3>
-          <span className="text-sm text-gray-500">30-Day Forecast</span>
+          <span className="text-sm text-gray-500">14-Day Forecast</span>
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
@@ -196,18 +165,20 @@ const ImprovedCashFlow = ({ startingBalance = 0 }) => {
 
           <div className="bg-green-50 rounded-lg p-4">
             <div className="flex items-center justify-between">
-              <div className="text-green-600 font-medium">Total Inflows</div>
+              <div className="text-green-600 font-medium">Total Invoices</div>
               <ArrowUp className="h-5 w-5 text-green-500" />
             </div>
-            <div className="text-2xl font-bold text-green-700 mt-2">{formatCurrency(totalInflows)}</div>
+            <div className="text-2xl font-bold text-green-700 mt-2">{formatCurrency(totalInvoices)}</div>
           </div>
 
           <div className="bg-red-50 rounded-lg p-4">
             <div className="flex items-center justify-between">
-              <div className="text-red-600 font-medium">Total Outflows</div>
+              <div className="text-red-600 font-medium">Total Outgoing</div>
               <ArrowDown className="h-5 w-5 text-red-500" />
             </div>
-            <div className="text-2xl font-bold text-red-700 mt-2">{formatCurrency(totalOutflows)}</div>
+            <div className="text-2xl font-bold text-red-700 mt-2">
+              {formatCurrency(totalPayroll + totalCreditCard)}
+            </div>
           </div>
 
           <div className="bg-purple-50 rounded-lg p-4">
@@ -215,66 +186,45 @@ const ImprovedCashFlow = ({ startingBalance = 0 }) => {
               <div className="text-purple-600 font-medium">Projected Balance</div>
               <TrendingUp className="h-5 w-5 text-purple-500" />
             </div>
-            <div className={`text-2xl font-bold mt-2 ${getBalanceColor(finalBalance)}`}>
-              {formatCurrency(finalBalance)}
-            </div>
+            <div className="text-2xl font-bold text-purple-700 mt-2">{formatCurrency(finalBalance)}</div>
           </div>
         </div>
 
-        {/* Chart Section */}
         <div className="h-64 mt-6">
           <ResponsiveContainer width="100%" height="100%">
             <LineChart data={chartData}>
               <CartesianGrid strokeDasharray="3 3" />
               <XAxis dataKey="name" />
               <YAxis tickFormatter={formatCurrency} />
-              <Tooltip content={<CustomTooltip />} />
+              <Tooltip formatter={(value) => formatCurrency(value)} />
               <Line 
                 type="monotone" 
                 dataKey="balance" 
                 stroke="#2563eb" 
                 strokeWidth={2}
                 dot={false}
-                name="Balance"
-              />
-              <Line 
-                type="monotone" 
-                dataKey="inflows" 
-                stroke="#16a34a" 
-                strokeWidth={2}
-                dot={false}
-                name="Inflows"
-              />
-              <Line 
-                type="monotone" 
-                dataKey="outflows" 
-                stroke="#dc2626" 
-                strokeWidth={2}
-                dot={false}
-                name="Outflows"
               />
             </LineChart>
           </ResponsiveContainer>
         </div>
       </div>
 
-      {/* Table Section */}
       <div className="overflow-x-auto">
         <table className="min-w-full divide-y divide-gray-200">
           <thead className="bg-gray-50">
             <tr>
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Date</th>
-              <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Invoice Payment</th>
-              <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Payroll</th>
-              <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Credit Card Payment</th>
-              <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Balance</th>
+              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Date</th>
+              <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase">Invoices</th>
+              <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase">Payroll</th>
+              <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase">Credit Card</th>
+              <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase">Balance</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-gray-200">
             {projections.map((day, index) => {
-              const isExpanded = expandedRows.has(index);
-              const hasDetails = day.inflows.length > 0 || day.outflows.length > 0;
-
+              const hasDetails = day.details?.invoices?.length > 0 || 
+              day.details?.payroll?.length > 0 || 
+              day.details?.creditCard?.length > 0;
               return (
                 <React.Fragment key={index}>
                   <tr 
@@ -284,36 +234,41 @@ const ImprovedCashFlow = ({ startingBalance = 0 }) => {
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
                       <div className="flex items-center">
                         {hasDetails && (
-                          <span className="mr-2">{isExpanded ? '▼' : '▶'}</span>
+                          <span className="mr-2">{expandedRows.has(index) ? '▼' : '▶'}</span>
                         )}
-                        {format(new Date(day.date), 'MMM dd, yyyy')}
+                        {format(day.date, 'MMM dd, yyyy')}
                       </div>
                     </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-right text-green-600 font-medium">
-                      {day.invoicePayment > 0 && formatCurrency(day.invoicePayment)}
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-right text-green-600">
+                      {day.invoiceTotal > 0 && formatCurrency(day.invoiceTotal)}
                     </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-right text-red-600 font-medium">
-                      {day.payroll > 0 && formatCurrency(day.payroll)}
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-right text-red-600">
+                      {day.payrollTotal > 0 && formatCurrency(day.payrollTotal)}
                     </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-right text-red-600 font-medium">
-                      {day.creditCardPayment > 0 && formatCurrency(day.creditCardPayment)}
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-right text-red-600">
+                      {day.creditCardTotal > 0 && formatCurrency(day.creditCardTotal)}
                     </td>
-                    <td className={`px-6 py-4 whitespace-nowrap text-sm text-right font-medium ${getBalanceColor(day.balance)}`}>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-right font-medium text-gray-900">
                       {formatCurrency(day.balance)}
                     </td>
                   </tr>
-                  {isExpanded && hasDetails && (
+                  {expandedRows.has(index) && hasDetails && (
                     <tr className="bg-gray-50">
                       <td colSpan="5" className="px-8 py-3">
                         <div className="text-sm space-y-1">
-                          {day.inflows.map((inflow, i) => (
-                            <div key={`inflow-${i}`} className="text-green-600">
-                              + {inflow.network}: {formatCurrency(inflow.amount)}
+                          {day.details.invoices.map((item, i) => (
+                            <div key={`invoice-${i}`} className="text-green-600">
+                              + Invoice from {item.source} ({formatCurrency(item.amount)})
                             </div>
                           ))}
-                          {day.outflows.map((outflow, i) => (
-                            <div key={`outflow-${i}`} className="text-red-600">
-                              - {outflow.type}: {outflow.description} ({formatCurrency(outflow.amount)})
+                          {day.details.payroll.map((item, i) => (
+                            <div key={`payroll-${i}`} className="text-red-600">
+                              - Payroll: {item.description} ({formatCurrency(item.amount)})
+                            </div>
+                          ))}
+                          {day.details.creditCard.map((item, i) => (
+                            <div key={`cc-${i}`} className="text-red-600">
+                              - Credit Card: {item.description} ({formatCurrency(item.amount)})
                             </div>
                           ))}
                         </div>

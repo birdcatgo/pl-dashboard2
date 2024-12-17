@@ -1,8 +1,13 @@
 import React from 'react';
 import { format } from 'date-fns';
 
-const formatCurrency = (amount) =>
-  new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(amount);
+const formatCurrency = (amount) => {
+  return new Intl.NumberFormat('en-US', {
+    style: 'currency',
+    currency: 'USD',
+  }).format(amount);
+};
+
 
 const UpcomingExpenses = ({ expenses }) => {
   if (!expenses?.length) {
@@ -25,22 +30,23 @@ const UpcomingExpenses = ({ expenses }) => {
         <table className="min-w-full divide-y divide-gray-200">
           <thead className="bg-gray-50">
             <tr>
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Expense Type</th>
+              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase"> Type</th>
               <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase">Amount</th>
               <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Due Date</th>
               <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Frequency</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-gray-200">
-            {expenses.map((expense, index) => (
-              <tr key={index}>
-                <td className="px-6 py-4 text-sm text-gray-900">{expense.type}</td>
-                <td className="px-6 py-4 text-sm text-right">{formatCurrency(expense.amount)}</td>
-                <td className="px-6 py-4 text-sm">{format(new Date(expense.dueDate), 'MMM d, yyyy')}</td>
-                <td className="px-6 py-4 text-sm text-gray-500">{expense.frequency}</td>
-              </tr>
-            ))}
-          </tbody>
+  {data.map((expense, index) => (
+    <tr key={index} className="hover:bg-gray-50">
+      <td className="px-6 py-4 text-sm text-gray-900">{expense.type || expense[0]}</td>
+      <td className="px-6 py-4 text-sm text-gray-900">{expense.description || expense[1]}</td>
+      <td className="px-6 py-4 text-sm text-right text-gray-900">{formatCurrency(expense.amount || expense[2])}</td>
+      <td className="px-6 py-4 text-sm text-gray-900">{format(new Date(expense.dueDate || expense[3]), 'MMM d, yyyy')}</td>
+    </tr>
+  ))}
+</tbody>
+
         </table>
       </div>
     </div>

@@ -42,42 +42,19 @@ const SummaryTable = ({ summaryData }) => (
               <th className="text-right p-2 bg-gray-50">Margin %</th>
             </tr>
           </thead>
-          <tbody>
+          <tbody className="divide-y divide-gray-200">
             {summaryData.map((month, index) => (
-              <tr key={index} className="border-t hover:bg-gray-50">
-                <td className="p-2 font-medium">{month.Month}</td>
+              <tr key={index} className="hover:bg-gray-50">
+                <td className="p-2">{month.Month}</td>
                 <td className="text-right p-2">{formatCurrency(month.Revenue)}</td>
                 <td className="text-right p-2">{formatCurrency(month.Costs)}</td>
                 <td className="text-right p-2">{formatCurrency(month['Ad Spend'])}</td>
-                <td className="text-right p-2 font-medium">
-                  {formatCurrency(month['Net Profit'])}
-                </td>
-                <td className="text-right p-2">
-                  {formatPercent((month['Net Profit'] / month.Revenue) * 100)}
-                </td>
+                <td className="text-right p-2">{formatCurrency(month['Net Profit'])}</td>
+                <td className="text-right p-2">{formatPercent((month['Net Profit'] / month.Revenue) * 100)}</td>
               </tr>
             ))}
           </tbody>
-          <tfoot className="bg-gray-50 font-medium">
-            <tr>
-              <td className="p-2">Total</td>
-              <td className="text-right p-2">
-                {formatCurrency(_.sumBy(summaryData, 'Revenue'))}
-              </td>
-              <td className="text-right p-2">
-                {formatCurrency(_.sumBy(summaryData, 'Costs'))}
-              </td>
-              <td className="text-right p-2">
-                {formatCurrency(_.sumBy(summaryData, 'Ad Spend'))}
-              </td>
-              <td className="text-right p-2">
-                {formatCurrency(_.sumBy(summaryData, 'Net Profit'))}
-              </td>
-              <td className="text-right p-2">
-                {formatPercent((_.sumBy(summaryData, 'Net Profit') / _.sumBy(summaryData, 'Revenue')) * 100)}
-              </td>
-            </tr>
-          </tfoot>
+          
         </table>
       </div>
     </CardContent>

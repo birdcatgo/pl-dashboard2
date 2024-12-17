@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { ChevronDown, ChevronRight, TrendingUp, TrendingDown } from 'lucide-react';
 import _ from 'lodash';
-import PerformanceTrends from './PerformanceTrends';
+import NetworkGraphs from './NetworkGraphs';
 
 const formatCurrency = (amount) => {
   return new Intl.NumberFormat('en-US', {
@@ -152,6 +152,12 @@ const NetworkPerformance = ({ data, rawData }) => {
 
   return (
     <div className="space-y-6">
+      {/* MTD Performance Graph - Always visible */}
+      <NetworkGraphs 
+        rawData={rawData} 
+        showAllNetworks={true} 
+      />
+      
       <div className="bg-white rounded-lg shadow overflow-hidden">
         <div className="px-6 py-4 border-b border-gray-200 flex justify-between items-center">
           <h3 className="text-lg font-medium text-gray-900">Network Performance</h3>
@@ -208,12 +214,12 @@ const NetworkPerformance = ({ data, rawData }) => {
         </div>
       </div>
 
-      {/* Trends Chart */}
+      {/* Selected Networks Performance Graph */}
       {selectedNetworks.length > 0 && (
-        <PerformanceTrends
+        <NetworkGraphs
           rawData={rawData}
-          type="network"
-          selectedItems={selectedNetworks}
+          selectedNetworks={selectedNetworks}
+          showAllNetworks={false}
         />
       )}
     </div>

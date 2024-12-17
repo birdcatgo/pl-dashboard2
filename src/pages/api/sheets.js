@@ -44,6 +44,15 @@ async function processPLData(batchResponse) {
 }
 
 export default async function handler(req, res) {
+  console.log('Environment Variables Check:');
+  console.log('SHEET_ID exists:', !!process.env.SHEET_ID);
+  console.log('GOOGLE_CLIENT_EMAIL exists:', !!process.env.GOOGLE_CLIENT_EMAIL);
+  console.log('GOOGLE_PRIVATE_KEY exists:', !!process.env.GOOGLE_PRIVATE_KEY?.includes('PRIVATE KEY'));
+  
+  // Test SHEET_ID format
+  const sheetIdPattern = /^[a-zA-Z0-9-_]+$/;
+  console.log('SHEET_ID format valid:', sheetIdPattern.test(process.env.SHEET_ID));
+
   try {
       const auth = new google.auth.GoogleAuth({
           credentials: {
@@ -57,27 +66,28 @@ export default async function handler(req, res) {
       const batchResponse = await sheets.spreadsheets.values.batchGet({
           spreadsheetId: process.env.SHEET_ID,
           ranges: [
-              'Main Sheet!A:L',
-              'Financial Resources!A:D',
-              'Invoices!A:C',
-              'Payroll!A:D',
-              'Media Buyer Spend!A:B',
-              'Summary!A:U',
-              'June!A:D',
-              'July!A:D',
-              'August!A:D',
-              'September!A:D',
-              'October!A:D',
-              'November!A:D',
-              'Network Payment Schedule!A:H'
-          ],
-      });
+      'Main Sheet!A:L',
+      'Financial Resources!A:D',
+      'Invoices!A:C',
+      'Payroll!A:D',
+      'Media Buyer Spend!A:B',
+      'Summary!A:U',
+      'June!A:D',
+      'July!A:D',
+      'August!A:D',
+      'September!A:D',
+      'October!A:D',
+      'November!A:D',
+      'Network Payment Schedule!A:H'
+    ],
+  });
+    
 
-      const [mainResponse, financialResponse, invoicesResponse, payrollResponse, mediaBuyerResponse] =
-          batchResponse.data.valueRanges || [];
-          const networkPaymentsResponse = batchResponse.data.valueRanges[batchResponse.data.valueRanges.length - 1];
-          
-          const networkPayments = networkPaymentsResponse?.values?.slice(1).map(row => ({
+    const [mainResponse, financialResponse, invoicesResponse, payrollResponse, mediaBuyerResponse] = 
+      batchResponse.data.valueRanges || [];
+      const networkPaymentsResponse = batchResponse.data.valueRanges?.[batchResponse.data.valueRanges.length - 1];
+      const networkPayments = Array.isArray(networkPaymentsResponse?.values) 
+        ? networkPaymentsResponse.values.slice(1).map(row => ({
             network: row[0] || '',
             offer: row[1] || '',
             paymentTerms: row[2] || '',
@@ -86,71 +96,87 @@ export default async function handler(req, res) {
             currentExposure: parseFloat((row[5] || '0').replace(/[$,]/g, '')),
             availableBudget: parseFloat((row[6] || '0').replace(/[$,]/g, '')),
             riskLevel: row[7] || ''
-        }));
-        
-// Clean financial resources
-const cleanedFinancialResources = Array.isArray(financialResponse?.values)
-  ? financialResponse.values.slice(1)
-      .filter(row => row && row.length >= 2 && row[0]?.trim())
-      .map(row => ({
-        account: row[0],
-        available: parseFloat((row[1] || '0').replace(/[$,]/g, '')),
-        owing: parseFloat((row[2] || '0').replace(/[$,]/g, '')),
-        limit: parseFloat((row[3] || '0').replace(/[$,]/g, ''))
-      }))
-  : [];
+          }))
+        : [];
+    console.log('Network Payments:', networkPayments);
 
-// Add validation
-if (!Array.isArray(cleanedFinancialResources)) {
-console.error('Invalid financial resources data');
-cleanedFinancialResources = [];
-}
+    const cleanedInvoices = Array.isArray(invoicesResponse?.values)
+      ? invoicesResponse.values.slice(1).map(row => ({
+          Invoices: row[0]?.trim() || '',
+          AmountDue: row[1]?.trim() || '',
+          DueDate: row[2]?.trim() || ''
+        }))
+      : [];
 
-let result = {
-  performanceData: [],
-  cashFlowData: null,
-  networkPayments, // Change from networkPaymentsData
-  plData: await processPLData(batchResponse),
-  rawData: {
-      financialResources: cleanedFinancialResources,
-      invoices: invoicesResponse?.values || [],
-      payroll: payrollResponse?.values || [],
-      mediaBuyerSpend: mediaBuyerResponse?.values || [],
-      networkPayments // Add this
-  }
-};
+    const cleanedPayroll = Array.isArray(payrollResponse?.values)
+      ? payrollResponse.values
+          .slice(1)
+          .filter(row => row && row.length > 0)
+          .map(row => ({
+            Type: row[0]?.trim() || '',
+            Description: row[1]?.trim() || '',
+            Amount: parseFloat((row[2] || '0').replace(/[$,]/g, '')) || 0,
+            DueDate: row[3] ? new Date(row[3].trim()).toISOString() : null
+          }))
+      : [];
 
-      if (mainResponse?.values) {
-          result.performanceData = mainResponse.values
-              .slice(1)
-              .filter((row) => row.length >= 10)
-              .map((row) => ({
-                  Date: row[0] || '',
-                  Network: row[1] || '',
-                  Offer: row[2] || '',
-                  'Media Buyer': row[3] || '',
-                  'Ad Spend': parseFloat((row[4] || '0').replace(/[$,]/g, '')) || 0,
-                  'Ad Revenue': parseFloat((row[5] || '0').replace(/[$,]/g, '')) || 0,
-                  'Comment Revenue': parseFloat((row[6] || '0').replace(/[$,]/g, '')) || 0,
-                  'Total Revenue': parseFloat((row[7] || '0').replace(/[$,]/g, '')) || 0,
-                  Margin: parseFloat((row[8] || '0').replace(/[$,]/g, '')) || 0,
-                  'Expected Payment': row[9] || '',
-                  'Running Balance': parseFloat((row[10] || '0').replace(/[$,]/g, '')) || 0,
-              }));
+    const cleanedFinancialResources = Array.isArray(financialResponse?.values)
+      ? financialResponse.values.slice(1)
+          .filter(row => row && row.length >= 2 && row[0]?.trim())
+          .map(row => ({
+            account: row[0],
+            available: parseFloat((row[1] || '0').replace(/[$,]/g, '')),
+            owing: parseFloat((row[2] || '0').replace(/[$,]/g, '')),
+            limit: parseFloat((row[3] || '0').replace(/[$,]/g, ''))
+          }))
+      : [];
+
+    let result = {
+      performanceData: [],
+      cashFlowData: null,
+      networkPaymentsData: networkPayments,  // Fix: use networkPayments variable
+      plData: await processPLData(batchResponse),
+      rawData: {
+        financialResources: cleanedFinancialResources,
+        invoices: cleanedInvoices,
+        payroll: cleanedPayroll,
+        mediaBuyerSpend: mediaBuyerResponse?.values || [],
+        networkPayments
       }
-
-      result.cashFlowData = {
-        ...processCashFlowData(
-            result.rawData.financialResources,
-            result.rawData.invoices,
-            result.rawData.payroll,
-            result.rawData.mediaBuyerSpend
-        ),
-        networkPayments // Add this
     };
-      return res.status(200).json(result);
+
+    if (mainResponse?.values) {
+      result.performanceData = mainResponse.values
+        .slice(1)
+        .filter((row) => row.length >= 10)
+        .map((row) => ({
+          Date: row[0] || '',
+          Network: row[1] || '',
+          Offer: row[2] || '',
+          'Media Buyer': row[3] || '',
+          'Ad Spend': parseFloat((row[4] || '0').replace(/[$,]/g, '')) || 0,
+          'Ad Revenue': parseFloat((row[5] || '0').replace(/[$,]/g, '')) || 0,
+          'Comment Revenue': parseFloat((row[6] || '0').replace(/[$,]/g, '')) || 0,
+          'Total Revenue': parseFloat((row[7] || '0').replace(/[$,]/g, '')) || 0,
+          Margin: parseFloat((row[8] || '0').replace(/[$,]/g, '')) || 0,
+          'Expected Payment': row[9] || '',
+          'Running Balance': parseFloat((row[10] || '0').replace(/[$,]/g, '')) || 0,
+        }));
+    }
+
+    result.cashFlowData = {
+      ...processCashFlowData(
+        result.rawData.financialResources,
+        result.rawData.invoices,
+        result.rawData.payroll,
+        result.rawData.mediaBuyerSpend
+      ),
+      networkPayments
+    };
+    
+    return res.status(200).json(result);
   } catch (error) {
-      console.error('API Error:', error);
-      return res.status(500).json({ error: 'API Error', details: error.message });
+    console.error('API Error:', error);
+    return res.status(500).json({ error: 'API Error', details: error.message });
   }
 }

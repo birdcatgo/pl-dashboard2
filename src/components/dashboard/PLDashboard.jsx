@@ -98,23 +98,31 @@ const PLDashboard = ({ plData }) => {
                 return (
                   <tr
                     key={month.Month}
-                    className={`hover:bg-gray-50 ${
-                      selectedMonth === month.Month ? 'bg-blue-50 font-bold' : ''
-                    }`}
+                    className="hover:bg-gray-50"
                     onClick={() => setSelectedMonth(month.Month)}
                     style={{ cursor: 'pointer' }}
                   >
-                    <td className="px-6 py-4 text-sm text-gray-900">{month.Month}</td>
-                    <td className="px-6 py-4 text-sm text-right text-green-600">
+                    <td className={`px-6 py-4 text-sm text-gray-900 ${
+                      selectedMonth === month.Month ? 'font-bold' : ''
+                    }`}>{month.Month}</td>
+                    <td className={`px-6 py-4 text-sm text-right text-green-600 ${
+                      selectedMonth === month.Month ? 'font-bold' : ''
+                    }`}>
                       {formatCurrency(income)}
                     </td>
-                    <td className="px-6 py-4 text-sm text-right text-red-600">
+                    <td className={`px-6 py-4 text-sm text-right text-red-600 ${
+                      selectedMonth === month.Month ? 'font-bold' : ''
+                    }`}>
                       {formatCurrency(expenses)}
                     </td>
-                    <td className="px-6 py-4 text-sm text-right text-blue-600">
+                    <td className={`px-6 py-4 text-sm text-right text-blue-600 ${
+                      selectedMonth === month.Month ? 'font-bold' : ''
+                    }`}>
                       {formatCurrency(netProfit)}
                     </td>
-                    <td className="px-6 py-4 text-sm text-right text-gray-900">
+                    <td className={`px-6 py-4 text-sm text-right text-gray-900 ${
+                      selectedMonth === month.Month ? 'font-bold' : ''
+                    }`}>
                       {income > 0 ? ((netProfit / income) * 100).toFixed(2) : '0.00'}%
                     </td>
                   </tr>

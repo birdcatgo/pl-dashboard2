@@ -1,7 +1,7 @@
 import React, { useState, useMemo } from 'react';
 import { ChevronDown, ChevronRight, ChevronUp, TrendingUp, TrendingDown } from 'lucide-react';
 import _ from 'lodash';
-import PerformanceTrends from './PerformanceTrends';
+import MediaBuyerGraphs from './MediaBuyerGraphs';
 
 const formatCurrency = (value) => {
   if (value === null || typeof value !== 'number' || isNaN(value)) {
@@ -207,6 +207,12 @@ const MediaBuyerPerformance = ({ data, rawData }) => {
 
   return (
     <div className="space-y-6">
+      {/* MTD Performance Graph - Always visible */}
+      <MediaBuyerGraphs 
+        rawData={rawData} 
+        showAllBuyers={true} 
+      />
+
       <div className="bg-white rounded-lg shadow overflow-hidden">
         <div className="px-6 py-4 border-b border-gray-200 flex justify-between items-center">
           <h3 className="text-lg font-medium text-gray-900">Media Buyer Performance</h3>
@@ -297,53 +303,13 @@ const MediaBuyerPerformance = ({ data, rawData }) => {
         </div>
       </div>
 
-      {/* Performance Trends Charts */}
+      {/* Selected Buyers Performance Graph */}
       {selectedBuyers.length > 0 && (
-        <>
-          <div className="bg-white rounded-lg shadow p-4">
-            <h4 className="text-lg font-medium text-gray-900 mb-4">Buyer Performance Trends</h4>
-            <PerformanceTrends
-              rawData={rawData}
-              type="buyer"
-              selectedItems={selectedBuyers}
-            />
-          </div>
-          
-          {/* Offer Performance for Selected Buyers */}
-          <div className="bg-white rounded-lg shadow p-4">
-            <h4 className="text-lg font-medium text-gray-900 mb-4">Offer Performance Trends</h4>
-            {selectedBuyers.map(buyer => {
-              // Get all offers for this buyer and their metrics
-              const buyerOffers = _.chain(rawData)
-                .filter(row => row['Media Buyer'] === buyer)
-                .groupBy('Offer')
-                .map((rows, offer) => {
-                  const totalRevenue = _.sumBy(rows, row => parseFloat(row['Total Revenue'] || 0));
-                  const totalSpend = _.sumBy(rows, row => parseFloat(row['Ad Spend'] || 0));
-                  return {
-                    offer,
-                    revenue: totalRevenue,
-                    spend: totalSpend
-                  };
-                })
-                .orderBy(['revenue'], ['desc'])
-                .take(5) // Take top 5 offers by revenue
-                .map(offerData => offerData.offer)
-                .value();
-
-              return (
-                <div key={buyer} className="mb-6 last:mb-0">
-                  <h5 className="text-md font-medium text-gray-700 mb-2">{buyer}</h5>
-                  <PerformanceTrends
-                    rawData={rawData.filter(row => row['Media Buyer'] === buyer)}
-                    type="offer"
-                    selectedItems={buyerOffers}
-                  />
-                </div>
-              );
-            })}
-          </div>
-        </>
+        <MediaBuyerGraphs
+          rawData={rawData}
+          selectedBuyers={selectedBuyers}
+          showAllBuyers={false}
+        />
       )}
     </div>
   );
