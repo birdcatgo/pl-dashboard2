@@ -9,14 +9,37 @@
     "lint": "next lint"
   },
   "dependencies": {
-    "react": "19.0.0-rc-66855b96-20241106",
-    "react-dom": "19.0.0-rc-66855b96-20241106",
-    "next": "15.0.3"
+    "@radix-ui/react-tabs": "^1.1.1",
+    "@shadcn/ui": "^0.0.4",
+    "@tailwindcss/forms": "^0.5.9",
+    "@testing-library/jest-dom": "^5.17.0",
+    "@testing-library/react": "^13.4.0",
+    "@testing-library/user-event": "^13.5.0",
+    "classnames": "^2.3.2",
+    "date-fns": "^2.30.0",
+    "date-fns-tz": "^2.0.0",
+    "googleapis": "^144.0.0",
+    "lodash": "^4.17.21",
+    "lucide-react": "^0.263.1",
+    "next": "^12.3.4",
+    "papaparse": "^5.4.1",
+    "react": "^17.0.2",
+    "react-datepicker": "^7.5.0",
+    "react-dom": "^17.0.2",
+    "react-select": "^5.7.7",
+    "recharts": "^2.9.0",
+    "web-vitals": "^2.1.4"
   },
   "devDependencies": {
-    "postcss": "^8",
-    "tailwindcss": "^3.4.1",
-    "eslint": "^8",
-    "eslint-config-next": "15.0.3"
+    "@babel/core": "^7.26.0",
+    "@babel/preset-env": "^7.26.0",
+    "@babel/preset-react": "^7.26.3",
+    "@next/eslint-plugin-next": "^14.0.1",
+    "autoprefixer": "^10.4.20",
+    "babel-loader": "^9.2.1",
+    "eslint": "^8.53.0",
+    "eslint-config-next": "14.0.1",
+    "postcss": "^8.4.49",
+    "tailwindcss": "^3.4.16"
   }
 }
