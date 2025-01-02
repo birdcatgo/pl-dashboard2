@@ -6,7 +6,7 @@ import _ from 'lodash';
 export async function processPLData(response) {
   try {
     const monthlyData = {};
-    const months = ['June', 'July', 'August', 'September', 'October', 'November'];
+    const months = ['June', 'July', 'August', 'September', 'October', 'November', 'December'];
     const summaryData = [];
     
     months.forEach(month => {

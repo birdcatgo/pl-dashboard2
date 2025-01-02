@@ -4,7 +4,7 @@ import { processCashFlowData } from '@/lib/cash-flow-processor';
 async function processPLData(batchResponse) {
   try {
     const valueRanges = batchResponse.data.valueRanges;
-    const months = ['June', 'July', 'August', 'September', 'October', 'November'];
+    const months = ['June', 'July', 'August', 'September', 'October', 'November', 'December'];
     const monthlyData = {};
     const summaryData = [];
 
@@ -73,6 +73,7 @@ export default async function handler(req, res) {
         'September!A:D',
         'October!A:D',
         'November!A:D',
+        'Dcember!A:D',
         'Network Payment Schedule!A:H',
       ],
     });

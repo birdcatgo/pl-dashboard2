@@ -5,7 +5,7 @@ import _ from 'lodash';
 async function processPLData(batchResponse) {
   try {
     const valueRanges = batchResponse.data.valueRanges;
-    const months = ['June', 'July', 'August', 'September', 'October', 'November'];
+    const months = ['June', 'July', 'August', 'September', 'October', 'November', 'December'];
     const monthlyData = {};
     const summaryData = [];
 
@@ -78,6 +78,7 @@ export default async function handler(req, res) {
       'September!A:D',
       'October!A:D',
       'November!A:D',
+      'December!A:D',
       'Network Payment Schedule!A:H'
     ],
   });
