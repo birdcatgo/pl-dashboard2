@@ -19,7 +19,7 @@ const BankStructureOverview = ({
       return JSON.parse(saved);
     }
     return {
-      netProfit: netProfit || 0,
+      netProfit: typeof netProfit !== 'undefined' ? netProfit : 0,
       monthlyExpenses: 0,
       operatingGoal: 0,
       emergencyGoal: 0,
@@ -62,10 +62,11 @@ const BankStructureOverview = ({
 
   // Update netProfit when it changes from props
   useEffect(() => {
-    if (netProfit !== inputValues.netProfit) {
-      handleInputChange('netProfit', netProfit.toString());
+    const currentNetProfit = netProfit || 0;
+    if (currentNetProfit !== inputValues.netProfit) {
+      handleInputChange('netProfit', currentNetProfit.toString());
     }
-  }, [netProfit]);
+  }, [netProfit, inputValues.netProfit]);
 
   // Get current balances from props or state
   const currentBalances = {

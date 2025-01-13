@@ -86,19 +86,36 @@ const NetProfit = ({ performanceData, plData }) => {
       }
     }, {});
 
-    // Add expenses from PL data
-    Object.entries(plData.monthly).forEach(([month, entries]) => {
-      const monthKey = `${month} 2024`;
-      if (!monthlyTotals[monthKey]) return;
+    // Calculate monthly totals
+    Object.entries(monthlyData).forEach(([monthKey, entries]) => {
+      // Get the rows from the new structure
+      const monthRows = entries.rows || [];
+      
+      // Initialize the month if it doesn't exist
+      if (!monthlyTotals[monthKey]) {
+        monthlyTotals[monthKey] = {
+          income: 0,
+          expenses: 0,
+          netProfit: 0
+        };
+      }
 
-      const expenses = entries
-        .filter(entry => entry['Income/Expense'] === 'Expense')
+      // Calculate income
+      const income = monthRows
+        .filter(entry => entry && entry['Income/Expense'] === 'Income')
         .reduce((sum, entry) => sum + Math.abs(entry.AMOUNT), 0);
-      
+
+      monthlyTotals[monthKey].income = income;
+
+      // Calculate expenses
+      const expenses = monthRows
+        .filter(entry => entry && entry['Income/Expense'] === 'Expense')
+        .reduce((sum, entry) => sum + Math.abs(entry.AMOUNT), 0);
+
       monthlyTotals[monthKey].expenses = expenses;
-      
+
       // Calculate net profit
-      monthlyTotals[monthKey].netProfit = monthlyTotals[monthKey].revenue - expenses;
+      monthlyTotals[monthKey].netProfit = income - expenses;
     });
 
     // Sort monthly data by date

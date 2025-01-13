@@ -219,6 +219,7 @@ export default async function handler(req, res) {
     };
 
     if (mainResponse?.values) {
+      console.log('Processing performance data from Main Sheet');
       result.performanceData = mainResponse.values
         .slice(1)
         .filter((row) => row.length >= 10)
@@ -235,6 +236,7 @@ export default async function handler(req, res) {
           'Expected Payment': row[9] || '',
           'Running Balance': parseFloat((row[10] || '0').replace(/[$,]/g, '')) || 0,
         }));
+      console.log('Processed performance data count:', result.performanceData.length);
     }
 
     result.cashFlowData = {

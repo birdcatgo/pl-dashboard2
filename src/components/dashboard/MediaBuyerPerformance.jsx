@@ -1,317 +1,186 @@
 import React, { useState, useMemo } from 'react';
-import { ChevronDown, ChevronRight, ChevronUp, TrendingUp, TrendingDown } from 'lucide-react';
-import _ from 'lodash';
-import MediaBuyerGraphs from './MediaBuyerGraphs';
+import { Card } from '../ui/card';
 
-const formatCurrency = (value) => {
-  if (value === null || typeof value !== 'number' || isNaN(value)) {
-    return 'N/A';
-  }
-  return new Intl.NumberFormat('en-US', {
-    style: 'currency',
-    currency: 'USD',
-    minimumFractionDigits: 0,
-    maximumFractionDigits: 0,
-  }).format(value);
-};
+const MediaBuyerPerformance = ({ performanceData, dateRange }) => {
+  const [sortConfig, setSortConfig] = useState({ key: 'revenue', direction: 'desc' });
+  const [searchTerm, setSearchTerm] = useState('');
 
-const formatPercent = (value) => {
-  if (value === null || typeof value !== 'number' || isNaN(value) || !isFinite(value)) {
-    return 'N/A';
-  }
-  return `${value.toFixed(1)}%`;
-};
+  const processedData = useMemo(() => {
+    if (!performanceData) return [];
 
-const SortHeader = ({ label, sortKey, currentSort, onSort }) => {
-  const isActive = currentSort.key === sortKey;
-  return (
-    <th
-      className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100"
-      onClick={() => onSort(sortKey)}
-    >
-      <div className="flex items-center space-x-1">
-        <span>{label}</span>
-        <div className="flex flex-col">
-          {isActive ? (
-            currentSort.direction === 'asc' ? (
-              <ChevronDown className="h-4 w-4 text-blue-500" />
-            ) : (
-              <ChevronUp className="h-4 w-4 text-blue-500" />
-            )
-          ) : (
-            <ChevronDown className="h-4 w-4 text-gray-400" />
-          )}
-        </div>
-      </div>
-    </th>
-  );
-};
+    // Filter data by date range
+    const filteredByDate = performanceData.filter(row => {
+      const rowDate = new Date(row.Date);
+      return rowDate >= dateRange.startDate && rowDate <= dateRange.endDate;
+    });
 
-const MediaBuyerRow = ({ buyer, rawData }) => {
-  const [isExpanded, setIsExpanded] = useState(false);
-  
-  const isProfitable = buyer.roi > 0;
-  const profitabilityClass = isProfitable ? 'text-green-600' : 'text-red-600';
-  const ProfitIcon = isProfitable ? TrendingUp : TrendingDown;
+    // Group data by Media Buyer
+    const grouped = filteredByDate.reduce((acc, row) => {
+      const buyer = row['Media Buyer'];
+      if (!acc[buyer]) {
+        acc[buyer] = {
+          mediaBuyer: buyer,
+          adSpend: 0,
+          revenue: 0,
+          margin: 0,
+          networks: new Set(),
+          offers: new Set()
+        };
+      }
+      acc[buyer].adSpend += parseFloat(row['Ad Spend'] || 0);
+      acc[buyer].revenue += parseFloat(row['Total Revenue'] || 0);
+      acc[buyer].margin += parseFloat(row.Margin || 0);
+      acc[buyer].networks.add(row.Network);
+      acc[buyer].offers.add(row.Offer);
+      return acc;
+    }, {});
 
-  const buyerDetails = _.chain(rawData || [])
-    .filter((row) => row?.['Media Buyer'] === buyer.buyer)
-    .groupBy((row) => `${row?.Network || 'Unknown'}-${row?.Offer || 'Unknown'}`)
-    .map((rows, key) => {
-      const [network, ...offerParts] = key.split('-');
-      const offer = offerParts.join('-');
-      return {
-        network,
-        offer,
-        revenue: _.sumBy(rows, (row) => parseFloat(row['Total Revenue'] || 0)),
-        spend: _.sumBy(rows, (row) => parseFloat(row['Ad Spend'] || 0)),
-        margin: _.sumBy(rows, (row) => parseFloat(row.Margin || 0)),
-      };
-    })
-    .orderBy(['margin'], ['desc'])
-    .value();
+    // Convert to array and calculate metrics
+    return Object.values(grouped).map(item => ({
+      ...item,
+      networks: item.networks.size,
+      offers: item.offers.size,
+      roi: (item.margin / item.adSpend * 100).toFixed(2)
+    }));
+  }, [performanceData, dateRange]);
 
-  return (
-    <>
-      <tr className={`hover:bg-gray-50 ${!isProfitable ? 'bg-red-50' : ''}`}>
-        <td className="px-6 py-4 whitespace-nowrap">
-          <button
-            onClick={() => setIsExpanded(!isExpanded)}
-            className="flex items-center space-x-2"
-          >
-            {isExpanded ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
-            <span className="font-medium text-gray-900">{buyer.buyer}</span>
-            <ProfitIcon className={`h-4 w-4 ${profitabilityClass}`} />
-          </button>
-        </td>
-        <td className="px-6 py-4 whitespace-nowrap text-sm text-right">
-          {formatCurrency(buyer.totalRevenue)}
-        </td>
-        <td className="px-6 py-4 whitespace-nowrap text-sm text-right">
-          {formatCurrency(buyer.totalSpend)}
-        </td>
-        <td className={`px-6 py-4 whitespace-nowrap text-sm text-right ${profitabilityClass} font-medium`}>
-          {formatCurrency(buyer.totalMargin)}
-        </td>
-        <td className={`px-6 py-4 whitespace-nowrap text-sm text-right ${profitabilityClass} font-medium`}>
-          {formatPercent(buyer.roi)}
-        </td>
-        <td className="px-6 py-4 whitespace-nowrap text-sm text-right">
-          {buyer.networks}
-        </td>
-      </tr>
-      {isExpanded && (
-        <tr>
-          <td colSpan="6" className="p-0">
-            <div className="bg-gray-50">
-              <table className="min-w-full">
-                <thead>
-                  <tr className="bg-gray-100">
-                    <th className="px-6 py-2 text-left text-xs font-medium text-gray-500">Network - Offer</th>
-                    <th className="px-6 py-2 text-right text-xs font-medium text-gray-500">Revenue</th>
-                    <th className="px-6 py-2 text-right text-xs font-medium text-gray-500">Spend</th>
-                    <th className="px-6 py-2 text-right text-xs font-medium text-gray-500">Margin</th>
-                    <th className="px-6 py-2 text-right text-xs font-medium text-gray-500">ROI</th>
-                    <th className="px-6 py-2"></th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {buyerDetails.map((detail) => {
-                    const detailRoi = detail.spend ? ((detail.revenue / detail.spend - 1) * 100) : 0;
-                    const isDetailProfitable = detailRoi > 0;
-                    const detailProfitClass = isDetailProfitable ? 'text-green-600' : 'text-red-600';
-                    
-                    return (
-                      <tr key={`${detail.network}-${detail.offer}`} className="border-t border-gray-200">
-                        <td className="px-6 py-2 text-sm text-gray-900">
-                          <div className="flex items-center space-x-2">
-                            <span className="font-medium">{detail.network}</span>
-                            <span>-</span>
-                            <span>{detail.offer}</span>
-                          </div>
-                        </td>
-                        <td className="px-6 py-2 text-sm text-right">{formatCurrency(detail.revenue)}</td>
-                        <td className="px-6 py-2 text-sm text-right">{formatCurrency(detail.spend)}</td>
-                        <td className={`px-6 py-2 text-sm text-right ${detailProfitClass}`}>
-                          {formatCurrency(detail.margin)}
-                        </td>
-                        <td className={`px-6 py-2 text-sm text-right ${detailProfitClass}`}>
-                          {formatPercent(detailRoi)}
-                        </td>
-                        <td className="px-6 py-2"></td>
-                      </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
-            </div>
-          </td>
-        </tr>
-      )}
-    </>
-  );
-};
+  const sortedData = useMemo(() => {
+    if (!processedData) return [];
+    
+    const sorted = [...processedData];
+    if (sortConfig.key) {
+      sorted.sort((a, b) => {
+        if (a[sortConfig.key] < b[sortConfig.key]) {
+          return sortConfig.direction === 'asc' ? -1 : 1;
+        }
+        if (a[sortConfig.key] > b[sortConfig.key]) {
+          return sortConfig.direction === 'asc' ? 1 : -1;
+        }
+        return 0;
+      });
+    }
+    return sorted;
+  }, [processedData, sortConfig]);
 
-const MediaBuyerPerformance = ({ data, rawData }) => {
-  const [sortConfig, setSortConfig] = useState({
-    key: 'totalRevenue',
-    direction: 'desc'
-  });
-  const [selectedBuyers, setSelectedBuyers] = useState([]);
+  const filteredData = useMemo(() => {
+    return sortedData.filter(item => 
+      item.mediaBuyer.toLowerCase().includes(searchTerm.toLowerCase())
+    );
+  }, [sortedData, searchTerm]);
 
-  const handleSort = (key) => {
-    setSortConfig((current) => ({
+  const requestSort = (key) => {
+    setSortConfig(current => ({
       key,
       direction: current.key === key && current.direction === 'desc' ? 'asc' : 'desc',
     }));
   };
 
-  const sortedData = useMemo(() => {
-    if (!data) return [];
-    return [...data].sort((a, b) => {
-      let aValue = a[sortConfig.key];
-      let bValue = b[sortConfig.key];
-
-      if (sortConfig.key === 'roi') {
-        aValue = (a.totalRevenue / a.totalSpend - 1) * 100;
-        bValue = (b.totalRevenue / b.totalSpend - 1) * 100;
-      }
-
-      return sortConfig.direction === 'asc' ? aValue - bValue : bValue - aValue;
-    });
-  }, [data, sortConfig]);
-
-  const handleBuyerSelect = (buyer) => {
-    setSelectedBuyers(prev => {
-      if (prev.includes(buyer)) {
-        return prev.filter(b => b !== buyer);
-      }
-      return [...prev, buyer];
-    });
+  const formatCurrency = (value) => {
+    return new Intl.NumberFormat('en-US', {
+      style: 'currency',
+      currency: 'USD',
+      minimumFractionDigits: 0,
+      maximumFractionDigits: 0,
+    }).format(value);
   };
 
-  if (!data || data.length === 0) {
-    return <div className="text-gray-500">No media buyer performance data available</div>;
+  if (!performanceData) {
+    return <div>Loading media buyer data...</div>;
   }
 
-  const totals = data.reduce(
-    (acc, buyer) => ({
-      revenue: acc.revenue + (buyer.totalRevenue || 0),
-      spend: acc.spend + (buyer.totalSpend || 0),
-      margin: acc.margin + (buyer.totalMargin || 0),
-    }),
-    { revenue: 0, spend: 0, margin: 0 }
-  );
-
-  const totalRoi = totals.spend > 0 ? (totals.revenue / totals.spend - 1) * 100 : 0;
-
   return (
-    <div className="space-y-6">
-      {/* MTD Performance Graph - Always visible */}
-      <MediaBuyerGraphs 
-        rawData={rawData} 
-        showAllBuyers={true} 
-      />
-
-      <div className="bg-white rounded-lg shadow overflow-hidden">
-        <div className="px-6 py-4 border-b border-gray-200 flex justify-between items-center">
-          <h3 className="text-lg font-medium text-gray-900">Media Buyer Performance</h3>
-          <div className="flex gap-2 flex-wrap">
-            {sortedData.map(buyer => (
-              <button
-                key={buyer.buyer}
-                onClick={() => handleBuyerSelect(buyer.buyer)}
-                className={`px-3 py-1 text-sm rounded ${
-                  selectedBuyers.includes(buyer.buyer)
-                    ? 'bg-blue-600 text-white'
-                    : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
-                }`}
-              >
-                {buyer.buyer}
-              </button>
-            ))}
-          </div>
+    <Card className="p-6">
+      <div className="space-y-4">
+        <div className="flex justify-between items-center">
+          <h2 className="text-2xl font-bold">Media Buyer Performance</h2>
+          <input
+            type="text"
+            placeholder="Search media buyers..."
+            className="px-4 py-2 border rounded-md"
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+          />
         </div>
+
         <div className="overflow-x-auto">
           <table className="min-w-full divide-y divide-gray-200">
             <thead className="bg-gray-50">
               <tr>
-                <SortHeader
-                  label="Media Buyer"
-                  sortKey="buyer"
-                  currentSort={sortConfig}
-                  onSort={handleSort}
-                />
-                <SortHeader
-                  label="Revenue"
-                  sortKey="totalRevenue"
-                  currentSort={sortConfig}
-                  onSort={handleSort}
-                />
-                <SortHeader
-                  label="Spend"
-                  sortKey="totalSpend"
-                  currentSort={sortConfig}
-                  onSort={handleSort}
-                />
-                <SortHeader
-                  label="Margin"
-                  sortKey="totalMargin"
-                  currentSort={sortConfig}
-                  onSort={handleSort}
-                />
-                <SortHeader
-                  label="ROI"
-                  sortKey="roi"
-                  currentSort={sortConfig}
-                  onSort={handleSort}
-                />
-                <SortHeader
-                  label="Networks"
-                  sortKey="networks"
-                  currentSort={sortConfig}
-                  onSort={handleSort}
-                />
+                <th 
+                  className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer"
+                  onClick={() => requestSort('mediaBuyer')}
+                >
+                  Media Buyer
+                </th>
+                <th 
+                  className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer"
+                  onClick={() => requestSort('adSpend')}
+                >
+                  Ad Spend
+                </th>
+                <th 
+                  className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer"
+                  onClick={() => requestSort('revenue')}
+                >
+                  Revenue
+                </th>
+                <th 
+                  className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer"
+                  onClick={() => requestSort('margin')}
+                >
+                  Margin
+                </th>
+                <th 
+                  className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer"
+                  onClick={() => requestSort('roi')}
+                >
+                  ROI
+                </th>
+                <th 
+                  className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer"
+                  onClick={() => requestSort('networks')}
+                >
+                  Networks
+                </th>
+                <th 
+                  className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer"
+                  onClick={() => requestSort('offers')}
+                >
+                  Offers
+                </th>
               </tr>
             </thead>
             <tbody className="bg-white divide-y divide-gray-200">
-              {sortedData.map((buyer) => (
-                <MediaBuyerRow key={buyer.buyer} buyer={buyer} rawData={rawData} />
+              {filteredData.map((item, index) => (
+                <tr key={index} className="hover:bg-gray-50">
+                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                    {item.mediaBuyer}
+                  </td>
+                  <td className="px-6 py-4 whitespace-nowrap text-sm text-right text-gray-900">
+                    {formatCurrency(item.adSpend)}
+                  </td>
+                  <td className="px-6 py-4 whitespace-nowrap text-sm text-right text-gray-900">
+                    {formatCurrency(item.revenue)}
+                  </td>
+                  <td className="px-6 py-4 whitespace-nowrap text-sm text-right text-gray-900">
+                    {formatCurrency(item.margin)}
+                  </td>
+                  <td className="px-6 py-4 whitespace-nowrap text-sm text-right text-gray-900">
+                    {item.roi}%
+                  </td>
+                  <td className="px-6 py-4 whitespace-nowrap text-sm text-right text-gray-900">
+                    {item.networks}
+                  </td>
+                  <td className="px-6 py-4 whitespace-nowrap text-sm text-right text-gray-900">
+                    {item.offers}
+                  </td>
+                </tr>
               ))}
             </tbody>
-            <tfoot className="bg-gray-50">
-              <tr>
-                <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
-                  Total
-                </td>
-                <td className="px-6 py-4 whitespace-nowrap text-sm text-right font-medium">
-                  {formatCurrency(totals.revenue)}
-                </td>
-                <td className="px-6 py-4 whitespace-nowrap text-sm text-right font-medium">
-                  {formatCurrency(totals.spend)}
-                </td>
-                <td className="px-6 py-4 whitespace-nowrap text-sm text-right font-medium">
-                  {formatCurrency(totals.margin)}
-                </td>
-                <td className="px-6 py-4 whitespace-nowrap text-sm text-right font-medium">
-                  {formatPercent(totalRoi)}
-                </td>
-                <td className="px-6 py-4 whitespace-nowrap text-sm text-right font-medium">-</td>
-              </tr>
-            </tfoot>
           </table>
         </div>
       </div>
-
-      {/* Selected Buyers Performance Graph */}
-      {selectedBuyers.length > 0 && (
-        <MediaBuyerGraphs
-          rawData={rawData}
-          selectedBuyers={selectedBuyers}
-          showAllBuyers={false}
-        />
-      )}
-    </div>
+    </Card>
   );
 };
 

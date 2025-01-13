@@ -5,7 +5,7 @@ import { processPerformanceData } from '../lib/pl-data-processor';
 import EnhancedDateSelector from '../components/dashboard/EnhancedDateSelector';
 import CashSituation from '../components/dashboard/CashSituation';
 import OverviewMetrics from '../components/dashboard/OverviewMetrics';
-import NetworkPerformance from '../components/dashboard/NetworkPerformance';
+import OfferPerformance from '../components/dashboard/OfferPerformance';
 import MediaBuyerPerformance from '../components/dashboard/MediaBuyerPerformance';
 import MonthlyProfitOverview from '../components/dashboard/MonthlyProfitOverview';
 import NetworkPayments from '../components/dashboard/NetworkPayments';
@@ -29,7 +29,7 @@ import CreditLine from '../components/dashboard/CreditLine';
 export default function DashboardPage() {
   const [plData, setPlData] = useState(null);
   const [lastUpdated, setLastUpdated] = useState(null);
-  const [activeTab, setActiveTab] = useState('pl');
+  const [activeTab, setActiveTab] = useState('overview-v2');
   const [dateRange, setDateRange] = useState({ startDate: new Date(), endDate: new Date() });
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -47,11 +47,13 @@ export default function DashboardPage() {
       creditLine: 3000000
     }
   });
-  const [performanceData, setPerformanceData] = useState([]);
+  const [performanceData, setPerformanceData] = useState(null);
   const [cashManagementData, setCashManagementData] = useState(null);
   const [networkPaymentsData, setNetworkPaymentsData] = useState([]);
   const [invoicesData, setInvoicesData] = useState([]);
   const [payrollData, setPayrollData] = useState([]);
+  const [mediaBuyerData, setMediaBuyerData] = useState(null);
+  const [rawData, setRawData] = useState(null);
 
   const tabs = [
     { id: 'overview-v2', label: 'Overview' },
@@ -163,7 +165,27 @@ const processSheetData = (data) => {
   };
 
   useEffect(() => {
-    loadDashboardData();
+    const fetchData = async () => {
+      try {
+        const response = await fetch('/api/sheets');
+        const data = await response.json();
+        console.log('API Response:', data);
+        setCashManagementData(data.cashFlowData);
+        setPlData(data.plData);
+        setPerformanceData(data.performanceData);
+        setMediaBuyerData(data.rawData.mediaBuyerSpend);
+        setNetworkPaymentsData(data.networkPaymentsData);
+        setInvoicesData(data.rawData.invoices);
+        setPayrollData(data.rawData.payroll);
+        setRawData(data.rawData);
+        setIsLoading(false);
+      } catch (error) {
+        console.error('Error fetching data:', error);
+        setError(error.message);
+        setIsLoading(false);
+      }
+    };
+    fetchData();
   }, []);
 
   const handleDateChange = (newDateRange) => {
@@ -203,12 +225,13 @@ const processSheetData = (data) => {
         );
       case 'overview-v2':
         return (
-          <EnhancedOverviewV2
-            performanceData={performanceData}
-            cashFlowData={cashManagementData}
-            plData={plData}
-            metrics={dashboardData.overallMetrics}
-          />
+          <div className="space-y-6">
+            <EnhancedOverviewV2 
+              performanceData={performanceData}
+              cashFlowData={cashManagementData}
+              plData={plData}
+            />
+          </div>
         );
   
       case 'bank-goals':
@@ -270,21 +293,22 @@ const processSheetData = (data) => {
   
       case 'network':
         return (
-          <NetworkPerformance
-            data={dashboardData.networkPerformance}
-            rawData={dashboardData.filteredData}
-            offerPerformance={dashboardData.offerPerformance}
-            dateRange={dateRange}
-          />
+          <div className="space-y-6">
+            <OfferPerformance 
+              performanceData={performanceData}
+              dateRange={dateRange}
+            />
+          </div>
         );
   
       case 'media-buyers':
         return (
-          <MediaBuyerPerformance
-            data={dashboardData.mediaBuyerPerformance}
-            rawData={dashboardData.filteredData}
-            dateRange={dateRange}
-          />
+          <div className="space-y-6">
+            <MediaBuyerPerformance 
+              performanceData={performanceData}
+              dateRange={dateRange}
+            />
+          </div>
         );
   
       case 'invoices':
