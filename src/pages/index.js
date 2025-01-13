@@ -205,23 +205,18 @@ const processSheetData = (data) => {
   const renderTabContent = () => {
     switch (activeTab) {
       case 'net-profit':
-        console.log('Rendering net-profit tab with data:', {
-          financialResources: cashManagementData?.financialResources,
-          cashManagementData: cashManagementData
+        console.log('Net Profit tab data:', {
+          performanceData: performanceData?.length,
+          dateRange,
+          samplePerformanceData: performanceData?.[0]
         });
         return (
-          <>
+          <div className="space-y-6">
             <NetProfit 
-              performanceData={performanceData} 
-              plData={plData} 
+              performanceData={performanceData}
+              dateRange={dateRange}
             />
-            <div className="mt-6">
-              <ProfitDistribution cashFlowData={cashManagementData} />
-            </div>
-            <div className="mt-6">
-              <CreditLine financialResources={cashManagementData?.financialResources} />
-            </div>
-          </>
+          </div>
         );
       case 'overview-v2':
         return (
