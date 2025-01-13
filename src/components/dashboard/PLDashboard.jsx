@@ -51,7 +51,23 @@ const PLDashboard = ({ plData }) => {
   // Prepare data for the graph
   const graphData = summaryData.map((month) => {
     const income = parseFloat(month.Income || 0) + parseFloat(month.Cash_Injection || 0);
-    const expenses = parseFloat(month.Expenses || 0);
+    const expenses = [
+      'Payroll',
+      'Advertising',
+      'Software',
+      'Training',
+      'Once_Off',
+      'Memberships',
+      'Contractors',
+      'Tax',
+      'Bank_Fees',
+      'Utilities',
+      'Travel',
+      'Capital_One',
+      'Barclay',
+      'Business_Loan',
+      'Unknown Expense'
+    ].reduce((sum, category) => sum + parseFloat(month[category] || 0), 0);
     const netProfit = income - expenses;
     return {
       Month: month.Month,
@@ -61,47 +77,34 @@ const PLDashboard = ({ plData }) => {
 
   // Get Monthly Detail Data
   const currentMonthDetails = monthlyData[selectedMonth] || [];
-  const incomeDetails = currentMonthDetails.filter((item) => item['Income/Expense'] === 'Income');
-  const expenseDetails = currentMonthDetails.filter((item) => item['Income/Expense'] === 'Expense');
+  const currentMonthRows = currentMonthDetails.rows || [];
+  const incomeDetails = currentMonthRows.filter((item) => item['Income/Expense'] === 'Income');
+  const expenseDetails = currentMonthRows.filter((item) => item['Income/Expense'] === 'Expense');
 
   const getMonthlyBreakdown = (monthData) => {
-    if (!monthData) return null;
-    
+    if (!monthData) return {};
+
+    // Group expenses by category
+    const expensesByCategory = expenseDetails.reduce((acc, item) => {
+      const category = item.CATEGORY;
+      if (!acc[category]) {
+        acc[category] = 0;
+      }
+      acc[category] += item.AMOUNT;
+      return acc;
+    }, {});
+
+    // Calculate total income
+    const totalIncome = incomeDetails.reduce((sum, item) => sum + item.AMOUNT, 0);
+
+    // Calculate total expenses
+    const totalExpenses = currentMonthDetails.totalExpenses || 0;
+
     return {
-      Income: monthData.filter(item => item['Income/Expense'] === 'Income')
-        .reduce((sum, item) => sum + parseFloat(item.AMOUNT || 0), 0),
-      Cash_Injection: monthData.filter(item => item.DESCRIPTION === 'Cash Injection')
-        .reduce((sum, item) => sum + parseFloat(item.AMOUNT || 0), 0),
-      Payroll: monthData.filter(item => item.CATEGORY === 'Payroll')
-        .reduce((sum, item) => sum + Math.abs(parseFloat(item.AMOUNT || 0)), 0),
-      Advertising: monthData.filter(item => item.CATEGORY === 'Advertising')
-        .reduce((sum, item) => sum + Math.abs(parseFloat(item.AMOUNT || 0)), 0),
-      Software: monthData.filter(item => item.CATEGORY === 'Software')
-        .reduce((sum, item) => sum + Math.abs(parseFloat(item.AMOUNT || 0)), 0),
-      Training: monthData.filter(item => item.CATEGORY === 'Training')
-        .reduce((sum, item) => sum + Math.abs(parseFloat(item.AMOUNT || 0)), 0),
-      Once_Off: monthData.filter(item => item.CATEGORY === 'Once Off')
-        .reduce((sum, item) => sum + Math.abs(parseFloat(item.AMOUNT || 0)), 0),
-      Memberships: monthData.filter(item => item.CATEGORY === 'Memberships')
-        .reduce((sum, item) => sum + Math.abs(parseFloat(item.AMOUNT || 0)), 0),
-      Contractors: monthData.filter(item => item.CATEGORY === 'Contractors')
-        .reduce((sum, item) => sum + Math.abs(parseFloat(item.AMOUNT || 0)), 0),
-      Tax: monthData.filter(item => item.CATEGORY === 'Tax')
-        .reduce((sum, item) => sum + Math.abs(parseFloat(item.AMOUNT || 0)), 0),
-      Bank_Fees: monthData.filter(item => item.CATEGORY === 'Bank Fees')
-        .reduce((sum, item) => sum + Math.abs(parseFloat(item.AMOUNT || 0)), 0),
-      Utilities: monthData.filter(item => item.CATEGORY === 'Utilities')
-        .reduce((sum, item) => sum + Math.abs(parseFloat(item.AMOUNT || 0)), 0),
-      Travel: monthData.filter(item => item.CATEGORY === 'Travel')
-        .reduce((sum, item) => sum + Math.abs(parseFloat(item.AMOUNT || 0)), 0),
-      Capital_One: monthData.filter(item => item.CATEGORY === 'Capital One')
-        .reduce((sum, item) => sum + Math.abs(parseFloat(item.AMOUNT || 0)), 0),
-      Barclay: monthData.filter(item => item.CATEGORY === 'Barclay')
-        .reduce((sum, item) => sum + Math.abs(parseFloat(item.AMOUNT || 0)), 0),
-      Business_Loan: monthData.filter(item => item.CATEGORY === 'Business Loan')
-        .reduce((sum, item) => sum + Math.abs(parseFloat(item.AMOUNT || 0)), 0),
-      'Unknown Expense': monthData.filter(item => item.CATEGORY === 'Unknown Expense')
-        .reduce((sum, item) => sum + Math.abs(parseFloat(item.AMOUNT || 0)), 0)
+      expensesByCategory,
+      totalIncome,
+      totalExpenses,
+      netProfit: totalIncome - totalExpenses
     };
   };
 
@@ -147,9 +150,24 @@ const PLDashboard = ({ plData }) => {
             </thead>
             <tbody className="divide-y divide-gray-200">
               {summaryData.map((month) => {
-                const income =
-                  parseFloat(month.Income || 0) + parseFloat(month.Cash_Injection || 0);
-                const expenses = parseFloat(month.Expenses || 0);
+                const income = parseFloat(month.Income || 0) + parseFloat(month.Cash_Injection || 0);
+                const expenses = [
+                  'Payroll',
+                  'Advertising',
+                  'Software',
+                  'Training',
+                  'Once_Off',
+                  'Memberships',
+                  'Contractors',
+                  'Tax',
+                  'Bank_Fees',
+                  'Utilities',
+                  'Travel',
+                  'Capital_One',
+                  'Barclay',
+                  'Business_Loan',
+                  'Unknown Expense'
+                ].reduce((sum, category) => sum + parseFloat(month[category] || 0), 0);
                 const netProfit = income - expenses;
                 return (
                   <tr

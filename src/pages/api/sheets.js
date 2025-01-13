@@ -12,6 +12,8 @@ async function processPLData(batchResponse) {
 
     // Get the Summary sheet data (it's at index 5 in valueRanges)
     const summarySheet = valueRanges[5];
+    console.log('Raw Summary Sheet Data:', summarySheet?.values);
+
     if (summarySheet?.values) {
       // Skip header row and process each data row
       summarySheet.values.slice(1).forEach(row => {
@@ -46,15 +48,26 @@ async function processPLData(batchResponse) {
     months.forEach((month, index) => {
       const monthRange = valueRanges[index + 6];
       if (monthRange?.values) {
-        monthlyData[month] = monthRange.values.slice(1).map(row => ({
+        const monthlyRows = monthRange.values.slice(1).map(row => ({
           DESCRIPTION: row[0] || '',
           AMOUNT: parseFloat((row[1] || '0').replace(/[$,]/g, '')),
           CATEGORY: row[2] || '',
           'Income/Expense': row[3] || ''
         }));
+
+        // Calculate total expenses
+        const totalExpenses = monthlyRows
+          .filter(row => row['Income/Expense'] === 'Expense')
+          .reduce((sum, row) => sum + row.AMOUNT, 0);
+
+        monthlyData[month] = {
+          rows: monthlyRows,
+          totalExpenses: totalExpenses
+        };
       }
     });
 
+    console.log('Processed Summary Data:', summaryData);
     return { summary: summaryData, monthly: monthlyData };
   } catch (error) {
     console.error('Error processing P&L data:', error);
