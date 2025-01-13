@@ -1,5 +1,6 @@
-import NetProfit from '../components/dashboard/NetProfit';
+import React from 'react';
 import { useState, useEffect } from 'react';
+import NetProfit from '../components/dashboard/NetProfit';
 
 const Dashboard = () => {
   const [performanceData, setPerformanceData] = useState([]);
@@ -67,7 +68,12 @@ const Dashboard = () => {
   };
 
   return (
-    // ... rest of the component code
+    <div>
+      <NetProfit 
+        performanceData={performanceData} 
+        expensesData={expensesData} 
+      />
+    </div>
   );
 };
 
