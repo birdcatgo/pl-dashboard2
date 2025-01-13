@@ -62,6 +62,34 @@ async function processPLData(batchResponse) {
   }
 }
 
+async function processBankStructureData(bankStructureResponse) {
+  try {
+    if (!bankStructureResponse?.values || bankStructureResponse.values.length < 2) {
+      console.log('Bank Structure Response:', bankStructureResponse?.values);
+      return null;
+    }
+
+    // Skip header row and get data row
+    const data = bankStructureResponse.values[1];
+    console.log('Bank Structure Data Row:', data);
+    
+    const processed = {
+      operatingMin: parseFloat((data[2] || '0').replace(/[$,]/g, '')),
+      operatingIdeal: parseFloat((data[3] || '0').replace(/[$,]/g, '')),
+      taxReservePercent: 0.25,
+      emergencyMin: parseFloat((data[4] || '0').replace(/[$,]/g, '')),
+      emergencyIdeal: parseFloat((data[5] || '0').replace(/[$,]/g, '')),
+      growthFundPercent: 0.30
+    };
+
+    console.log('Processed Bank Structure:', processed);
+    return processed;
+  } catch (error) {
+    console.error('Error processing bank structure data:', error);
+    return null;
+  }
+}
+
 export default async function handler(req, res) {
   console.log('Environment Variables Check:');
   console.log('SHEET_ID exists:', !!process.env.SHEET_ID);
@@ -91,6 +119,7 @@ export default async function handler(req, res) {
       'Payroll!A:D',
       'Media Buyer Spend!A:B',
       'Summary!A:U',
+      'Bank Structure!A:M',
       'June!A:D',
       'July!A:D',
       'August!A:D',
@@ -103,8 +132,16 @@ export default async function handler(req, res) {
   });
     
 
-    const [mainResponse, financialResponse, invoicesResponse, payrollResponse, mediaBuyerResponse] = 
-      batchResponse.data.valueRanges || [];
+    const [
+      mainResponse, 
+      financialResponse, 
+      invoicesResponse, 
+      payrollResponse, 
+      mediaBuyerResponse,
+      summaryResponse,
+      bankStructureResponse,
+      ...monthlyResponses
+    ] = batchResponse.data.valueRanges || [];
       const networkPaymentsResponse = batchResponse.data.valueRanges?.[batchResponse.data.valueRanges.length - 1];
       const networkPayments = Array.isArray(networkPaymentsResponse?.values) 
         ? networkPaymentsResponse.values.slice(1).map(row => ({
@@ -154,8 +191,11 @@ export default async function handler(req, res) {
     let result = {
       performanceData: [],
       cashFlowData: null,
-      networkPaymentsData: networkPayments,  // Fix: use networkPayments variable
-      plData: await processPLData(batchResponse),
+      networkPaymentsData: networkPayments,
+      plData: {
+        ...(await processPLData(batchResponse)),
+        bankStructure: await processBankStructureData(bankStructureResponse)
+      },
       rawData: {
         financialResources: cleanedFinancialResources,
         invoices: cleanedInvoices,
@@ -193,6 +233,16 @@ export default async function handler(req, res) {
       ),
       networkPayments
     };
+    
+    console.log('Bank Structure Sheet Index:', batchResponse.data.valueRanges.indexOf(bankStructureResponse));
+    console.log('All Sheet Names:', batchResponse.data.valueRanges.map((range, i) => 
+      `Sheet ${i}: ${range.range}`
+    ));
+    
+    console.log('Bank Structure Sheet:', {
+      range: bankStructureResponse?.range,
+      values: bankStructureResponse?.values
+    });
     
     return res.status(200).json(result);
   } catch (error) {

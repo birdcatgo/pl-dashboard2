@@ -1,178 +1,374 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Card, CardContent } from '../ui/card';
 import { Wallet, PiggyBank, CreditCard, Edit2 } from 'lucide-react';
 
-const CircularProgress = ({ value, color, size = 120 }) => {
-  const radius = 40;
-  const circumference = 2 * Math.PI * radius;
-  const progress = (value / 100) * circumference;
-  
-  return (
-    <div className="relative" style={{ width: size, height: size }}>
-      <svg className="transform -rotate-90 w-full h-full">
-        {/* Background circle */}
-        <circle
-          className="text-gray-100"
-          strokeWidth="8"
-          stroke="currentColor"
-          fill="transparent"
-          r={radius}
-          cx={size/2}
-          cy={size/2}
-        />
-        {/* Progress circle */}
-        <circle
-          className={`${color}`}
-          strokeWidth="8"
-          strokeDasharray={circumference}
-          strokeDashoffset={circumference - progress}
-          strokeLinecap="round"
-          stroke="currentColor"
-          fill="transparent"
-          r={radius}
-          cx={size/2}
-          cy={size/2}
-        />
-      </svg>
-      <div className="absolute inset-0 flex items-center justify-center">
-        <span className="text-xl font-bold">{Math.round(value)}%</span>
-      </div>
-    </div>
-  );
-};
-
-const HorizontalStackedBars = ({ creditLimits, otherCards, totalCreditLimit, formatCurrency }) => (
-  <div className="space-y-4">
-    <h3 className="text-sm font-medium text-gray-500">Stacked Bar View</h3>
-    {[
-      { name: 'AMEX', value: creditLimits.amex, color: 'bg-purple-500' },
-      { name: 'Chase', value: creditLimits.chase, color: 'bg-indigo-500' },
-      { name: 'Capital One', value: creditLimits.capitalOne, color: 'bg-pink-500' },
-      { name: 'Other Cards', value: otherCards.total, color: 'bg-slate-400' }
-    ].map(card => (
-      <div key={card.name} className="space-y-1">
-        <div className="flex justify-between text-sm">
-          <span>{card.name}</span>
-          <span className="font-medium">{formatCurrency(card.value)}</span>
-        </div>
-        <div className="h-2 bg-gray-100 rounded-full">
-          <div 
-            className={`h-full rounded-full ${card.color}`}
-            style={{ width: `${(card.value / totalCreditLimit) * 100}%` }}
-          />
-        </div>
-      </div>
-    ))}
-  </div>
-);
-
-const SavingsBreakdown = ({ currentSavings, goalAmount, formatCurrency }) => {
-  const remaining = goalAmount - currentSavings;
-  const monthlyTarget = remaining / 12;
-  
-  return (
-    <div className="mt-4 pt-4 border-t border-gray-100">
-      <h3 className="text-sm font-medium text-gray-500 mb-3">12-Month Savings Plan</h3>
-      <div className="space-y-2">
-        <div className="flex items-center justify-between">
-          <span className="text-sm text-gray-600">Monthly savings needed:</span>
-          <span className="text-sm font-medium">{formatCurrency(monthlyTarget)}</span>
-        </div>
-        <div className="flex items-center justify-between">
-          <span className="text-sm text-gray-600">Total remaining:</span>
-          <span className="text-sm font-medium">{formatCurrency(remaining)}</span>
-        </div>
-      </div>
-      <div className="mt-3 text-xs text-gray-500 italic">
-        {remaining > 0 
-          ? `Save ${formatCurrency(monthlyTarget)} each month to reach your goal by ${new Date(Date.now() + 31536000000).toLocaleDateString('en-US', { month: 'long', year: 'numeric' })}`
-          : 'Goal reached! 🎉'}
-      </div>
-    </div>
-  );
-};
-
-// New component for the edit modal
-const GoalEditModal = ({ isOpen, onClose, goals, onSave }) => {
-  const [editedGoals, setEditedGoals] = useState(goals);
-
-  const handleSubmit = (e) => {
-    e.preventDefault();
-    onSave(editedGoals);
-    onClose();
+const BankStructureOverview = ({ 
+  bankStructure, 
+  netProfit, 
+  formatCurrency, 
+  getAccountBalance,
+  cashFlowData,
+  creditLimits,
+  otherCards,
+  totalCreditLimit
+}) => {
+  // Load saved values from localStorage or use defaults
+  const loadSavedValues = () => {
+    const saved = localStorage.getItem('bankStructureValues');
+    if (saved) {
+      return JSON.parse(saved);
+    }
+    return {
+      netProfit: netProfit || 0,
+      monthlyExpenses: 0,
+      operatingGoal: 0,
+      emergencyGoal: 0,
+      taxReserveGoal: 0,
+      growthFundGoal: 0,
+      goals: {
+        taxReservePercent: 25,
+        growthFundPercent: 30
+      }
+    };
   };
 
-  if (!isOpen) return null;
+  const [inputValues, setInputValues] = useState(loadSavedValues());
+  const [isEditingGoals, setIsEditingGoals] = useState(false);
+
+  const handleInputChange = (field, value) => {
+    const numValue = parseFloat(value.replace(/[^0-9.-]/g, ''));
+    const newValues = {
+      ...inputValues,
+      [field]: isNaN(numValue) ? 0 : numValue,
+      goals: {
+        ...inputValues.goals,
+        [field]: isNaN(numValue) ? 0 : numValue
+      }
+    };
+    setInputValues(newValues);
+    localStorage.setItem('bankStructureValues', JSON.stringify(newValues));
+  };
+
+  const calculateAmount = (type) => {
+    switch(type) {
+      case 'Tax Reserve':
+        return inputValues.netProfit * (inputValues.goals.taxReservePercent / 100);
+      case 'Growth Fund':
+        return inputValues.netProfit * (inputValues.goals.growthFundPercent / 100);
+      default:
+        return 0;
+    }
+  };
+
+  // Update netProfit when it changes from props
+  useEffect(() => {
+    if (netProfit !== inputValues.netProfit) {
+      handleInputChange('netProfit', netProfit.toString());
+    }
+  }, [netProfit]);
+
+  // Get current balances from props or state
+  const currentBalances = {
+    operating: getAccountBalance('Cash in Bank'),
+    emergency: getAccountBalance('Business Savings (JP MORGAN)')
+  };
+
+  const getAvailableCredit = (cardType) => {
+    return cashFlowData?.financialResources?.reduce((total, card) => {
+      const name = card.account || '';
+      const available = parseFloat(card.available.toString().replace(/[$,]/g, '') || '0') || 0;
+      
+      if (cardType === 'AMEX' && name.startsWith('AMEX ')) {
+        return total + available;
+      } else if (cardType === 'Chase' && name.startsWith('Chase C/C')) {
+        return total + available;
+      } else if (cardType === 'Capital One' && name.startsWith('Capital One')) {
+        return total + available;
+      } else if (cardType === 'Other' && 
+        (name.includes('Amazon Prime') || 
+         name.includes('Bank of America') || 
+         name.includes('US Bank') || 
+         name.includes('Alliant'))) {
+        return total + available;
+      }
+      return total;
+    }, 0);
+  };
+
+  const getTotalAvailableCredit = () => {
+    return cashFlowData?.financialResources?.reduce((total, card) => {
+      const available = parseFloat(card.available.toString().replace(/[$,]/g, '') || '0') || 0;
+      return total + available;
+    }, 0);
+  };
 
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-      <div className="bg-white rounded-lg p-6 w-full max-w-md">
-        <h2 className="text-lg font-semibold mb-4">Edit Financial Goals</h2>
-        <form onSubmit={handleSubmit} className="space-y-4">
-          <div>
-            <label className="block text-sm font-medium text-gray-700">
-              Operating Cash Goal
-            </label>
-            <input
-              type="number"
-              value={editedGoals.operatingCash}
-              onChange={(e) => setEditedGoals({
-                ...editedGoals,
-                operatingCash: Number(e.target.value)
-              })}
-              className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
-            />
+    <Card className="mb-6">
+      <CardContent className="p-6">
+        <div className="space-y-6">
+          {/* Header with Save Button */}
+          <div className="flex justify-between items-center">
+            <h2 className="text-lg font-semibold">Profit Distribution Calculator</h2>
+            <div className="flex gap-2">
+              <button
+                onClick={() => {
+                  localStorage.setItem('bankStructureValues', JSON.stringify(inputValues));
+                  setIsEditingGoals(false);
+                }}
+                className={`px-3 py-1 rounded-md text-sm font-medium ${
+                  isEditingGoals 
+                  ? 'bg-green-600 text-white hover:bg-green-700' 
+                  : 'bg-gray-100 text-gray-400 cursor-not-allowed'
+                }`}
+                disabled={!isEditingGoals}
+              >
+                Save Changes
+              </button>
+              <button
+                onClick={() => setIsEditingGoals(!isEditingGoals)}
+                className="p-1 hover:bg-gray-100 rounded-full"
+              >
+                <Edit2 className="h-4 w-4 text-gray-400" />
+              </button>
+            </div>
           </div>
-          <div>
-            <label className="block text-sm font-medium text-gray-700">
-              Savings Goal
-            </label>
-            <input
-              type="number"
-              value={editedGoals.savings}
-              onChange={(e) => setEditedGoals({
-                ...editedGoals,
-                savings: Number(e.target.value)
-              })}
-              className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
-            />
+
+          {/* Input Fields */}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            {/* Net Profit Input */}
+            <div className="space-y-2">
+              <label className="block text-sm font-medium text-gray-700">Net Profit</label>
+              <div className="mt-1 relative rounded-md shadow-sm">
+                <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                  <span className="text-gray-500 sm:text-sm">$</span>
+                </div>
+                <input
+                  type="text"
+                  value={formatCurrency(inputValues.netProfit).replace('$', '')}
+                  onChange={(e) => handleInputChange('netProfit', e.target.value)}
+                  className="focus:ring-blue-500 focus:border-blue-500 block w-full pl-7 pr-12 sm:text-sm border-gray-300 rounded-md"
+                />
+              </div>
+            </div>
+
+            {/* Monthly Expenses Input */}
+            <div className="space-y-2">
+              <label className="block text-sm font-medium text-gray-700">Monthly Expenses</label>
+              <div className="mt-1 relative rounded-md shadow-sm">
+                <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                  <span className="text-gray-500 sm:text-sm">$</span>
+                </div>
+                <input
+                  type="text"
+                  value={formatCurrency(inputValues.monthlyExpenses).replace('$', '')}
+                  onChange={(e) => handleInputChange('monthlyExpenses', e.target.value)}
+                  className="focus:ring-blue-500 focus:border-blue-500 block w-full pl-7 pr-12 sm:text-sm border-gray-300 rounded-md"
+                />
+              </div>
+            </div>
           </div>
-          <div>
-            <label className="block text-sm font-medium text-gray-700">
-              Credit Line Goal
-            </label>
-            <input
-              type="number"
-              value={editedGoals.creditLine}
-              onChange={(e) => setEditedGoals({
-                ...editedGoals,
-                creditLine: Number(e.target.value)
-              })}
-              className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
-            />
+
+          {/* Account Goals Table */}
+          <div className="space-y-4">
+            <h3 className="text-lg font-medium">Account Goals</h3>
+            <table className="min-w-full">
+              <thead>
+                <tr>
+                  <th className="text-left text-sm font-medium text-gray-500">Account</th>
+                  <th className="text-right text-sm font-medium text-gray-500">Current Balance</th>
+                  <th className="text-right text-sm font-medium text-gray-500">Goal</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-gray-200">
+                <tr>
+                  <td className="py-2 text-sm text-gray-900">Main Operating Account</td>
+                  <td className="py-2 text-sm text-right text-gray-900">
+                    {formatCurrency(currentBalances.operating)}
+                  </td>
+                  <td className="py-2 text-sm text-right text-gray-900">
+                    {isEditingGoals ? (
+                      <input
+                        type="text"
+                        value={formatCurrency(inputValues.operatingGoal).replace('$', '')}
+                        onChange={(e) => handleInputChange('operatingGoal', e.target.value)}
+                        className="w-32 text-right border rounded px-2"
+                      />
+                    ) : formatCurrency(inputValues.operatingGoal)}
+                  </td>
+                </tr>
+                <tr>
+                  <td className="py-2 text-sm text-gray-900">Emergency Fund Account</td>
+                  <td className="py-2 text-sm text-right text-gray-900">
+                    {formatCurrency(currentBalances.emergency)}
+                  </td>
+                  <td className="py-2 text-sm text-right text-gray-900">
+                    {isEditingGoals ? (
+                      <input
+                        type="text"
+                        value={formatCurrency(inputValues.emergencyGoal).replace('$', '')}
+                        onChange={(e) => handleInputChange('emergencyGoal', e.target.value)}
+                        className="w-32 text-right border rounded px-2"
+                      />
+                    ) : formatCurrency(inputValues.emergencyGoal)}
+                  </td>
+                </tr>
+                <tr>
+                  <td className="py-2 text-sm text-gray-900">Tax Reserve Account</td>
+                  <td className="py-2 text-sm text-right text-gray-900">
+                    {formatCurrency(0)}
+                  </td>
+                  <td className="py-2 text-sm text-right text-gray-900">
+                    {isEditingGoals ? (
+                      <input
+                        type="text"
+                        value={formatCurrency(inputValues.taxReserveGoal || 0).replace('$', '')}
+                        onChange={(e) => handleInputChange('taxReserveGoal', e.target.value)}
+                        className="w-32 text-right border rounded px-2"
+                      />
+                    ) : formatCurrency(inputValues.taxReserveGoal || 0)}
+                  </td>
+                </tr>
+                <tr>
+                  <td className="py-2 text-sm text-gray-900">Growth Fund</td>
+                  <td className="py-2 text-sm text-right text-gray-900">
+                    {formatCurrency(0)}
+                  </td>
+                  <td className="py-2 text-sm text-right text-gray-900">
+                    {isEditingGoals ? (
+                      <input
+                        type="text"
+                        value={formatCurrency(inputValues.growthFundGoal || 0).replace('$', '')}
+                        onChange={(e) => handleInputChange('growthFundGoal', e.target.value)}
+                        className="w-32 text-right border rounded px-2"
+                      />
+                    ) : formatCurrency(inputValues.growthFundGoal || 0)}
+                  </td>
+                </tr>
+              </tbody>
+            </table>
           </div>
-          <div className="flex justify-end gap-2 mt-6">
-            <button
-              type="button"
-              onClick={onClose}
-              className="px-4 py-2 text-sm font-medium text-gray-700 bg-gray-100 rounded-md hover:bg-gray-200"
-            >
-              Cancel
-            </button>
-            <button
-              type="submit"
-              className="px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-md hover:bg-blue-700"
-            >
-              Save Changes
-            </button>
+
+          {/* Profit Distributions Table */}
+          <div className="space-y-4">
+            <h3 className="text-lg font-medium">Profit Distributions</h3>
+            <table className="min-w-full">
+              <thead>
+                <tr>
+                  <th className="text-left text-sm font-medium text-gray-500">Account</th>
+                  <th className="text-right text-sm font-medium text-gray-500">Percentage</th>
+                  <th className="text-right text-sm font-medium text-gray-500">Amount</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-gray-200">
+                <tr>
+                  <td className="py-2 text-sm text-gray-900">Tax Reserve Account</td>
+                  <td className="py-2 text-sm text-right text-gray-900">
+                    {isEditingGoals ? (
+                      <input
+                        type="text"
+                        value={inputValues.goals.taxReservePercent}
+                        onChange={(e) => handleInputChange('taxReservePercent', e.target.value)}
+                        className="w-20 text-right border rounded px-2"
+                      />
+                    ) : `${inputValues.goals.taxReservePercent}%`}
+                  </td>
+                  <td className="py-2 text-sm text-right text-gray-900">
+                    {formatCurrency(calculateAmount('Tax Reserve'))}
+                  </td>
+                </tr>
+                <tr>
+                  <td className="py-2 text-sm text-gray-900">Growth Fund</td>
+                  <td className="py-2 text-sm text-right text-gray-900">
+                    {isEditingGoals ? (
+                      <input
+                        type="text"
+                        value={inputValues.goals.growthFundPercent}
+                        onChange={(e) => handleInputChange('growthFundPercent', e.target.value)}
+                        className="w-20 text-right border rounded px-2"
+                      />
+                    ) : `${inputValues.goals.growthFundPercent}%`}
+                  </td>
+                  <td className="py-2 text-sm text-right text-gray-900">
+                    {formatCurrency(calculateAmount('Growth Fund'))}
+                  </td>
+                </tr>
+              </tbody>
+            </table>
           </div>
-        </form>
-      </div>
-    </div>
+
+          {/* Credit Line Overview Table */}
+          <div className="space-y-4">
+            <h3 className="text-lg font-medium">Credit Line Overview</h3>
+            <table className="min-w-full">
+              <thead>
+                <tr>
+                  <th className="text-left text-sm font-medium text-gray-500">Card Type</th>
+                  <th className="text-right text-sm font-medium text-gray-500">Current Limit</th>
+                  <th className="text-right text-sm font-medium text-gray-500">Available Credit</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-gray-200">
+                <tr>
+                  <td className="py-2 text-sm text-gray-900">AMEX Business</td>
+                  <td className="py-2 text-sm text-right text-gray-900">
+                    {formatCurrency(creditLimits.amex || 0)}
+                  </td>
+                  <td className="py-2 text-sm text-right text-gray-900">
+                    {formatCurrency(getAvailableCredit('AMEX'))}
+                  </td>
+                </tr>
+                <tr>
+                  <td className="py-2 text-sm text-gray-900">Chase Business</td>
+                  <td className="py-2 text-sm text-right text-gray-900">
+                    {formatCurrency(creditLimits.chase || 0)}
+                  </td>
+                  <td className="py-2 text-sm text-right text-gray-900">
+                    {formatCurrency(getAvailableCredit('Chase'))}
+                  </td>
+                </tr>
+                <tr>
+                  <td className="py-2 text-sm text-gray-900">Capital One</td>
+                  <td className="py-2 text-sm text-right text-gray-900">
+                    {formatCurrency(creditLimits.capitalOne || 0)}
+                  </td>
+                  <td className="py-2 text-sm text-right text-gray-900">
+                    {formatCurrency(getAvailableCredit('Capital One'))}
+                  </td>
+                </tr>
+                <tr>
+                  <td className="py-2 text-sm text-gray-900">Other Cards</td>
+                  <td className="py-2 text-sm text-right text-gray-900">
+                    {formatCurrency(otherCards.total)}
+                  </td>
+                  <td className="py-2 text-sm text-right text-gray-900">
+                    {formatCurrency(getAvailableCredit('Other'))}
+                  </td>
+                </tr>
+                <tr className="bg-gray-50 font-medium">
+                  <td className="py-2 text-sm text-gray-900">Total Credit Lines</td>
+                  <td className="py-2 text-sm text-right text-gray-900">
+                    {formatCurrency(totalCreditLimit)}
+                  </td>
+                  <td className="py-2 text-sm text-right text-gray-900">
+                    {formatCurrency(getTotalAvailableCredit())}
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </CardContent>
+    </Card>
   );
 };
 
-const SavingsGoals = ({ cashFlowData }) => {
+const ProfitDistribution = ({ cashFlowData, bankStructure, netProfit }) => {
+  console.log('SavingsGoals Props:', {
+    cashFlowData,
+    bankStructure,
+    netProfit
+  });
+
   // Move GOALS to state
   const [goals, setGoals] = useState({
     operatingCash: 500000,
@@ -245,12 +441,9 @@ const SavingsGoals = ({ cashFlowData }) => {
     limit: r.limit
   })));
 
-  const operatingCash = getAccountBalance('Cash in Bank');
-  const savingsBalance = getAccountBalance('Business Savings (JP MORGAN)');
   const creditLimits = calculateCreditLimits();
   const totalCreditLimit = Object.values(creditLimits).reduce((sum, val) => sum + val, 0);
 
-  // Prepare data for pie chart
   const otherCards = {
     total: (creditLimits.amazonPrime || 0) + 
            (creditLimits.bankOfAmerica || 0) + 
@@ -266,113 +459,18 @@ const SavingsGoals = ({ cashFlowData }) => {
 
   return (
     <div className="space-y-6">
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-        {/* Operating Cash */}
-        <Card>
-          <CardContent className="p-6">
-            <div className="flex items-start justify-between">
-              <div className="space-y-2">
-                <div className="flex items-center gap-2">
-                  <Wallet className="h-5 w-5 text-blue-500" />
-                  <h2 className="text-lg font-semibold">Operating Cash</h2>
-                  <EditButton />
-                </div>
-                <div className="space-y-1">
-                  <div className="text-3xl font-bold text-gray-900">
-                    {formatCurrency(operatingCash)}
-                  </div>
-                  <div className="text-sm text-gray-500">
-                    Goal: {formatCurrency(goals.operatingCash)}
-                  </div>
-                </div>
-              </div>
-              <CircularProgress 
-                value={(operatingCash / goals.operatingCash) * 100}
-                color="text-blue-500"
-              />
-            </div>
-          </CardContent>
-        </Card>
-
-        {/* Business Savings */}
-        <Card>
-          <CardContent className="p-6">
-            <div className="flex items-start justify-between">
-              <div className="space-y-2">
-                <div className="flex items-center gap-2">
-                  <PiggyBank className="h-5 w-5 text-green-500" />
-                  <h2 className="text-lg font-semibold">Business Savings</h2>
-                  <EditButton />
-                </div>
-                <div className="space-y-1">
-                  <div className="text-3xl font-bold text-gray-900">
-                    {formatCurrency(savingsBalance)}
-                  </div>
-                  <div className="text-sm text-gray-500">
-                    Goal: {formatCurrency(goals.savings)}
-                  </div>
-                </div>
-              </div>
-              <CircularProgress 
-                value={(savingsBalance / goals.savings) * 100}
-                color="text-green-500"
-              />
-            </div>
-            <SavingsBreakdown 
-              currentSavings={savingsBalance}
-              goalAmount={goals.savings}
-              formatCurrency={formatCurrency}
-            />
-          </CardContent>
-        </Card>
-      </div>
-
-      {/* Credit Lines */}
-      <Card>
-        <CardContent className="p-6">
-          <div className="space-y-6">
-            <div className="flex items-start justify-between">
-              <div className="space-y-2">
-                <div className="flex items-center gap-2">
-                  <CreditCard className="h-5 w-5 text-purple-500" />
-                  <h2 className="text-lg font-semibold">Credit Line Progress</h2>
-                  <EditButton />
-                </div>
-                <div className="space-y-1">
-                  <div className="text-3xl font-bold text-gray-900">
-                    {formatCurrency(totalCreditLimit)}
-                  </div>
-                  <div className="text-sm text-gray-500">
-                    Goal: {formatCurrency(goals.creditLine)}
-                  </div>
-                </div>
-              </div>
-              <CircularProgress 
-                value={(totalCreditLimit / goals.creditLine) * 100}
-                color="text-purple-500"
-              />
-            </div>
-
-            <div className="mt-8">
-              <HorizontalStackedBars 
-                creditLimits={creditLimits}
-                otherCards={otherCards}
-                totalCreditLimit={totalCreditLimit}
-                formatCurrency={formatCurrency}
-              />
-            </div>
-          </div>
-        </CardContent>
-      </Card>
-
-      <GoalEditModal
-        isOpen={isEditModalOpen}
-        onClose={() => setIsEditModalOpen(false)}
-        goals={goals}
-        onSave={setGoals}
+      <BankStructureOverview 
+        bankStructure={bankStructure}
+        netProfit={netProfit}
+        formatCurrency={formatCurrency}
+        getAccountBalance={getAccountBalance}
+        cashFlowData={cashFlowData}
+        creditLimits={creditLimits}
+        otherCards={otherCards}
+        totalCreditLimit={totalCreditLimit}
       />
     </div>
   );
 };
 
-export default SavingsGoals; 
+export default ProfitDistribution; 

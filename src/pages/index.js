@@ -23,7 +23,7 @@ import NetworkCapsTab from '../components/dashboard/NetworkCapsTab';
 import CashCreditBalancesTab from '../components/dashboard/CashCreditBalancesTab';
 import DailySpendCalculatorTab from '../components/dashboard/DailySpendCalculatorTab';
 import NetProfit from '../components/dashboard/NetProfit';
-import SavingsGoals from '../components/dashboard/SavingsGoals';
+import ProfitDistribution from '../components/dashboard/ProfitDistribution';
 import CreditLine from '../components/dashboard/CreditLine';
 
 export default function DashboardPage() {
@@ -56,7 +56,7 @@ export default function DashboardPage() {
   const tabs = [
     { id: 'overview-v2', label: 'Overview' },
     { id: 'net-profit', label: 'Net Profit' },
-    { id: 'bank-goals', label: 'Bank Goals' },
+    { id: 'bank-goals', label: 'Profit Distribution' },
     { id: 'cash-credit', label: 'Credit Line' },
     { id: 'network-caps', label: 'Network Caps' },
     { id: 'daily-spend', label: 'Daily Spend' },
@@ -67,7 +67,7 @@ export default function DashboardPage() {
     { id: 'media-buyers', label: 'Media Buyers' },
     { id: 'invoices', label: 'Invoices' },
     { id: 'upcoming-expenses', label: 'Expenses' },
-];
+  ];
 
 // Update the processSheetData function in index.js
 const processSheetData = (data) => {
@@ -194,7 +194,7 @@ const processSheetData = (data) => {
               plData={plData} 
             />
             <div className="mt-6">
-              <SavingsGoals cashFlowData={cashManagementData} />
+              <ProfitDistribution cashFlowData={cashManagementData} />
             </div>
             <div className="mt-6">
               <CreditLine financialResources={cashManagementData?.financialResources} />
@@ -214,15 +214,10 @@ const processSheetData = (data) => {
       case 'bank-goals':
         return (
           <div className="space-y-6">
-            <SavingsGoals 
+            <ProfitDistribution
               cashFlowData={cashManagementData}
-              goals={dashboardData.financialGoals}
-              onGoalsUpdate={(newGoals) => {
-                setDashboardData(prev => ({
-                  ...prev,
-                  financialGoals: newGoals
-                }));
-              }}
+              bankStructure={plData?.bankStructure}
+              netProfit={plData?.summary?.[plData.summary.length - 1]?.Net_Rev || 0}
             />
           </div>
         );
