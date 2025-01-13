@@ -4,6 +4,7 @@ import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContai
 import _ from 'lodash';
 import { format } from 'date-fns';
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
+import OverviewMetrics from './OverviewMetrics';
 
 const formatCurrency = (amount) => {
   if (typeof amount !== 'number' || isNaN(amount)) return '-';
@@ -245,7 +246,9 @@ const MonthlyComparison = ({ data }) => {
   );
 };
 
-const EnhancedOverviewV2 = ({ performanceData, cashFlowData, plData }) => {
+const EnhancedOverviewV2 = ({ performanceData, cashFlowData, plData, metrics }) => {
+  console.log('EnhancedOverviewV2 received metrics:', metrics);
+
   const now = new Date();
   const thisMonth = now.getMonth();
   const thisYear = now.getFullYear();
@@ -321,7 +324,7 @@ const EnhancedOverviewV2 = ({ performanceData, cashFlowData, plData }) => {
       <div className="bg-white rounded-lg shadow p-6">
         <h3 className="text-lg font-medium text-gray-900 mb-4">Available Resources</h3>
         <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
-        <MetricCard 
+          <MetricCard 
             title="Available Cash" 
             value={cashFlowData?.currentBalance}
           />
@@ -368,7 +371,7 @@ const EnhancedOverviewV2 = ({ performanceData, cashFlowData, plData }) => {
         </div>
       </div>
 
-      <MonthlyComparison data={performanceData} />
+      <OverviewMetrics metrics={metrics} />
 
       {/* Network Caps */}
       <Card>

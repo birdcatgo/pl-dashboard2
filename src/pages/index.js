@@ -22,6 +22,7 @@ import ProjectionsTab from '../components/dashboard/ProjectionsTab';
 import NetworkCapsTab from '../components/dashboard/NetworkCapsTab';
 import CashCreditBalancesTab from '../components/dashboard/CashCreditBalancesTab';
 import DailySpendCalculatorTab from '../components/dashboard/DailySpendCalculatorTab';
+import NetProfit from '../components/dashboard/NetProfit';
 
 export default function DashboardPage() {
   const [plData, setPlData] = useState(null);
@@ -47,6 +48,7 @@ export default function DashboardPage() {
 
   const tabs = [
     { id: 'overview-v2', label: 'Overview' },
+    { id: 'net-profit', label: 'Net Profit' },
     { id: 'cash-credit', label: 'Credit Line' },
     { id: 'network-caps', label: 'Network Caps' },
     { id: 'daily-spend', label: 'Daily Spend' },
@@ -75,13 +77,14 @@ const processSheetData = (data) => {
         ...expense, 
         Type: 'Credit Card',
       }));
+      console.log('Credit card expenses:', creditCardExpenses);
       setPayrollData(prevData => [...prevData, ...creditCardExpenses]);
     }
     // Check for payroll in rawData
     if (data.rawData?.payroll) {
-      console.log('Raw payroll data:', data.rawData.payroll);
+      console.log('Raw payroll data before processing:', data.rawData.payroll);
       setPayrollData(data.rawData.payroll);
-      console.log('Processed payroll data:', data.rawData.payroll);
+      console.log('Processed payroll data after setting:', data.rawData.payroll);
     }
 
     // Process performance data
@@ -171,12 +174,28 @@ const processSheetData = (data) => {
 
   const renderTabContent = () => {
     switch (activeTab) {
+      case 'net-profit':
+        console.log('Rendering NetProfit with:', {
+          performanceData: performanceData?.length,
+          plData: {
+            hasSummary: Boolean(plData?.summary),
+            hasMonthly: Boolean(plData?.monthly),
+            months: plData?.monthly ? Object.keys(plData.monthly) : []
+          }
+        });
+        return (
+          <NetProfit 
+            performanceData={performanceData} 
+            plData={plData} 
+          />
+        );
       case 'overview-v2':
         return (
           <EnhancedOverviewV2
             performanceData={performanceData}
             cashFlowData={cashManagementData}
             plData={plData}
+            metrics={dashboardData.overallMetrics}
           />
         );
   

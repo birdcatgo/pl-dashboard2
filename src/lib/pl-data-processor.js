@@ -1,6 +1,7 @@
 // lib/pl-data-processor.js
 import { parse, isValid, startOfDay, endOfDay, format, subDays, isWithinInterval } from 'date-fns';
-import { utcToZonedTime } from 'date-fns-tz';
+import { zonedTimeToUtc, utcToZonedTime } from 'date-fns-tz';
+import { sumBy } from 'lodash';
 
 const cleanValue = (value) => {
   if (typeof value === 'string') {
@@ -13,105 +14,87 @@ const calculateRoi = (revenue, spend) => {
   return spend === 0 ? null : ((revenue / spend - 1) * 100);
 };
 
-export function processPerformanceData(data, dateRange) {
-  if (!data?.length) {
+export const processPerformanceData = (data, dateRange) => {
+  try {
+    if (!data || !Array.isArray(data)) return {};
+
+    // Current month is January 2025
+    const currentMonthStart = new Date(2025, 0, 1); // Jan 1, 2025
+    const currentMonthEnd = new Date(2025, 0, 31); // Jan 31, 2025
+    // Previous month is December 2024
+    const previousMonthStart = new Date(2024, 11, 1); // Dec 1, 2024
+    const previousMonthEnd = new Date(2024, 11, 31); // Dec 31, 2024
+
+    // Filter data for current month
+    const currentMonthData = data.filter(row => {
+      const rowDate = parse(row.Date, 'M/d/yyyy', new Date());
+      const compareDate = startOfDay(rowDate);
+      return compareDate >= startOfDay(currentMonthStart) && compareDate <= startOfDay(currentMonthEnd);
+    });
+
+    // Filter data for previous month
+    const previousMonthData = data.filter(row => {
+      const rowDate = parse(row.Date, 'M/d/yyyy', new Date());
+      const compareDate = startOfDay(rowDate);
+      return compareDate >= startOfDay(previousMonthStart) && compareDate <= startOfDay(previousMonthEnd);
+    });
+
+    console.log('Filtered Data:', {
+      currentMonth: {
+        dateRange: `${currentMonthStart.toLocaleDateString()} - ${currentMonthEnd.toLocaleDateString()}`,
+        count: currentMonthData.length,
+        sample: currentMonthData.slice(0, 2).map(row => row.Date)
+      },
+      previousMonth: {
+        dateRange: `${previousMonthStart.toLocaleDateString()} - ${previousMonthEnd.toLocaleDateString()}`,
+        count: previousMonthData.length,
+        sample: previousMonthData.slice(0, 2).map(row => row.Date)
+      }
+    });
+
+    // Calculate current month metrics
+    const currentMetrics = {
+      totalRevenue: sumBy(currentMonthData, row => cleanValue(row['Ad Revenue']) + cleanValue(row['Comment Revenue'])),
+      totalSpend: sumBy(currentMonthData, row => cleanValue(row['Ad Spend'])),
+      totalMargin: sumBy(currentMonthData, row => cleanValue(row.Margin)),
+    };
+    currentMetrics.roi = currentMetrics.totalSpend ? (currentMetrics.totalMargin / currentMetrics.totalSpend) * 100 : 0;
+
+    // Calculate previous month metrics
+    const previousMetrics = {
+      totalRevenue: sumBy(previousMonthData, row => cleanValue(row['Ad Revenue']) + cleanValue(row['Comment Revenue'])),
+      totalSpend: sumBy(previousMonthData, row => cleanValue(row['Ad Spend'])),
+      totalMargin: sumBy(previousMonthData, row => cleanValue(row.Margin)),
+    };
+    previousMetrics.roi = previousMetrics.totalSpend ? (previousMetrics.totalMargin / previousMetrics.totalSpend) * 100 : 0;
+
+    // Add debug logging for metrics
+    console.log('Calculated Metrics:', {
+      current: {
+        month: 'January 2025',
+        ...currentMetrics
+      },
+      previous: {
+        month: 'December 2024',
+        ...previousMetrics
+      }
+    });
+
     return {
-      overallMetrics: {},
+      filteredData: data,
+      overallMetrics: {
+        ...currentMetrics,
+        previousMonthRevenue: previousMetrics.totalRevenue,
+        previousMonthSpend: previousMetrics.totalSpend,
+        previousMonthMargin: previousMetrics.totalMargin,
+        previousMonthRoi: previousMetrics.roi
+      },
       networkPerformance: [],
       mediaBuyerPerformance: [],
-      filteredData: [],
-      comparisonData: null
+      offerPerformance: [],
     };
+  } catch (error) {
+    console.error('Error processing performance data:', error);
+    return {};
   }
-
-  const filteredData = data.filter(row => {
-    if (!dateRange?.startDate || !dateRange?.endDate || !row.Date) return true;
-    try {
-      const rowDate = parse(row.Date, 'M/d/yyyy', new Date());
-      return isWithinInterval(rowDate, {
-        start: startOfDay(dateRange.startDate),
-        end: endOfDay(dateRange.endDate)
-      });
-    } catch (error) {
-      console.error('Date parsing error:', error);
-      return false;
-    }
-  });
-
-  // Calculate overall metrics
-  const overallMetrics = {
-    totalRevenue: _.sumBy(filteredData, row => cleanValue(row['Total Revenue'])),
-    totalSpend: _.sumBy(filteredData, row => cleanValue(row['Ad Spend'])),
-    totalMargin: _.sumBy(filteredData, row => cleanValue(row.Margin)),
-    roi: calculateRoi(
-      _.sumBy(filteredData, row => cleanValue(row['Total Revenue'])),
-      _.sumBy(filteredData, row => cleanValue(row['Ad Spend']))
-    )
-  };
-
-  // Process network performance
-  const networkPerformance = _(filteredData)
-    .groupBy('Network')
-    .map((rows, network) => ({
-      network,
-      totalRevenue: _.sumBy(rows, row => cleanValue(row['Total Revenue'])),
-      totalSpend: _.sumBy(rows, row => cleanValue(row['Ad Spend'])),
-      totalMargin: _.sumBy(rows, row => cleanValue(row.Margin)),
-      roi: calculateRoi(
-        _.sumBy(rows, row => cleanValue(row['Total Revenue'])),
-        _.sumBy(rows, row => cleanValue(row['Ad Spend']))
-      )
-    }))
-    .orderBy(['totalRevenue'], ['desc'])
-    .value();
-
-  // Process media buyer performance
-  const mediaBuyerPerformance = _(filteredData)
-    .groupBy('Media Buyer')
-    .map((rows, buyer) => ({
-      buyer,
-      totalRevenue: _.sumBy(rows, row => cleanValue(row['Total Revenue'])),
-      totalSpend: _.sumBy(rows, row => cleanValue(row['Ad Spend'])),
-      totalMargin: _.sumBy(rows, row => cleanValue(row.Margin)),
-      roi: calculateRoi(
-        _.sumBy(rows, row => cleanValue(row['Total Revenue'])),
-        _.sumBy(rows, row => cleanValue(row['Ad Spend']))
-      ),
-      networks: _.uniq(rows.map(row => row.Network)).length
-    }))
-    .orderBy(['totalRevenue'], ['desc'])
-    .value();
-
-  // Process offer performance
-  const offerPerformance = _(filteredData)
-    .groupBy(row => `${row.Network}-${row.Offer}`)
-    .map((rows, key) => {
-      const [network, offer] = key.split('-');
-      const totalRevenue = _.sumBy(rows, row => cleanValue(row['Total Revenue']));
-      const totalSpend = _.sumBy(rows, row => cleanValue(row['Ad Spend']));
-      const totalMargin = _.sumBy(rows, row => cleanValue(row.Margin));
-      
-      return {
-        network,
-        offer,
-        totalRevenue,
-        totalSpend,
-        totalMargin,
-        roi: calculateRoi(totalRevenue, totalSpend),
-        networkCount: 1,
-        buyerCount: _.uniq(_.map(rows, 'Media Buyer')).length,
-        transactionCount: rows.length
-      };
-    })
-    .orderBy(['totalRevenue'], ['desc'])
-    .value();
-
-  return {
-    overallMetrics,
-    networkPerformance,
-    mediaBuyerPerformance,
-    offerPerformance,
-    filteredData,
-    comparisonData: null
-  };
-}
+};

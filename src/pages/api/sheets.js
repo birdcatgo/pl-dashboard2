@@ -6,11 +6,13 @@ async function processPLData(batchResponse) {
   try {
     const valueRanges = batchResponse.data.valueRanges;
     const months = ['June', 'July', 'August', 'September', 'October', 'November', 'December'];
+    console.log('Processing monthly ranges:', valueRanges);
     const monthlyData = {};
     const summaryData = [];
 
     months.forEach((month, index) => {
       const monthRange = valueRanges[index + 6];
+      console.log(`Processing ${month} data:`, monthRange?.values);
       if (monthRange?.values) {
         monthlyData[month] = monthRange.values.slice(1).map(row => ({
           DESCRIPTION: row[0] || '',

@@ -5,10 +5,13 @@ import { format, parse } from 'date-fns';
 import MonthlyProfitOverview from './MonthlyProfitOverview';
 
 const OverviewDashboard = ({ performanceData = [] }) => {
+  console.log('Overview Dashboard received data:', performanceData);
+
   // Process data for media buyer profit by day
   const mediaBuyerProfitData = performanceData?.reduce((acc, row) => {
     try {
       const date = format(parse(row.Date, 'M/d/yyyy', new Date()), 'yyyy-MM-dd');
+      console.log('Processing date:', date, 'Row:', row);
       if (!acc[date]) {
         acc[date] = {};
       }
@@ -16,7 +19,7 @@ const OverviewDashboard = ({ performanceData = [] }) => {
       acc[date][buyer] = (acc[date][buyer] || 0) + (row.Margin || 0);
       return acc;
     } catch (error) {
-      console.error('Error processing row:', error);
+      console.error('Error processing row:', error, 'Row data:', row);
       return acc;
     }
   }, {});
@@ -32,21 +35,29 @@ const OverviewDashboard = ({ performanceData = [] }) => {
       acc[date][key] = (acc[date][key] || 0) + (row.Margin || 0);
       return acc;
     } catch (error) {
-      console.error('Error processing row:', error);
+      console.error('Error processing network-offer data:', error, 'Row:', row);
       return acc;
     }
   }, {});
 
-  // Convert to chart format
-  const mediaBuyerChartData = Object.entries(mediaBuyerProfitData || {}).map(([date, profits]) => ({
+  // Add sorting to ensure chronological order
+  const sortedDates = Object.keys(mediaBuyerProfitData).sort();
+  console.log('Available dates:', sortedDates);
+
+  // Convert to chart data format
+  const mediaBuyerChartData = Object.entries(mediaBuyerProfitData).map(([date, buyers]) => ({
     date,
-    ...profits
+    ...buyers,
   }));
 
-  const networkOfferChartData = Object.entries(networkOfferProfitData || {}).map(([date, profits]) => ({
+  const networkOfferChartData = Object.entries(networkOfferProfitData).map(([date, offers]) => ({
     date,
-    ...profits
+    ...offers,
   }));
+
+  // Sort chart data chronologically
+  mediaBuyerChartData.sort((a, b) => new Date(a.date) - new Date(b.date));
+  networkOfferChartData.sort((a, b) => new Date(a.date) - new Date(b.date));
 
   return (
     <div className="space-y-8">

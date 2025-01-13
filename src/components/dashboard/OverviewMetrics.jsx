@@ -1,22 +1,9 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 
 const OverviewMetrics = ({ metrics }) => {
-  const [startDate, setStartDate] = useState(() => new Date());
-  const [endDate, setEndDate] = useState(() => new Date());
-
-  const handleDateRangeChange = async ({ startDate, endDate }) => {
-    try {
-      // Update the state
-      setStartDate(new Date(startDate));
-      setEndDate(new Date(endDate));
-  
-      // Trigger a new fetch with the updated date range
-      await loadDashboardData(new Date(startDate), new Date(endDate));
-    } catch (error) {
-      console.error('Error updating date range:', error);
-    }
-  };
-  
+  useEffect(() => {
+    console.log('OverviewMetrics received metrics:', metrics);
+  }, [metrics]);
 
   const formatCurrency = (value) => {
     if (value === null || value === undefined) return 'N/A';
@@ -36,41 +23,77 @@ const OverviewMetrics = ({ metrics }) => {
     return `${value.toFixed(1)}%`;
   };
 
-  return (
-    <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4">
-      <div className="bg-white rounded-lg shadow p-4">
-        <h3 className="text-sm font-medium text-gray-500">Total Revenue</h3>
-        <p className="text-2xl font-bold mt-1">
-          {metrics && metrics.totalRevenue !== null
-            ? formatCurrency(metrics.totalRevenue)
-            : 'N/A'}
-        </p>
-      </div>
-      <div className="bg-white rounded-lg shadow p-4">
-        <h3 className="text-sm font-medium text-gray-500">Total Ad Spend</h3>
-        <p className="text-2xl font-bold mt-1">
-          {metrics && metrics.totalSpend !== null
-            ? formatCurrency(metrics.totalSpend)
-            : 'N/A'}
-        </p>
-      </div>
-      <div className="bg-white rounded-lg shadow p-4">
-        <h3 className="text-sm font-medium text-gray-500">Total Margin</h3>
-        <p className="text-2xl font-bold mt-1">
-          {metrics && metrics.totalMargin !== null
-            ? formatCurrency(metrics.totalMargin)
-            : 'N/A'}
-        </p>
-      </div>
-      <div className="bg-white rounded-lg shadow p-4">
-        <h3 className="text-sm font-medium text-gray-500">ROI</h3>
-        <p className="text-2xl font-bold mt-1">
-          {metrics && metrics.roi !== null
-            ? formatPercent(metrics.roi)
-            : 'N/A'}
-        </p>
-      </div>
+  const calculatePercentageChange = (current, previous) => {
+    if (!previous) return 0;
+    return ((current / previous - 1) * 100);
+  };
 
+  const currentMonth = {
+    revenue: metrics?.totalRevenue || 0,
+    spend: metrics?.totalSpend || 0,
+    margin: metrics?.totalMargin || 0,
+    roi: metrics?.roi || 0
+  };
+
+  const previousMonth = {
+    revenue: metrics?.previousMonthRevenue || 0,
+    spend: metrics?.previousMonthSpend || 0,
+    margin: metrics?.previousMonthMargin || 0,
+    roi: metrics?.previousMonthRoi || 0
+  };
+
+  return (
+    <div className="bg-white rounded-lg shadow p-6">
+      <h3 className="text-lg font-medium mb-4">Month to Date Performance</h3>
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+        <div>
+          <h4 className="text-sm font-medium text-gray-500 mb-4">Current Month (MTD)</h4>
+          <dl className="space-y-2">
+            <div className="flex justify-between">
+              <dt className="text-gray-600">Revenue</dt>
+              <dd className="text-green-600 font-medium">
+                {formatCurrency(currentMonth.revenue)}
+              </dd>
+            </div>
+            <div className="flex justify-between">
+              <dt className="text-gray-600">Ad Spend</dt>
+              <dd className="text-red-600 font-medium">
+                {formatCurrency(currentMonth.spend)}
+              </dd>
+            </div>
+            <div className="flex justify-between">
+              <dt className="text-gray-600">Margin</dt>
+              <dd className="text-blue-600 font-medium">
+                {formatCurrency(currentMonth.margin)}
+              </dd>
+            </div>
+          </dl>
+        </div>
+
+        <div>
+          <h4 className="text-sm font-medium text-gray-500 mb-4">Previous Month</h4>
+          <dl className="space-y-2">
+            <div className="flex justify-between">
+              <dt className="text-gray-600">Revenue</dt>
+              <dd className="text-green-600 font-medium">
+                {formatCurrency(previousMonth.revenue)}
+              </dd>
+            </div>
+            <div className="flex justify-between">
+              <dt className="text-gray-600">Ad Spend</dt>
+              <dd className="text-red-600 font-medium">
+                {formatCurrency(previousMonth.spend)}
+              </dd>
+            </div>
+            <div className="flex justify-between">
+              <dt className="text-gray-600">Margin</dt>
+              <dd className="text-blue-600 font-medium">
+                {formatCurrency(previousMonth.margin)}
+              </dd>
+            </div>
+          </dl>
+        </div>
+      </div>
     </div>
   );
 };
