@@ -1,6 +1,5 @@
 import React, { useState, useEffect } from 'react';
 import { Card, CardHeader, CardTitle, CardContent } from '../ui/card';
-import { DateRangePicker } from '../ui/DateRangePicker';
 import {
   LineChart,
   Line,
@@ -14,7 +13,7 @@ import {
   BarChart,
   ReferenceLine
 } from 'recharts';
-import { format, parse, startOfMonth, endOfMonth } from 'date-fns';
+import { format, parse } from 'date-fns';
 import _ from 'lodash';
 
 const formatCurrency = (amount) => {
@@ -30,18 +29,12 @@ const formatCurrency = (amount) => {
 const NetProfit = ({ performanceData, plData }) => {
   const [selectedMonth, setSelectedMonth] = useState(format(new Date(), 'MMMM yyyy'));
   const [monthlyData, setMonthlyData] = useState([]);
-  const [viewType, setViewType] = useState('chart');
 
   useEffect(() => {
     if (!performanceData || !plData?.monthly) return;
 
-    console.log('NetProfit - Performance Data:', performanceData);
-    console.log('NetProfit - PL Data:', plData);
-    console.log('NetProfit - Monthly Data from PL:', plData.monthly);
-
     // Get list of months that have expense data from sheets
     const monthsWithExpenses = new Set(Object.keys(plData.monthly).map(month => `${month} 2024`));
-    console.log('Months with expense data:', monthsWithExpenses);
 
     // Group and calculate monthly totals
     const monthlyTotals = (performanceData || []).reduce((acc, row) => {
@@ -49,11 +42,7 @@ const NetProfit = ({ performanceData, plData }) => {
         const date = parse(row.Date, 'M/d/yyyy', new Date());
         const monthKey = format(date, 'MMMM yyyy');
         
-        // Skip if this month doesn't have expense data
-        if (!monthsWithExpenses.has(monthKey)) {
-          console.log(`Skipping ${monthKey} - no expense data available`);
-          return acc;
-        }
+        if (!monthsWithExpenses.has(monthKey)) return acc;
 
         if (!acc[monthKey]) {
           acc[monthKey] = {
@@ -100,54 +89,16 @@ const NetProfit = ({ performanceData, plData }) => {
     // Add expenses from PL data
     Object.entries(plData.monthly).forEach(([month, entries]) => {
       const monthKey = `${month} 2024`;
-      // Skip if we don't have revenue data for this month
-      if (!monthlyTotals[monthKey]) {
-        console.log(`Skipping expenses for ${monthKey} - no revenue data available`);
-        return;
-      }
+      if (!monthlyTotals[monthKey]) return;
 
       const expenses = entries
         .filter(entry => entry['Income/Expense'] === 'Expense')
         .reduce((sum, entry) => sum + Math.abs(entry.AMOUNT), 0);
       
-      console.log(`${monthKey} expenses:`, expenses);
       monthlyTotals[monthKey].expenses = expenses;
       
-      // Group expenses by category for network/offer breakdown
-      entries
-        .filter(entry => entry['Income/Expense'] === 'Expense')
-        .forEach(expense => {
-          // Distribute expenses proportionally across networks/offers
-          const networks = Object.keys(monthlyTotals[monthKey].byNetwork);
-          const expensePerNetwork = Math.abs(expense.AMOUNT) / networks.length;
-          
-          networks.forEach(network => {
-            monthlyTotals[monthKey].byNetwork[network].expenses += expensePerNetwork;
-            
-            // Distribute to offers within this network
-            const networkOffers = Object.keys(monthlyTotals[monthKey].byOffer)
-              .filter(key => key.startsWith(network));
-            const expensePerOffer = expensePerNetwork / networkOffers.length;
-            
-            networkOffers.forEach(offerKey => {
-              monthlyTotals[monthKey].byOffer[offerKey].expenses += expensePerOffer;
-            });
-          });
-        });
-    });
-
-    // Calculate net profit
-    Object.values(monthlyTotals).forEach(month => {
-      month.netProfit = month.revenue - month.expenses;
-      
-      // Calculate net profit for each offer and network
-      Object.values(month.byOffer).forEach(offer => {
-        offer.netProfit = offer.revenue - offer.expenses;
-      });
-      
-      Object.values(month.byNetwork).forEach(network => {
-        network.netProfit = network.revenue - network.expenses;
-      });
+      // Calculate net profit
+      monthlyTotals[monthKey].netProfit = monthlyTotals[monthKey].revenue - expenses;
     });
 
     // Sort monthly data by date
@@ -157,11 +108,9 @@ const NetProfit = ({ performanceData, plData }) => {
 
     setMonthlyData(sortedMonthlyData);
     
-    // Set selected month to most recent month with data
     if (sortedMonthlyData.length > 0) {
       setSelectedMonth(sortedMonthlyData[sortedMonthlyData.length - 1].month);
     }
-
   }, [performanceData, plData]);
 
   const currentMonthData = monthlyData.find(m => m.month === selectedMonth) || {
@@ -174,43 +123,7 @@ const NetProfit = ({ performanceData, plData }) => {
 
   return (
     <div className="space-y-6">
-      {/* Summary Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-        <Card>
-          <CardHeader>
-            <CardTitle>Total Revenue</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold text-green-600">
-              {formatCurrency(currentMonthData.revenue)}
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader>
-            <CardTitle>Total Expenses</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold text-red-600">
-              {formatCurrency(currentMonthData.expenses)}
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader>
-            <CardTitle>Net Profit</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className={`text-2xl font-bold ${currentMonthData.netProfit >= 0 ? 'text-blue-600' : 'text-red-600'}`}>
-              {formatCurrency(currentMonthData.netProfit)}
-            </div>
-          </CardContent>
-        </Card>
-      </div>
-
-      {/* View Toggle */}
+      {/* Month Selector */}
       <div className="flex justify-end items-center">
         <select
           value={selectedMonth}
@@ -225,6 +138,7 @@ const NetProfit = ({ performanceData, plData }) => {
         </select>
       </div>
 
+      {/* Net Profit Trend */}
       <Card>
         <CardHeader>
           <CardTitle>Monthly Net Profit Trend</CardTitle>
@@ -268,24 +182,8 @@ const NetProfit = ({ performanceData, plData }) => {
         </CardContent>
       </Card>
 
-      {/* Month Selector */}
-      <div className="flex justify-center items-center mt-8 mb-4">
-        <label className="mr-2 text-sm font-medium text-gray-700">Select Month:</label>
-        <select
-          value={selectedMonth}
-          onChange={(e) => setSelectedMonth(e.target.value)}
-          className="form-select rounded-md border-gray-300"
-        >
-          {monthlyData.map(month => (
-            <option key={month.month} value={month.month}>
-              {month.month}
-            </option>
-          ))}
-        </select>
-      </div>
-
       {/* Breakdowns */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mt-4">
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
         {/* Offer Breakdown */}
         <Card>
           <CardHeader>
@@ -304,13 +202,11 @@ const NetProfit = ({ performanceData, plData }) => {
                 </thead>
                 <tbody className="divide-y divide-gray-200">
                   {Object.entries(currentMonthData.byOffer)
-                    .sort((a, b) => b[1].revenue - a[1].revenue) // Sort by revenue in descending order
+                    .sort((a, b) => b[1].revenue - a[1].revenue)
                     .map(([offer, data]) => {
                       const percentage = (data.revenue / currentMonthData.revenue) * 100;
-                      // Calculate ROI
                       const roi = data.expenses > 0 ? ((data.revenue - data.expenses) / data.expenses) * 100 : 0;
                       
-                      // Determine status based on ROI thresholds
                       let statusText;
                       let statusColor;
                       if (roi < 0) {

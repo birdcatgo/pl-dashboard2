@@ -10,9 +10,41 @@ async function processPLData(batchResponse) {
     const monthlyData = {};
     const summaryData = [];
 
+    // Get the Summary sheet data (it's at index 5 in valueRanges)
+    const summarySheet = valueRanges[5];
+    if (summarySheet?.values) {
+      // Skip header row and process each data row
+      summarySheet.values.slice(1).forEach(row => {
+        if (row.length) {
+          summaryData.push({
+            Month: row[0] || '',
+            Income: parseFloat((row[1] || '0').replace(/[$,]/g, '')),
+            Cash_Injection: parseFloat((row[2] || '0').replace(/[$,]/g, '')),
+            Payroll: parseFloat((row[3] || '0').replace(/[$,]/g, '')),
+            Advertising: parseFloat((row[4] || '0').replace(/[$,]/g, '')),
+            Software: parseFloat((row[5] || '0').replace(/[$,]/g, '')),
+            Training: parseFloat((row[6] || '0').replace(/[$,]/g, '')),
+            Once_Off: parseFloat((row[7] || '0').replace(/[$,]/g, '')),
+            Memberships: parseFloat((row[8] || '0').replace(/[$,]/g, '')),
+            Contractors: parseFloat((row[9] || '0').replace(/[$,]/g, '')),
+            Tax: parseFloat((row[10] || '0').replace(/[$,]/g, '')),
+            Bank_Fees: parseFloat((row[11] || '0').replace(/[$,]/g, '')),
+            Utilities: parseFloat((row[12] || '0').replace(/[$,]/g, '')),
+            Travel: parseFloat((row[13] || '0').replace(/[$,]/g, '')),
+            Capital_One: parseFloat((row[14] || '0').replace(/[$,]/g, '')),
+            Barclay: parseFloat((row[15] || '0').replace(/[$,]/g, '')),
+            Business_Loan: parseFloat((row[16] || '0').replace(/[$,]/g, '')),
+            'Unknown Expense': parseFloat((row[17] || '0').replace(/[$,]/g, '')),
+            Net_Rev: parseFloat((row[18] || '0').replace(/[$,]/g, '')),
+            'Net%': row[19] ? row[19].replace('%', '') : '0'
+          });
+        }
+      });
+    }
+
+    // Process monthly detail data as before
     months.forEach((month, index) => {
       const monthRange = valueRanges[index + 6];
-      console.log(`Processing ${month} data:`, monthRange?.values);
       if (monthRange?.values) {
         monthlyData[month] = monthRange.values.slice(1).map(row => ({
           DESCRIPTION: row[0] || '',
@@ -20,21 +52,6 @@ async function processPLData(batchResponse) {
           CATEGORY: row[2] || '',
           'Income/Expense': row[3] || ''
         }));
-
-        const monthData = monthlyData[month];
-        const income = monthData
-          .filter(row => row['Income/Expense'] === 'Income')
-          .reduce((sum, row) => sum + (row.AMOUNT || 0), 0);
-        const expenses = monthData
-          .filter(row => row['Income/Expense'] === 'Expense')
-          .reduce((sum, row) => sum + Math.abs(row.AMOUNT || 0), 0);
-
-        summaryData.push({
-          Month: month,
-          Income: income,
-          Expenses: expenses,
-          NetProfit: income - expenses
-        });
       }
     });
 

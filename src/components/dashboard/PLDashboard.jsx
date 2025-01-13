@@ -21,12 +21,28 @@ const PLDashboard = ({ plData }) => {
 
   useEffect(() => {
     if (plData?.summary) {
+      // Debug the incoming data
+      console.log('Raw Summary Data:', plData.summary);
+      console.log('Sample Row:', {
+        Month: plData.summary[0]?.Month,
+        Income: plData.summary[0]?.Income,
+        Cash_Injection: plData.summary[0]?.Cash_Injection,
+        // ... log all fields to see what we're getting
+      });
+
       setSummaryData(plData.summary);
       const latestMonth = plData.summary[plData.summary.length - 1]?.Month || '';
       setSelectedMonth(latestMonth);
       setMonthlyData(plData.monthly || {});
     }
   }, [plData]);
+
+  // Let's see what's in plData
+  console.log('plData structure:', {
+    summary: plData?.summary,
+    summaryKeys: plData?.summary ? Object.keys(plData.summary[0]) : [],
+    rawSummary: JSON.stringify(plData?.summary, null, 2)
+  });
 
   if (!summaryData.length || !selectedMonth || !monthlyData) {
     return <div className="text-gray-500 p-4">Loading P&L data...</div>;
@@ -48,6 +64,47 @@ const PLDashboard = ({ plData }) => {
   const incomeDetails = currentMonthDetails.filter((item) => item['Income/Expense'] === 'Income');
   const expenseDetails = currentMonthDetails.filter((item) => item['Income/Expense'] === 'Expense');
 
+  const getMonthlyBreakdown = (monthData) => {
+    if (!monthData) return null;
+    
+    return {
+      Income: monthData.filter(item => item['Income/Expense'] === 'Income')
+        .reduce((sum, item) => sum + parseFloat(item.AMOUNT || 0), 0),
+      Cash_Injection: monthData.filter(item => item.DESCRIPTION === 'Cash Injection')
+        .reduce((sum, item) => sum + parseFloat(item.AMOUNT || 0), 0),
+      Payroll: monthData.filter(item => item.CATEGORY === 'Payroll')
+        .reduce((sum, item) => sum + Math.abs(parseFloat(item.AMOUNT || 0)), 0),
+      Advertising: monthData.filter(item => item.CATEGORY === 'Advertising')
+        .reduce((sum, item) => sum + Math.abs(parseFloat(item.AMOUNT || 0)), 0),
+      Software: monthData.filter(item => item.CATEGORY === 'Software')
+        .reduce((sum, item) => sum + Math.abs(parseFloat(item.AMOUNT || 0)), 0),
+      Training: monthData.filter(item => item.CATEGORY === 'Training')
+        .reduce((sum, item) => sum + Math.abs(parseFloat(item.AMOUNT || 0)), 0),
+      Once_Off: monthData.filter(item => item.CATEGORY === 'Once Off')
+        .reduce((sum, item) => sum + Math.abs(parseFloat(item.AMOUNT || 0)), 0),
+      Memberships: monthData.filter(item => item.CATEGORY === 'Memberships')
+        .reduce((sum, item) => sum + Math.abs(parseFloat(item.AMOUNT || 0)), 0),
+      Contractors: monthData.filter(item => item.CATEGORY === 'Contractors')
+        .reduce((sum, item) => sum + Math.abs(parseFloat(item.AMOUNT || 0)), 0),
+      Tax: monthData.filter(item => item.CATEGORY === 'Tax')
+        .reduce((sum, item) => sum + Math.abs(parseFloat(item.AMOUNT || 0)), 0),
+      Bank_Fees: monthData.filter(item => item.CATEGORY === 'Bank Fees')
+        .reduce((sum, item) => sum + Math.abs(parseFloat(item.AMOUNT || 0)), 0),
+      Utilities: monthData.filter(item => item.CATEGORY === 'Utilities')
+        .reduce((sum, item) => sum + Math.abs(parseFloat(item.AMOUNT || 0)), 0),
+      Travel: monthData.filter(item => item.CATEGORY === 'Travel')
+        .reduce((sum, item) => sum + Math.abs(parseFloat(item.AMOUNT || 0)), 0),
+      Capital_One: monthData.filter(item => item.CATEGORY === 'Capital One')
+        .reduce((sum, item) => sum + Math.abs(parseFloat(item.AMOUNT || 0)), 0),
+      Barclay: monthData.filter(item => item.CATEGORY === 'Barclay')
+        .reduce((sum, item) => sum + Math.abs(parseFloat(item.AMOUNT || 0)), 0),
+      Business_Loan: monthData.filter(item => item.CATEGORY === 'Business Loan')
+        .reduce((sum, item) => sum + Math.abs(parseFloat(item.AMOUNT || 0)), 0),
+      'Unknown Expense': monthData.filter(item => item.CATEGORY === 'Unknown Expense')
+        .reduce((sum, item) => sum + Math.abs(parseFloat(item.AMOUNT || 0)), 0)
+    };
+  };
+
   return (
     <div className="space-y-6">
       {/* Header */}
@@ -66,7 +123,6 @@ const PLDashboard = ({ plData }) => {
             <XAxis dataKey="Month" />
             <YAxis domain={['auto', 'auto']} tickFormatter={formatCurrency} />
             <Tooltip formatter={(value) => formatCurrency(value)} />
-            {/* Breakeven Line */}
             <ReferenceLine y={0} stroke="red" strokeDasharray="5 5" label="Breakeven" />
             <Line type="monotone" dataKey="NetProfit" stroke="#3B82F6" strokeWidth={2} />
           </LineChart>
@@ -133,22 +189,6 @@ const PLDashboard = ({ plData }) => {
         </div>
       </div>
 
-      {/* Month Selector */}
-      <div className="flex justify-between items-center mb-6">
-        <h3 className="text-lg font-medium text-gray-900">View Details for Month</h3>
-        <select
-          value={selectedMonth}
-          onChange={(e) => setSelectedMonth(e.target.value)}
-          className="form-select rounded-md border-gray-300 p-2"
-        >
-          {summaryData.map((month) => (
-            <option key={month.Month} value={month.Month}>
-              {month.Month}
-            </option>
-          ))}
-        </select>
-      </div>
-
       {/* Monthly Detail Section */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
         {/* Income Details */}
@@ -212,6 +252,116 @@ const PLDashboard = ({ plData }) => {
               </div>
             ))}
           </div>
+        </div>
+      </div>
+
+      {/* Detailed Monthly Summary Table */}
+      <div className="bg-white rounded-lg shadow">
+        <div className="px-6 py-4 border-b border-gray-200">
+          <h3 className="text-lg font-medium text-gray-900">Monthly Financial Summary</h3>
+        </div>
+        <div className="overflow-x-auto">
+          <table className="min-w-full divide-y divide-gray-200">
+            <thead className="bg-gray-50">
+              <tr>
+                <th className="sticky left-0 bg-gray-50 px-4 py-3 text-left text-xs font-medium text-gray-500 border-r">Month</th>
+                <th colSpan="2" className="px-4 py-2 text-center text-xs font-medium text-gray-500 border-b">Revenue</th>
+                <th colSpan="15" className="px-4 py-2 text-center text-xs font-medium text-gray-500 border-b">Expenses</th>
+                <th colSpan="2" className="px-4 py-2 text-center text-xs font-medium text-gray-500 border-b">Results</th>
+              </tr>
+              <tr>
+                <th className="sticky left-0 bg-gray-50 px-4 py-3 text-left text-xs font-medium text-gray-500 border-r"></th>
+                <th className="px-4 py-3 text-right text-xs font-medium text-green-700">Income</th>
+                <th className="px-4 py-3 text-right text-xs font-medium text-green-700 border-r">Cash Injection</th>
+                <th className="px-4 py-3 text-right text-xs font-medium text-red-700">Payroll</th>
+                <th className="px-4 py-3 text-right text-xs font-medium text-red-700">Advertising</th>
+                <th className="px-4 py-3 text-right text-xs font-medium text-red-700">Software</th>
+                <th className="px-4 py-3 text-right text-xs font-medium text-red-700">Training</th>
+                <th className="px-4 py-3 text-right text-xs font-medium text-red-700">Once_Off</th>
+                <th className="px-4 py-3 text-right text-xs font-medium text-red-700">Memberships</th>
+                <th className="px-4 py-3 text-right text-xs font-medium text-red-700">Contractors</th>
+                <th className="px-4 py-3 text-right text-xs font-medium text-red-700">Tax</th>
+                <th className="px-4 py-3 text-right text-xs font-medium text-red-700">Bank_Fees</th>
+                <th className="px-4 py-3 text-right text-xs font-medium text-red-700">Utilities</th>
+                <th className="px-4 py-3 text-right text-xs font-medium text-red-700">Travel</th>
+                <th className="px-4 py-3 text-right text-xs font-medium text-red-700">Capital_One</th>
+                <th className="px-4 py-3 text-right text-xs font-medium text-red-700">Barclay</th>
+                <th className="px-4 py-3 text-right text-xs font-medium text-red-700">Business_Loan</th>
+                <th className="px-4 py-3 text-right text-xs font-medium text-red-700">Unknown Expense</th>
+                <th className="px-4 py-3 text-right text-xs font-medium text-blue-700 border-l">Net Revenue</th>
+                <th className="px-4 py-3 text-right text-xs font-medium text-blue-700">Net %</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-gray-200">
+              {summaryData.map((row) => (
+                <tr key={row.Month} className="hover:bg-gray-50 group">
+                  <td className="sticky left-0 bg-white group-hover:bg-gray-50 px-4 py-4 text-sm font-medium text-gray-900 border-r">{row.Month}</td>
+                  <td className="px-4 py-4 text-sm text-right text-green-600 font-medium">
+                    {formatCurrency(row.Income)}
+                  </td>
+                  <td className="px-4 py-4 text-sm text-right text-green-600 font-medium border-r">
+                    {formatCurrency(row.Cash_Injection)}
+                  </td>
+                  <td className="px-4 py-4 text-sm text-right text-red-600">
+                    {formatCurrency(row.Payroll)}
+                  </td>
+                  <td className="px-4 py-4 text-sm text-right text-red-600">
+                    {formatCurrency(row.Advertising)}
+                  </td>
+                  <td className="px-4 py-4 text-sm text-right text-red-600">
+                    {formatCurrency(row.Software)}
+                  </td>
+                  <td className="px-4 py-4 text-sm text-right text-red-600">
+                    {formatCurrency(row.Training)}
+                  </td>
+                  <td className="px-4 py-4 text-sm text-right text-red-600">
+                    {formatCurrency(row.Once_Off)}
+                  </td>
+                  <td className="px-4 py-4 text-sm text-right text-red-600">
+                    {formatCurrency(row.Memberships)}
+                  </td>
+                  <td className="px-4 py-4 text-sm text-right text-red-600">
+                    {formatCurrency(row.Contractors)}
+                  </td>
+                  <td className="px-4 py-4 text-sm text-right text-red-600">
+                    {formatCurrency(row.Tax)}
+                  </td>
+                  <td className="px-4 py-4 text-sm text-right text-red-600">
+                    {formatCurrency(row.Bank_Fees)}
+                  </td>
+                  <td className="px-4 py-4 text-sm text-right text-red-600">
+                    {formatCurrency(row.Utilities)}
+                  </td>
+                  <td className="px-4 py-4 text-sm text-right text-red-600">
+                    {formatCurrency(row.Travel)}
+                  </td>
+                  <td className="px-4 py-4 text-sm text-right text-red-600">
+                    {formatCurrency(row.Capital_One)}
+                  </td>
+                  <td className="px-4 py-4 text-sm text-right text-red-600">
+                    {formatCurrency(row.Barclay)}
+                  </td>
+                  <td className="px-4 py-4 text-sm text-right text-red-600">
+                    {formatCurrency(row.Business_Loan)}
+                  </td>
+                  <td className="px-4 py-4 text-sm text-right text-red-600">
+                    {formatCurrency(row['Unknown Expense'])}
+                  </td>
+                  <td className="px-4 py-4 text-sm text-right font-medium text-blue-600 border-l">
+                    {formatCurrency(row.Net_Rev)}
+                  </td>
+                  <td className="px-4 py-4 text-sm text-right font-medium text-gray-900">
+                    {parseFloat(row['Net%']).toFixed(2)}%
+                  </td>
+                </tr>
+              ))}
+              <tr className="bg-gray-50 font-medium">
+                <td className="sticky left-0 bg-gray-50 px-4 py-4 text-sm font-medium text-gray-900 border-r">Total</td>
+                {/* Calculate and display totals for each column */}
+                {/* ... totals cells ... */}
+              </tr>
+            </tbody>
+          </table>
         </div>
       </div>
     </div>

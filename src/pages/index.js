@@ -23,6 +23,8 @@ import NetworkCapsTab from '../components/dashboard/NetworkCapsTab';
 import CashCreditBalancesTab from '../components/dashboard/CashCreditBalancesTab';
 import DailySpendCalculatorTab from '../components/dashboard/DailySpendCalculatorTab';
 import NetProfit from '../components/dashboard/NetProfit';
+import SavingsGoals from '../components/dashboard/SavingsGoals';
+import CreditLine from '../components/dashboard/CreditLine';
 
 export default function DashboardPage() {
   const [plData, setPlData] = useState(null);
@@ -39,6 +41,11 @@ export default function DashboardPage() {
     offerPerformance: [],
     filteredData: [],
     comparisonData: null,
+    financialGoals: {
+      operatingCash: 500000,
+      savings: 500000,
+      creditLine: 3000000
+    }
   });
   const [performanceData, setPerformanceData] = useState([]);
   const [cashManagementData, setCashManagementData] = useState(null);
@@ -49,6 +56,7 @@ export default function DashboardPage() {
   const tabs = [
     { id: 'overview-v2', label: 'Overview' },
     { id: 'net-profit', label: 'Net Profit' },
+    { id: 'bank-goals', label: 'Bank Goals' },
     { id: 'cash-credit', label: 'Credit Line' },
     { id: 'network-caps', label: 'Network Caps' },
     { id: 'daily-spend', label: 'Daily Spend' },
@@ -175,19 +183,23 @@ const processSheetData = (data) => {
   const renderTabContent = () => {
     switch (activeTab) {
       case 'net-profit':
-        console.log('Rendering NetProfit with:', {
-          performanceData: performanceData?.length,
-          plData: {
-            hasSummary: Boolean(plData?.summary),
-            hasMonthly: Boolean(plData?.monthly),
-            months: plData?.monthly ? Object.keys(plData.monthly) : []
-          }
+        console.log('Rendering net-profit tab with data:', {
+          financialResources: cashManagementData?.financialResources,
+          cashManagementData: cashManagementData
         });
         return (
-          <NetProfit 
-            performanceData={performanceData} 
-            plData={plData} 
-          />
+          <>
+            <NetProfit 
+              performanceData={performanceData} 
+              plData={plData} 
+            />
+            <div className="mt-6">
+              <SavingsGoals cashFlowData={cashManagementData} />
+            </div>
+            <div className="mt-6">
+              <CreditLine financialResources={cashManagementData?.financialResources} />
+            </div>
+          </>
         );
       case 'overview-v2':
         return (
@@ -197,6 +209,22 @@ const processSheetData = (data) => {
             plData={plData}
             metrics={dashboardData.overallMetrics}
           />
+        );
+  
+      case 'bank-goals':
+        return (
+          <div className="space-y-6">
+            <SavingsGoals 
+              cashFlowData={cashManagementData}
+              goals={dashboardData.financialGoals}
+              onGoalsUpdate={(newGoals) => {
+                setDashboardData(prev => ({
+                  ...prev,
+                  financialGoals: newGoals
+                }));
+              }}
+            />
+          </div>
         );
   
       case 'cash-credit':
