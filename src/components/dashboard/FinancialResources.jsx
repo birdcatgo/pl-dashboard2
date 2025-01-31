@@ -1,41 +1,36 @@
 import React from 'react';
 import { DollarSign, CreditCard, AlertCircle, Wallet } from 'lucide-react';
+import { formatCurrency } from '../../utils/formatters';
 
-const formatCurrency = (amount) => {
-  return new Intl.NumberFormat('en-US', {
-    style: 'currency',
-    currency: 'USD',
-    minimumFractionDigits: 0,
-    maximumFractionDigits: 0,
-  }).format(amount);
-};
+const FinancialResources = ({ financialResources = [], cashFlowData = {} }) => {
+  // Add default values and validation
+  const resources = financialResources || [];
+  const currentBalance = cashFlowData?.currentBalance || 0;
+  const creditAvailable = cashFlowData?.creditAvailable || 0;
 
-const FinancialResources = ({ financialResources }) => {
-  const validResources = (financialResources || []).filter(resource => 
-    resource && 
-    typeof resource.account === 'string' && 
-    resource.account.trim() !== ''
+  // Filter out invalid resources
+  const validResources = resources.filter(resource => 
+    resource && typeof resource.amount === 'number' && resource.name
   );
-  console.log('Financial resources before filtering:', financialResources);
-  console.log('Valid resources after filtering:', validResources);
-  if (!Array.isArray(financialResources)) {
-    console.error('Invalid financial resources:', financialResources);
-    return null;
-  }
 
   // Calculate totals
-  const totalAvailable = financialResources.reduce((sum, resource) => sum + resource.available, 0);
-  const totalOwing = financialResources.reduce((sum, resource) => sum + resource.owing, 0);
-  const totalLimit = financialResources.reduce((sum, resource) => sum + resource.limit, 0);
+  const totalResources = validResources.reduce((sum, resource) => 
+    sum + (resource.amount || 0), 0
+  ) + currentBalance + creditAvailable;
+
+  // Calculate totals
+  const totalAvailable = resources.reduce((sum, resource) => sum + resource.available, 0);
+  const totalOwing = resources.reduce((sum, resource) => sum + resource.owing, 0);
+  const totalLimit = resources.reduce((sum, resource) => sum + resource.limit, 0);
 
   // Separate cash and credit accounts
   const cashAccounts = validResources.filter(resource => 
     !resource.limit && 
-    resource.account.toLowerCase().includes('cash')
+    resource.name.toLowerCase().includes('cash')
   );
   const creditAccounts = validResources.filter(resource => 
     resource.limit > 0 || 
-    resource.account.toLowerCase().includes('credit')
+    resource.name.toLowerCase().includes('credit')
   );
 
   
@@ -47,7 +42,38 @@ const FinancialResources = ({ financialResources }) => {
   };
 
   return (
-    <div className="bg-white rounded-lg shadow">
+    <div className="bg-white shadow rounded-lg p-6">
+      <h2 className="text-lg font-semibold mb-4">Financial Resources</h2>
+      <div className="space-y-4">
+        {/* Current Balance */}
+        <div className="flex justify-between items-center">
+          <span className="text-gray-600">Current Balance</span>
+          <span className="font-medium">{formatCurrency(currentBalance)}</span>
+        </div>
+
+        {/* Credit Available */}
+        <div className="flex justify-between items-center">
+          <span className="text-gray-600">Credit Available</span>
+          <span className="font-medium">{formatCurrency(creditAvailable)}</span>
+        </div>
+
+        {/* Additional Resources */}
+        {validResources.map((resource, index) => (
+          <div key={index} className="flex justify-between items-center">
+            <span className="text-gray-600">{resource.name}</span>
+            <span className="font-medium">{formatCurrency(resource.amount)}</span>
+          </div>
+        ))}
+
+        {/* Total */}
+        <div className="pt-4 border-t">
+          <div className="flex justify-between items-center">
+            <span className="font-semibold">Total Resources</span>
+            <span className="font-semibold">{formatCurrency(totalResources)}</span>
+          </div>
+        </div>
+      </div>
+
       {/* Header Section with Summary Cards */}
       <div className="p-6 border-b border-gray-200">
         <div className="flex items-center justify-between mb-4">
@@ -101,10 +127,10 @@ const FinancialResources = ({ financialResources }) => {
                 {cashAccounts.map((resource, index) => (
                   <tr key={index} className="hover:bg-gray-50">
                     <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
-                      {resource.account}
+                      {resource.name}
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-right text-green-600 font-medium">
-                      {formatCurrency(resource.available)}
+                      {formatCurrency(resource.amount)}
                     </td>
                   </tr>
                 ))}
@@ -138,10 +164,10 @@ const FinancialResources = ({ financialResources }) => {
                   return (
                     <tr key={index} className="hover:bg-gray-50">
                       <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
-                        {resource.account}
+                        {resource.name}
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap text-sm text-right text-green-600 font-medium">
-                        {formatCurrency(resource.available)}
+                        {formatCurrency(resource.amount)}
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap text-sm text-right text-red-600 font-medium">
                         {formatCurrency(resource.owing)}

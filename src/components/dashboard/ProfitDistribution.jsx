@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Card, CardContent } from '../ui/card';
 import { Wallet, PiggyBank, CreditCard, Edit2 } from 'lucide-react';
+import FinancialResources from './FinancialResources';
 
 const BankStructureOverview = ({ 
   bankStructure, 
@@ -10,7 +11,9 @@ const BankStructureOverview = ({
   cashFlowData,
   creditLimits,
   otherCards,
-  totalCreditLimit
+  totalCreditLimit,
+  getAvailableCredit,
+  getTotalAvailableCredit
 }) => {
   // Load saved values from localStorage or use defaults
   const loadSavedValues = () => {
@@ -72,35 +75,6 @@ const BankStructureOverview = ({
   const currentBalances = {
     operating: getAccountBalance('Cash in Bank'),
     emergency: getAccountBalance('Business Savings (JP MORGAN)')
-  };
-
-  const getAvailableCredit = (cardType) => {
-    return cashFlowData?.financialResources?.reduce((total, card) => {
-      const name = card.account || '';
-      const available = parseFloat(card.available.toString().replace(/[$,]/g, '') || '0') || 0;
-      
-      if (cardType === 'AMEX' && name.startsWith('AMEX ')) {
-        return total + available;
-      } else if (cardType === 'Chase' && name.startsWith('Chase C/C')) {
-        return total + available;
-      } else if (cardType === 'Capital One' && name.startsWith('Capital One')) {
-        return total + available;
-      } else if (cardType === 'Other' && 
-        (name.includes('Amazon Prime') || 
-         name.includes('Bank of America') || 
-         name.includes('US Bank') || 
-         name.includes('Alliant'))) {
-        return total + available;
-      }
-      return total;
-    }, 0);
-  };
-
-  const getTotalAvailableCredit = () => {
-    return cashFlowData?.financialResources?.reduce((total, card) => {
-      const available = parseFloat(card.available.toString().replace(/[$,]/g, '') || '0') || 0;
-      return total + available;
-    }, 0);
   };
 
   return (
@@ -363,33 +337,79 @@ const BankStructureOverview = ({
   );
 };
 
-const ProfitDistribution = ({ cashFlowData, bankStructure, netProfit }) => {
-  console.log('SavingsGoals Props:', {
-    cashFlowData,
-    bankStructure,
-    netProfit
-  });
-
-  // Move GOALS to state
+const ProfitDistribution = ({ 
+  cashFlowData, 
+  bankStructure, 
+  netProfit,
+  financialResources 
+}) => {
+  // Initialize goals with financialResources or defaults
   const [goals, setGoals] = useState({
     operatingCash: 500000,
     savings: 500000,
     creditLine: 3000000
   });
-  
+
+  // Update goals when financial resources change
+  useEffect(() => {
+    if (financialResources) {
+      console.log('Updating goals with financial resources:', financialResources);
+      setGoals({
+        operatingCash: financialResources.operatingCash || goals.operatingCash,
+        savings: financialResources.savingsGoal || goals.savings,
+        creditLine: financialResources.creditLine || goals.creditLine
+      });
+    }
+  }, [financialResources]);
+
+  // Debug logs
+  console.log('SavingsGoals Props:', { 
+    cashFlowData, 
+    bankStructure, 
+    netProfit,
+    financialResources 
+  });
+
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
+  const [creditLimits, setCreditLimits] = useState({
+    amex: 0,
+    chase: 0,
+    capitalOne: 0
+  });
 
-  // Add edit button to each card header
-  const EditButton = () => (
-    <button
-      onClick={() => setIsEditModalOpen(true)}
-      className="p-1 hover:bg-gray-100 rounded-full"
-      title="Edit Goals"
-    >
-      <Edit2 className="h-4 w-4 text-gray-400" />
-    </button>
-  );
+  // Calculate credit limits from cashFlowData
+  useEffect(() => {
+    if (cashFlowData?.financialResources) {
+      const limits = cashFlowData.financialResources.reduce((acc, card) => {
+        const name = card.account || '';
+        const limit = parseFloat(card.limit?.toString().replace(/[$,]/g, '') || '0');
+        const available = parseFloat(card.available?.toString().replace(/[$,]/g, '') || '0');
 
+        if (name.includes('AMEX')) {
+          acc.amex = (acc.amex || 0) + limit;
+          acc.amexAvailable = (acc.amexAvailable || 0) + available;
+        } else if (name.includes('Chase')) {
+          acc.chase = (acc.chase || 0) + limit;
+          acc.chaseAvailable = (acc.chaseAvailable || 0) + available;
+        } else if (name.includes('Capital One')) {
+          acc.capitalOne = (acc.capitalOne || 0) + limit;
+          acc.capitalOneAvailable = (acc.capitalOneAvailable || 0) + available;
+        } else {
+          acc.other = (acc.other || 0) + limit;
+          acc.otherAvailable = (acc.otherAvailable || 0) + available;
+        }
+        return acc;
+      }, {});
+
+      setCreditLimits(limits);
+      setOtherCards({
+        total: limits.other || 0,
+        available: limits.otherAvailable || 0
+      });
+    }
+  }, [cashFlowData]);
+
+  // Format currency values
   const formatCurrency = (value) => {
     return new Intl.NumberFormat('en-US', {
       style: 'currency',
@@ -399,7 +419,7 @@ const ProfitDistribution = ({ cashFlowData, bankStructure, netProfit }) => {
     }).format(value);
   };
 
-  // Get specific account balances
+  // Get account balances
   const getAccountBalance = (accountName) => {
     const account = cashFlowData?.financialResources?.find(
       resource => resource?.account === accountName
@@ -407,59 +427,40 @@ const ProfitDistribution = ({ cashFlowData, bankStructure, netProfit }) => {
     return account ? parseFloat(account.available.toString().replace(/[$,]/g, '')) : 0;
   };
 
-  // Calculate credit limits by card type
-  const calculateCreditLimits = () => {
-    if (!cashFlowData?.financialResources) return {};
-    
-    return cashFlowData.financialResources.reduce((acc, card) => {
-      const name = card.account || '';
-      const limit = parseFloat(card.limit.toString().replace(/[$,]/g, '') || '0') || 0;
-
-      if (name.startsWith('AMEX ')) {
-        acc.amex = (acc.amex || 0) + limit;
-      } else if (name.startsWith('Chase C/C')) {
-        acc.chase = (acc.chase || 0) + limit;
-      } else if (name.startsWith('Capital One')) {
-        acc.capitalOne = (acc.capitalOne || 0) + limit;
-      } else if (name.trim() === 'Chase Amazon Prime') {
-        acc.amazonPrime = limit;
-      } else if (name === 'Bank of America') {
-        acc.bankOfAmerica = limit;
-      } else if (name === 'US Bank - Triple Cash') {
-        acc.usBank = limit;
-      } else if (name === 'Alliant Visa Signature') {
-        acc.alliant = limit;
-      }
-
-      return acc;
-    }, {});
+  // Get available credit
+  const getAvailableCredit = (cardType) => {
+    switch (cardType.toLowerCase()) {
+      case 'amex':
+        return creditLimits.amexAvailable || 0;
+      case 'chase':
+        return creditLimits.chaseAvailable || 0;
+      case 'capital one':
+        return creditLimits.capitalOneAvailable || 0;
+      case 'other':
+        return otherCards.available || 0;
+      default:
+        return 0;
+    }
   };
 
-  // Add debug logging
-  console.log('Financial Resources:', cashFlowData?.financialResources?.map(r => ({
-    name: r.account,
-    available: r.available,
-    limit: r.limit
-  })));
-
-  const creditLimits = calculateCreditLimits();
-  const totalCreditLimit = Object.values(creditLimits).reduce((sum, val) => sum + val, 0);
-
-  const otherCards = {
-    total: (creditLimits.amazonPrime || 0) + 
-           (creditLimits.bankOfAmerica || 0) + 
-           (creditLimits.usBank || 0) + 
-           (creditLimits.alliant || 0),
-    breakdown: [
-      { name: 'Chase Amazon Prime', value: creditLimits.amazonPrime || 0 },
-      { name: 'Bank of America', value: creditLimits.bankOfAmerica || 0 },
-      { name: 'US Bank', value: creditLimits.usBank || 0 },
-      { name: 'Alliant', value: creditLimits.alliant || 0 }
-    ]
+  const getTotalAvailableCredit = () => {
+    return (
+      (creditLimits.amexAvailable || 0) +
+      (creditLimits.chaseAvailable || 0) +
+      (creditLimits.capitalOneAvailable || 0) +
+      (otherCards.available || 0)
+    );
   };
+
+  // Add state for other cards
+  const [otherCards, setOtherCards] = useState({
+    total: 0,
+    available: 0
+  });
 
   return (
     <div className="space-y-6">
+      {/* Bank Structure Overview */}
       <BankStructureOverview 
         bankStructure={bankStructure}
         netProfit={netProfit}
@@ -468,7 +469,9 @@ const ProfitDistribution = ({ cashFlowData, bankStructure, netProfit }) => {
         cashFlowData={cashFlowData}
         creditLimits={creditLimits}
         otherCards={otherCards}
-        totalCreditLimit={totalCreditLimit}
+        totalCreditLimit={getTotalAvailableCredit()}
+        getAvailableCredit={getAvailableCredit}
+        getTotalAvailableCredit={getTotalAvailableCredit}
       />
     </div>
   );

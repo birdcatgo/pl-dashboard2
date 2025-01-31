@@ -21,57 +21,105 @@ const formatPercent = (value) => {
   return `${value.toFixed(1)}%`;
 };
 
-const SummaryTable = ({ summaryData }) => (
-  <Card>
-    <CardHeader>
-      <CardTitle className="flex items-center">
-        <Calendar className="mr-2 h-5 w-5" />
-        Year-to-Date Summary
-      </CardTitle>
-    </CardHeader>
-    <CardContent>
-      <div className="overflow-x-auto">
-        <table className="w-full">
-          <thead>
-            <tr>
-              <th className="text-left p-2 bg-gray-50">Month</th>
-              <th className="text-right p-2 bg-gray-50">Revenue</th>
-              <th className="text-right p-2 bg-gray-50">Costs</th>
-              <th className="text-right p-2 bg-gray-50">Ad Spend</th>
-              <th className="text-right p-2 bg-gray-50">Net Profit</th>
-              <th className="text-right p-2 bg-gray-50">Margin %</th>
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-gray-200">
-            {summaryData.map((month, index) => (
-              <tr key={index} className="hover:bg-gray-50">
-                <td className="p-2">{month.Month}</td>
-                <td className="text-right p-2">{formatCurrency(month.Revenue)}</td>
-                <td className="text-right p-2">{formatCurrency(month.Costs)}</td>
-                <td className="text-right p-2">{formatCurrency(month['Ad Spend'])}</td>
-                <td className="text-right p-2">{formatCurrency(month['Net Profit'])}</td>
-                <td className="text-right p-2">{formatPercent((month['Net Profit'] / month.Revenue) * 100)}</td>
+const SummaryTable = ({ summaryData }) => {
+  console.log('Summary Data:', summaryData);
+
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle className="flex items-center">
+          <Calendar className="mr-2 h-5 w-5" />
+          Year-to-Date Summary
+        </CardTitle>
+      </CardHeader>
+      <CardContent>
+        <div className="overflow-x-auto">
+          <table className="w-full">
+            <thead>
+              <tr>
+                <th className="text-left p-2 bg-gray-50">Month</th>
+                <th className="text-right p-2 bg-gray-50">Revenue</th>
+                <th className="text-right p-2 bg-gray-50">Costs</th>
+                <th className="text-right p-2 bg-gray-50">Ad Spend</th>
+                <th className="text-right p-2 bg-gray-50">Net Profit</th>
+                <th className="text-right p-2 bg-gray-50">Margin %</th>
               </tr>
-            ))}
-          </tbody>
-          
-        </table>
-      </div>
-    </CardContent>
-  </Card>
-);
+            </thead>
+            <tbody className="divide-y divide-gray-200">
+              {summaryData.map((month, index) => {
+                const revenue = parseFloat(month.Income || 0);
+                const adSpend = parseFloat(month.Advertising || 0);
+                const netProfit = parseFloat(month.Net_Rev || 0);
+                const costs = revenue - netProfit; // Calculate total costs
+                const margin = parseFloat(month['Net%'] || 0);
+
+                return (
+                  <tr key={index} className="hover:bg-gray-50">
+                    <td className="p-2">{month.Month}</td>
+                    <td className="text-right p-2">{formatCurrency(revenue)}</td>
+                    <td className="text-right p-2">{formatCurrency(costs)}</td>
+                    <td className="text-right p-2">{formatCurrency(adSpend)}</td>
+                    <td className="text-right p-2">{formatCurrency(netProfit)}</td>
+                    <td className="text-right p-2">{formatPercent(margin)}</td>
+                  </tr>
+                );
+              })}
+            </tbody>
+            <tfoot className="bg-gray-50 font-medium">
+              <tr>
+                <td className="p-2">Total</td>
+                <td className="text-right p-2">
+                  {formatCurrency(_.sumBy(summaryData, m => parseFloat(m.Income || 0)))}
+                </td>
+                <td className="text-right p-2">
+                  {formatCurrency(_.sumBy(summaryData, m => 
+                    parseFloat(m.Income || 0) - parseFloat(m.Net_Rev || 0)
+                  ))}
+                </td>
+                <td className="text-right p-2">
+                  {formatCurrency(_.sumBy(summaryData, m => parseFloat(m.Advertising || 0)))}
+                </td>
+                <td className="text-right p-2">
+                  {formatCurrency(_.sumBy(summaryData, m => parseFloat(m.Net_Rev || 0)))}
+                </td>
+                <td className="text-right p-2">
+                  {formatPercent(
+                    (_.sumBy(summaryData, m => parseFloat(m.Net_Rev || 0)) / 
+                    _.sumBy(summaryData, m => parseFloat(m.Income || 0))) * 100
+                  )}
+                </td>
+              </tr>
+            </tfoot>
+          </table>
+        </div>
+      </CardContent>
+    </Card>
+  );
+};
 
 const MonthlyDetails = ({ monthData, month }) => {
   const [expandedCategory, setExpandedCategory] = useState(null);
   
-  const incomeData = monthData.filter(item => item['Income/Expense'] === 'Income');
-  const expenseData = monthData.filter(item => item['Income/Expense'] === 'Expense');
+  // Get the rows from the monthData structure
+  const monthDataArray = monthData?.rows || [];
+  
+  const incomeData = monthDataArray.filter(item => item['Income/Expense'] === 'Income');
+  const expenseData = monthDataArray.filter(item => item['Income/Expense'] === 'Expense');
   
   const totalIncome = _.sumBy(incomeData, item => parseFloat(item.AMOUNT) || 0);
-  const totalExpenses = _.sumBy(expenseData, item => Math.abs(parseFloat(item.AMOUNT)) || 0);
-  const netProfit = totalIncome - totalExpenses;
+  const totalExpenses = monthData?.totalExpenses || 0;
 
+  // Group expenses by category
   const categories = _.groupBy(expenseData, 'CATEGORY');
+
+  console.log('Processed Monthly Data:', {
+    monthDataArray,
+    incomeData,
+    expenseData,
+    totalIncome,
+    totalExpenses,
+    categories
+  });
 
   return (
     <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
@@ -152,6 +200,14 @@ const ImprovedPLDashboard = ({ plData, summaryData }) => {
       setMonthlyData(plData.monthly);
     }
   }, [plData]);
+
+  // Debug log
+  console.log('PL Data:', {
+    plData,
+    monthlyData,
+    selectedMonth,
+    currentMonthData: monthlyData?.[selectedMonth]
+  });
 
   if (!monthlyData || !selectedMonth) {
     return (

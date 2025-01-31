@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 import { TrendingUp, ArrowUp, ArrowDown, DollarSign } from 'lucide-react';
-import { format } from 'date-fns';
+import { format, parse, isValid, parseISO } from 'date-fns';
 
 const formatCurrency = (amount) => {
   if (typeof amount !== 'number' || isNaN(amount)) return '-';
@@ -13,9 +13,10 @@ const formatCurrency = (amount) => {
   }).format(amount);
 };
 
-const parseAmount = (amountString) => {
-  if (typeof amountString === 'number') return amountString;
-  return parseFloat(amountString?.replace(/[$,]/g, '') || '0') || 0;
+const parseAmount = (value) => {
+  if (typeof value === 'number') return value;
+  if (!value) return 0;
+  return parseFloat(value.toString().replace(/[^0-9.-]+/g, '')) || 0;
 };
 
 const ImprovedCashFlow = ({ startingBalance = 0, invoicesData = [], payrollData = [] }) => {
@@ -23,100 +24,88 @@ const ImprovedCashFlow = ({ startingBalance = 0, invoicesData = [], payrollData 
   const [isLoading, setIsLoading] = useState(true);
   const [expandedRows, setExpandedRows] = useState(new Set());
 
-  useEffect(() => {
-    const generateProjections = () => {
-      const today = new Date();
-      const projectionDays = 14;
-      const dailyProjections = [];
-      let runningBalance = startingBalance;
+  const parseDate = (dateString) => {
+    if (!dateString) return null;
+    
+    // Try MM/dd/yyyy format first
+    let parsedDate = parse(dateString, 'MM/dd/yyyy', new Date());
+    if (isValid(parsedDate)) return parsedDate;
+    
+    // Try yyyy-MM-dd format
+    parsedDate = parse(dateString, 'yyyy-MM-dd', new Date());
+    if (isValid(parsedDate)) return parsedDate;
+    
+    // Try ISO format
+    parsedDate = parseISO(dateString);
+    if (isValid(parsedDate)) return parsedDate;
+    
+    return null;
+  };
 
-      // Create a map to store payments by date
-      const dateMap = new Map();
-
-      // Process invoices
-      invoicesData.forEach(invoice => {
-        const date = new Date(invoice.DueDate);
-        const amount = parseAmount(invoice.AmountDue);
-        const dateKey = format(date, 'yyyy-MM-dd');
-
-        if (!dateMap.has(dateKey)) {
-          dateMap.set(dateKey, { 
-            invoices: [], 
-            payroll: [], 
-            creditCard: [] 
-          });
+  const generateProjections = () => {
+    const projections = [];
+    const today = new Date();
+    
+    // Process invoices
+    invoicesData?.forEach(invoice => {
+      const dueDate = parseDate(invoice.DueDate);
+      if (!dueDate) {
+        // Use PeriodEnd date as fallback for Digi invoices
+        if (invoice.Network === 'Digi' && invoice.PeriodEnd) {
+          const periodEndDate = parseDate(invoice.PeriodEnd);
+          if (periodEndDate) {
+            // Add 14 days for Net 14 terms
+            const calculatedDueDate = new Date(periodEndDate);
+            calculatedDueDate.setDate(periodEndDate.getDate() + 14);
+            projections.push({
+              date: calculatedDueDate,
+              type: 'invoice',
+              description: `${invoice.Network} Invoice #${invoice.InvoiceNumber}`,
+              amount: invoice.Amount,
+              category: 'income'
+            });
+            return;
+          }
         }
-
-        dateMap.get(dateKey).invoices.push({
-          source: invoice.Invoices,
-          amount
-        });
-      });
-
-      // Process payroll/credit card payments
-      // Process payroll/credit card payments
-      payrollData.forEach(expense => {
-        if (!expense.DueDate) return; // Skip if no date
-        
-        const date = new Date(expense.DueDate); 
-        const amount = parseAmount(expense.Amount);
-        const type = expense.Type;
-        const dateKey = format(date, 'yyyy-MM-dd');
+        console.debug(`Skipping invoice for ${invoice.Network} - missing or invalid due date`);
+        return;
+      }
       
-        if (!dateMap.has(dateKey)) {
-          dateMap.set(dateKey, { 
-            invoices: [], 
-            payroll: [],
-            creditCard: []
-          }); 
-        }
-      
-        if (type.toLowerCase() === 'credit card') {
-          dateMap.get(dateKey).creditCard.push({
-            description: expense.Description,
-            amount  
-          });
-        } else {
-          dateMap.get(dateKey).payroll.push({
-            description: expense.Description,
-            amount
-          });
-        }
+      projections.push({
+        date: dueDate,
+        type: 'invoice',
+        description: `${invoice.Network} Invoice #${invoice.InvoiceNumber}`,
+        amount: invoice.Amount,
+        category: 'income'
       });
+    });
 
-      // Generate daily projections
-      for (let i = 0; i < projectionDays; i++) {
-        const currentDate = new Date(today);
-        currentDate.setDate(today.getDate() + i);
-        const dateKey = format(currentDate, 'yyyy-MM-dd');
-        const dateData = dateMap.get(dateKey) || { 
-          invoices: [], 
-          payroll: [], 
-          creditCard: [] 
-        };
-
-        const invoiceTotal = dateData.invoices.reduce((sum, item) => sum + item.amount, 0);
-        const payrollTotal = dateData.payroll.reduce((sum, item) => sum + item.amount, 0);
-        const creditCardTotal = dateData.creditCard.reduce((sum, item) => sum + item.amount, 0);
-
-        runningBalance = runningBalance + invoiceTotal - payrollTotal - creditCardTotal;
-
-        dailyProjections.push({
-          date: currentDate,
-          details: dateData,
-          invoiceTotal,
-          payrollTotal,
-          creditCardTotal,
-          balance: runningBalance
-        });
+    // Process expenses
+    payrollData?.forEach(expense => {
+      const dueDate = parseDate(expense.dueDate);
+      if (!dueDate) {
+        console.debug(`Skipping expense ${expense.role} - missing or invalid due date`);
+        return;
       }
 
-      setProjections(dailyProjections);
-      setIsLoading(false);
-    };
+      projections.push({
+        date: dueDate,
+        type: 'expense',
+        description: expense.role,
+        amount: -expense.amount, // Negative for expenses
+        category: expense.name
+      });
+    });
 
-    generateProjections();
-  }, [startingBalance, invoicesData, payrollData]);
+    // Sort projections by date
+    return projections.sort((a, b) => a.date - b.date);
+  };
+
+  useEffect(() => {
+    const projections = generateProjections();
+    setProjections(projections);
+    setIsLoading(false);
+  }, [invoicesData, payrollData]);
 
   const toggleRowExpansion = (index) => {
     const newExpandedRows = new Set(expandedRows);
@@ -130,7 +119,7 @@ const ImprovedCashFlow = ({ startingBalance = 0, invoicesData = [], payrollData 
 
   const chartData = projections.map(day => ({
     name: format(day.date, 'MMM dd'),
-    balance: day.balance
+    balance: day.amount
   }));
 
   if (isLoading) {
@@ -141,10 +130,9 @@ const ImprovedCashFlow = ({ startingBalance = 0, invoicesData = [], payrollData 
     );
   }
 
-  const totalInvoices = projections.reduce((sum, day) => sum + day.invoiceTotal, 0);
-  const totalPayroll = projections.reduce((sum, day) => sum + day.payrollTotal, 0);
-  const totalCreditCard = projections.reduce((sum, day) => sum + day.creditCardTotal, 0);
-  const finalBalance = projections[projections.length - 1]?.balance || startingBalance;
+  const totalInflows = projections.reduce((sum, day) => sum + day.amount, 0);
+  const totalOutflows = 0;
+  const finalBalance = projections[projections.length - 1]?.amount || startingBalance;
 
   return (
     <div className="bg-white rounded-lg shadow">
@@ -165,19 +153,19 @@ const ImprovedCashFlow = ({ startingBalance = 0, invoicesData = [], payrollData 
 
           <div className="bg-green-50 rounded-lg p-4">
             <div className="flex items-center justify-between">
-              <div className="text-green-600 font-medium">Total Invoices</div>
+              <div className="text-green-600 font-medium">Total Inflows</div>
               <ArrowUp className="h-5 w-5 text-green-500" />
             </div>
-            <div className="text-2xl font-bold text-green-700 mt-2">{formatCurrency(totalInvoices)}</div>
+            <div className="text-2xl font-bold text-green-700 mt-2">{formatCurrency(totalInflows)}</div>
           </div>
 
           <div className="bg-red-50 rounded-lg p-4">
             <div className="flex items-center justify-between">
-              <div className="text-red-600 font-medium">Total Outgoing</div>
+              <div className="text-red-600 font-medium">Total Outflows</div>
               <ArrowDown className="h-5 w-5 text-red-500" />
             </div>
             <div className="text-2xl font-bold text-red-700 mt-2">
-              {formatCurrency(totalPayroll + totalCreditCard)}
+              {formatCurrency(totalOutflows)}
             </div>
           </div>
 
@@ -214,21 +202,18 @@ const ImprovedCashFlow = ({ startingBalance = 0, invoicesData = [], payrollData 
           <thead className="bg-gray-50">
             <tr>
               <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Date</th>
-              <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase">Invoices</th>
-              <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase">Payroll</th>
-              <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase">Credit Card</th>
+              <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase">Inflows</th>
+              <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase">Outflows</th>
               <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase">Balance</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-gray-200">
             {projections.map((day, index) => {
-              const hasDetails = day.details?.invoices?.length > 0 || 
-              day.details?.payroll?.length > 0 || 
-              day.details?.creditCard?.length > 0;
+              const hasDetails = day.type === 'invoice' || day.type === 'expense';
               return (
                 <React.Fragment key={index}>
                   <tr 
-                    className={`hover:bg-gray-50 cursor-pointer ${day.balance < 50000 ? 'bg-red-50' : ''}`}
+                    className={`hover:bg-gray-50 cursor-pointer ${day.amount < 50000 ? 'bg-red-50' : ''}`}
                     onClick={() => hasDetails && toggleRowExpansion(index)}
                   >
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
@@ -240,37 +225,29 @@ const ImprovedCashFlow = ({ startingBalance = 0, invoicesData = [], payrollData 
                       </div>
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-right text-green-600">
-                      {day.invoiceTotal > 0 && formatCurrency(day.invoiceTotal)}
+                      {day.amount > 0 && formatCurrency(day.amount)}
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-right text-red-600">
-                      {day.payrollTotal > 0 && formatCurrency(day.payrollTotal)}
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-right text-red-600">
-                      {day.creditCardTotal > 0 && formatCurrency(day.creditCardTotal)}
+                      {day.amount < 0 && formatCurrency(-day.amount)}
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-right font-medium text-gray-900">
-                      {formatCurrency(day.balance)}
+                      {formatCurrency(day.amount)}
                     </td>
                   </tr>
                   {expandedRows.has(index) && hasDetails && (
                     <tr className="bg-gray-50">
-                      <td colSpan="5" className="px-8 py-3">
+                      <td colSpan="4" className="px-8 py-3">
                         <div className="text-sm space-y-1">
-                          {day.details.invoices.map((item, i) => (
-                            <div key={`invoice-${i}`} className="text-green-600">
-                              + Invoice from {item.source} ({formatCurrency(item.amount)})
+                          {day.type === 'invoice' && (
+                            <div className="text-green-600">
+                              + {day.description} ({formatCurrency(day.amount)})
                             </div>
-                          ))}
-                          {day.details.payroll.map((item, i) => (
-                            <div key={`payroll-${i}`} className="text-red-600">
-                              - Payroll: {item.description} ({formatCurrency(item.amount)})
+                          )}
+                          {day.type === 'expense' && (
+                            <div className="text-red-600">
+                              - {day.description} ({formatCurrency(-day.amount)})
                             </div>
-                          ))}
-                          {day.details.creditCard.map((item, i) => (
-                            <div key={`cc-${i}`} className="text-red-600">
-                              - Credit Card: {item.description} ({formatCurrency(item.amount)})
-                            </div>
-                          ))}
+                          )}
                         </div>
                       </td>
                     </tr>

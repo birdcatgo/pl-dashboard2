@@ -13,18 +13,22 @@ import ImprovedCashFlow from '../components/dashboard/ImprovedCashFlow';
 import CashFlowDashboard from '../components/dashboard/CashFlowDashboard';
 import MediaBuyerSpend from '../components/dashboard/MediaBuyerSpend';
 import FinancialResources from '../components/dashboard/FinancialResources';
-import PLDashboardComponent from '../components/dashboard/PLDashboard';
 import EnhancedOverviewV2 from '../components/dashboard/EnhancedOverviewV2';
 import InvoicesTable from '../components/dashboard/InvoicesTable';
 import UpcomingExpensesTable from '../components/dashboard/UpcomingExpensesTable';
 import EnhancedCashFlowProjection from '../components/dashboard/EnhancedCashFlowProjection';
-import ProjectionsTab from '../components/dashboard/ProjectionsTab';
 import NetworkCapsTab from '../components/dashboard/NetworkCapsTab';
 import CashCreditBalancesTab from '../components/dashboard/CashCreditBalancesTab';
 import DailySpendCalculatorTab from '../components/dashboard/DailySpendCalculatorTab';
 import NetProfit from '../components/dashboard/NetProfit';
 import ProfitDistribution from '../components/dashboard/ProfitDistribution';
 import CreditLine from '../components/dashboard/CreditLine';
+import CashPosition from '../components/dashboard/CashPosition';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import PLDashboard from '@/components/dashboard/PLDashboard';
+import CashFlowProjection from '../components/dashboard/CashFlowProjection';
+import ImprovedPLDashboard from '../components/dashboard/ImprovedPLDashboard';
+import Highlights from '../components/dashboard/Highlights';
 
 export default function DashboardPage() {
   const [plData, setPlData] = useState(null);
@@ -54,6 +58,7 @@ export default function DashboardPage() {
   const [payrollData, setPayrollData] = useState([]);
   const [mediaBuyerData, setMediaBuyerData] = useState(null);
   const [rawData, setRawData] = useState(null);
+  const [summaryData, setSummaryData] = useState([]);
 
   const tabs = [
     { id: 'overview-v2', label: 'Overview' },
@@ -63,25 +68,37 @@ export default function DashboardPage() {
     { id: 'network-caps', label: 'Network Caps' },
     { id: 'daily-spend', label: 'Daily Spend' },
     { id: 'cash-flow', label: 'Cash Flow' }, 
-    { id: 'projections', label: 'Projections' },
     { id: 'pl', label: 'Profit & Loss' },
     { id: 'network', label: 'Offer Performance' },
     { id: 'media-buyers', label: 'Media Buyers' },
     { id: 'invoices', label: 'Invoices' },
     { id: 'upcoming-expenses', label: 'Expenses' },
+    { id: 'cash-position', label: 'Cash Position' },
+    { id: 'highlights', label: 'Highlights' },
   ];
 
 // Update the processSheetData function in index.js
 const processSheetData = (data) => {
   try {
-    console.log('Processing sheet data:', data);
-
-    // Check for invoices in rawData
+    console.log('Raw API response:', data);
+    
+    // Process invoices data
     if (data.rawData?.invoices) {
-      console.log('Raw invoices data:', data.rawData.invoices);
+      console.log('Setting invoices data:', data.rawData.invoices);
       setInvoicesData(data.rawData.invoices);
-      console.log('Processed invoices data:', data.rawData.invoices);
     }
+
+    setRawData({
+      ...data.rawData,
+      networkTerms: data.networkTerms // Add networkTerms to rawData
+    });
+
+    // Add logging
+    console.log('Processing sheet data invoices:', {
+      hasInvoices: !!data.rawData?.invoices,
+      invoiceCount: data.rawData?.invoices?.length
+    });
+    
     if (data.rawData?.creditCardExpenses) {
       const creditCardExpenses = data.rawData.creditCardExpenses.map(expense => ({
         ...expense, 
@@ -127,6 +144,10 @@ const processSheetData = (data) => {
     if (data.networkPaymentsData) {
       setNetworkPaymentsData(data.networkPaymentsData);
     }
+
+    if (data.summaryData) {
+      setSummaryData(data.summaryData);
+    }
   } catch (error) {
     console.error('Error processing sheet data:', error);
     setError('Failed to process updated data');
@@ -139,53 +160,41 @@ const processSheetData = (data) => {
       setIsRefreshing(true);
       setError(null);
   
-      const response = await fetch('/api/sheets', {
-        method: 'GET',
-        headers: {
-          'Cache-Control': 'no-cache',
-          'Pragma': 'no-cache'  
-        }
-      });
-
+      const response = await fetch('/api/sheets');
       if (!response.ok) {
         throw new Error(`HTTP error! status: ${response.status}`);
       }
 
       const data = await response.json();
-      console.log('API Response:', data); 
-      processSheetData(data);
+      console.log('API Response:', data);
+      
+      // Process the data
+      setPerformanceData(data.performanceData);
+      setRawData({
+        ...data.rawData,
+        networkTerms: data.networkTerms
+      });
+      setCashManagementData(data.cashFlowData);
+      setPlData(data.plData);
+      setMediaBuyerData(data.rawData.mediaBuyerSpend);
+      setNetworkPaymentsData(data.networkPaymentsData);
+      setPayrollData(data.rawData?.payroll || []);
+      
+      setInvoicesData(data.rawData?.invoices || []);
+      
       setLastUpdated(new Date());
     } catch (error) {
       console.error('Error fetching dashboard data:', error);
       setError(error.message || 'Failed to load data');
     } finally {
       setIsRefreshing(false);
-      setIsLoading(false); 
+      setIsLoading(false);
     }
   };
 
+  // Load data on mount
   useEffect(() => {
-    const fetchData = async () => {
-      try {
-        const response = await fetch('/api/sheets');
-        const data = await response.json();
-        console.log('API Response:', data);
-        setCashManagementData(data.cashFlowData);
-        setPlData(data.plData);
-        setPerformanceData(data.performanceData);
-        setMediaBuyerData(data.rawData.mediaBuyerSpend);
-        setNetworkPaymentsData(data.networkPaymentsData);
-        setInvoicesData(data.rawData.invoices);
-        setPayrollData(data.rawData.payroll);
-        setRawData(data.rawData);
-        setIsLoading(false);
-      } catch (error) {
-        console.error('Error fetching data:', error);
-        setError(error.message);
-        setIsLoading(false);
-      }
-    };
-    fetchData();
+    loadDashboardData();
   }, []);
 
   const handleDateChange = (newDateRange) => {
@@ -222,9 +231,10 @@ const processSheetData = (data) => {
         return (
           <div className="space-y-6">
             <EnhancedOverviewV2 
-              performanceData={performanceData}
+              performanceData={performanceData || []}
               cashFlowData={cashManagementData}
               plData={plData}
+              data={rawData}
             />
           </div>
         );
@@ -242,16 +252,17 @@ const processSheetData = (data) => {
   
       case 'cash-credit':
         return (
-          <CashCreditBalancesTab 
-            financialResources={cashManagementData?.financialResources} 
+          <CreditLine 
+            cashFlowData={{
+              financialResources: rawData?.financialResources || []
+            }} 
           />
         );
   
         case 'network-caps':
-          console.log('Network Payments Data:', networkPaymentsData);
           return (
             <NetworkCapsTab 
-            networkPaymentsData={networkPaymentsData}
+              networkTerms={rawData?.networkTerms || []}
             />
           );
   
@@ -259,32 +270,33 @@ const processSheetData = (data) => {
         return (
           <DailySpendCalculatorTab 
             cashManagementData={cashManagementData}
+            performanceData={performanceData}
+            offerCaps={rawData?.networkTerms || []}
           />
         );
         
       case 'cash-flow':
         return (
-          <div className="space-y-6">
-            <ImprovedCashFlow 
-              startingBalance={cashManagementData?.currentBalance || 0}
-              invoicesData={invoicesData}
-              payrollData={payrollData}
-            />
-          </div>
-        );
-  
-      case 'projections':
-        return (
-          <ProjectionsTab 
-            cashManagementData={cashManagementData}
-            performanceData={performanceData}
-            invoicesData={invoicesData}
-            payrollData={payrollData}
+          <CashFlowProjection 
+            projectionData={{
+              currentBalance: cashManagementData?.availableCash || 0,
+              creditAvailable: cashManagementData?.creditAvailable || 0,
+              startingBalance: cashManagementData?.currentBalance || 0,
+              invoices: rawData?.invoices || [],
+              payrollData: payrollData || [],
+              creditCards: rawData?.financialResources?.filter(r => r.owing > 0) || [],
+              mediaBuyerData: performanceData
+            }}
           />
         );
   
       case 'pl':
-        return <PLDashboardComponent plData={plData} />;
+        return (
+          <ImprovedPLDashboard 
+            plData={plData}
+            summaryData={plData?.summary || []}
+          />
+        );
   
       case 'network':
         return (
@@ -307,12 +319,35 @@ const processSheetData = (data) => {
         );
   
       case 'invoices':
-        return <InvoicesTable data={invoicesData} />;
-  
+        console.log('Invoices Data being passed:', invoicesData);
+        return (
+          <div className="space-y-6">
+            <InvoicesTable data={invoicesData || []} />
+          </div>
+        );
        
     case 'upcoming-expenses':
-      console.log('Rendering upcoming expenses table with data:', payrollData);
-      return <UpcomingExpensesTable data={payrollData} />;
+      console.log('Expenses Data:', payrollData);
+      return (
+        <div className="space-y-6">
+          <UpcomingExpensesTable data={payrollData || []} />
+        </div>
+      );
+  
+      case 'cash-position':
+        return (
+          <CashPosition 
+            cashFlowData={cashManagementData}
+            invoicesData={invoicesData}
+          />
+        );
+  
+      case 'highlights':
+        return (
+          <div className="space-y-6">
+            <Highlights performanceData={performanceData} />
+          </div>
+        );
   
       default:
         return null;

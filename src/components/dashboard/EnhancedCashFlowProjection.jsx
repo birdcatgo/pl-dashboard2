@@ -28,46 +28,11 @@ const getRowBackgroundColor = (balance, currentBalance) => {
   return '';
 };
 
-const ProjectionRow = ({ day, currentBalance }) => {
-  const [isExpanded, setIsExpanded] = useState(false);
-  const hasDetails = day.details?.invoices?.length > 0 || day.details?.creditCardPayments?.length > 0;
-  const rowColor = getRowBackgroundColor(day.balance, currentBalance);
-
-  // Calculate total of credit card/payroll payments for the day
-  const totalScheduledPayments = (day.details?.creditCardPayments || [])
-    .reduce((sum, payment) => sum + payment.amount, 0);
-
+const ProjectionRow = ({ day, totalScheduledPayments }) => {
   return (
-    <tr className={rowColor}>
-      <td className="px-6 py-4 text-sm text-gray-900">
-        <div className="flex items-center">
-          {hasDetails && (
-            <button onClick={() => setIsExpanded(!isExpanded)} className="mr-2">
-              {isExpanded ? 
-                <ChevronDown className="h-4 w-4 text-gray-500" /> : 
-                <ChevronRight className="h-4 w-4 text-gray-500" />
-              }
-            </button>
-          )}
-          {format(ensureDate(day.date), 'MMM dd, yyyy')}
-        </div>
-        {isExpanded && hasDetails && (
-          <div className="ml-6 mt-2 text-xs space-y-1">
-            {day.details.invoices?.map((invoice, idx) => (
-              <div key={idx} className="text-green-600">
-                + Invoice from {invoice.source}: {formatCurrency(invoice.amount)}
-              </div>
-            ))}
-            {day.details.creditCardPayments?.map((payment, idx) => (
-              <div key={idx} className="text-red-600">
-                - {payment.type}: {payment.description} - {formatCurrency(payment.amount)}
-              </div>
-            ))}
-            <div className="text-red-600">
-              - Average Daily Spend: {formatCurrency(day.details.avgDailySpend)}
-            </div>
-          </div>
-        )}
+    <tr key={format(day.date, 'yyyy-MM-dd')}>
+      <td className="px-6 py-4 text-sm">
+        {format(day.date, 'MM/dd/yyyy')}
       </td>
       <td className="px-6 py-4 text-sm text-right text-green-600">
         {day.inflows > 0 && formatCurrency(day.inflows)}
@@ -76,13 +41,18 @@ const ProjectionRow = ({ day, currentBalance }) => {
         {day.details.avgDailySpend > 0 && formatCurrency(day.details.avgDailySpend)}
       </td>
       <td className="px-6 py-4 text-sm text-right text-red-600">
-        {totalScheduledPayments > 0 && formatCurrency(totalScheduledPayments)}
+        {day.outflows - day.details.avgDailySpend > 0 && 
+          formatCurrency(day.outflows - day.details.avgDailySpend)}
       </td>
-      <td className="px-6 py-4 text-sm text-right font-medium">
+      <td className="px-6 py-4 text-sm text-right">
         {formatCurrency(day.balance)}
       </td>
-      <td className="px-6 py-4 text-sm text-right text-gray-500">
-        {((day.balance / currentBalance) * 100).toFixed(1)}%
+      <td className="px-6 py-4 text-sm">
+        {day.details.events.map((event, idx) => (
+          <div key={idx} className={`text-${event.type === 'invoice' ? 'green' : 'red'}-600`}>
+            {event.description}: {formatCurrency(Math.abs(event.amount))}
+          </div>
+        ))}
       </td>
     </tr>
   );
@@ -170,7 +140,7 @@ const EnhancedCashFlowProjection = ({ projectionData, historicalSpendData }) => 
                 <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase">Daily Spend</th>
                 <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase">Scheduled Payments</th>
                 <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase">Balance</th>
-                <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase">% of Current</th>
+                <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase">Details</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-200">
@@ -178,7 +148,7 @@ const EnhancedCashFlowProjection = ({ projectionData, historicalSpendData }) => 
                 <ProjectionRow 
                   key={index} 
                   day={day} 
-                  currentBalance={currentBalance}
+                  totalScheduledPayments={totalScheduledPayments}
                 />
               ))}
             </tbody>

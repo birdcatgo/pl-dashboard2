@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { format, startOfDay, endOfDay, subDays, startOfMonth, endOfMonth, subMonths } from 'date-fns';
 import { zonedTimeToUtc, utcToZonedTime } from 'date-fns-tz';
 
@@ -11,7 +11,23 @@ const timeframes = [
   { label: 'Custom Range', value: 'custom' }
 ];
 
-const EnhancedDateSelector = ({ onDateChange }) => {
+const EnhancedDateSelector = ({ selectedMonth, availableMonths, onDateChange }) => {
+  // Move state initialization outside of render
+  const [currentMonth, setCurrentMonth] = useState(selectedMonth);
+
+  // Use useEffect to handle month changes
+  useEffect(() => {
+    if (selectedMonth !== currentMonth) {
+      setCurrentMonth(selectedMonth);
+    }
+  }, [selectedMonth]);
+
+  const handleMonthChange = (event) => {
+    const newMonth = event.target.value;
+    setCurrentMonth(newMonth);
+    onDateChange(newMonth);
+  };
+
   const [selectedTimeframe, setSelectedTimeframe] = useState('yesterday');
   const [startDate, setStartDate] = useState(() => {
     const today = new Date(); // Current date in local time

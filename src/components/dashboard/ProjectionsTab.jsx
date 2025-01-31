@@ -1,5 +1,5 @@
 import React from 'react';
-import { format, parseISO } from 'date-fns';
+import { format, parse, isValid, parseISO } from 'date-fns';
 import EnhancedCashFlowProjection from './EnhancedCashFlowProjection';
 
 const ProjectionsTab = ({ cashManagementData, performanceData, invoicesData = [], payrollData = [] }) => {
@@ -47,55 +47,73 @@ const ProjectionsTab = ({ cashManagementData, performanceData, invoicesData = []
     return avgDailySpend;
   };
 
+  const parseDate = (dateString) => {
+    if (!dateString) return null;
+    const parsedDate = parse(dateString, 'MM/dd/yyyy', new Date());
+    if (isValid(parsedDate)) return parsedDate;
+    const isoDate = parseISO(dateString);
+    if (isValid(isoDate)) return isoDate;
+    return null;
+  };
+
   const generateProjections = () => {
     const projectionArray = [];
     const today = new Date();
     let runningBalance = projTotalCash;
     const avgDailySpend = calculateDailySpend();
     
-    // Create a map of dates to expected inflows and outflows
+    // Create a map of dates to cash flow events
     const dateMap = new Map();
 
     // Add invoices to the date map
-    invoicesData.forEach(invoice => {
-      const dueDate = format(new Date(invoice.DueDate), 'yyyy-MM-dd');
-      const amount = typeof invoice.AmountDue === 'string' 
-        ? Number(invoice.AmountDue.replace(/[^0-9.-]+/g, ''))
-        : Number(invoice.AmountDue);
-      
-      if (!dateMap.has(dueDate)) {
-        dateMap.set(dueDate, { inflows: 0, outflows: 0, details: { invoices: [], creditCardPayments: [] } });
+    invoicesData?.forEach(invoice => {
+      const date = parseDate(invoice.DueDate);
+      if (!date) {
+        console.debug(`Skipping invoice for ${invoice.Network} - missing or invalid due date`);
+        return;
       }
       
-      const dayData = dateMap.get(dueDate);
-      dayData.inflows += amount;
-      dayData.details.invoices.push({
-        source: invoice.Invoices,
+      const dateKey = format(date, 'yyyy-MM-dd');
+      const amount = typeof invoice.Amount === 'string' 
+        ? Number(invoice.Amount.replace(/[^0-9.-]+/g, ''))
+        : Number(invoice.Amount);
+
+      if (!dateMap.has(dateKey)) {
+        dateMap.set(dateKey, { income: 0, expenses: 0, events: [] });
+      }
+      const mapEntry = dateMap.get(dateKey);
+      mapEntry.income += amount;
+      mapEntry.events.push({
+        type: 'invoice',
+        description: `${invoice.Network} Invoice #${invoice.InvoiceNumber}`,
         amount: amount
       });
     });
 
-    // Add payroll/credit card payments to the date map
-    payrollData.forEach(expense => {
-        if (!expense.DueDate) return; // Skip if no date
-            
-        const dueDate = format(new Date(expense.DueDate), 'yyyy-MM-dd');
-        const amount = typeof expense.Amount === 'string'
-          ? Number(expense.Amount.replace(/[^0-9.-]+/g, ''))
-          : Number(expense.Amount);
-            
-        if (!dateMap.has(dueDate)) {
-          dateMap.set(dueDate, { inflows: 0, outflows: 0, details: { invoices: [], creditCardPayments: [] } });
-        }
-            
-        const dayData = dateMap.get(dueDate);
-        dayData.outflows += amount;
-        dayData.details.creditCardPayments.push({
-          type: expense.Type,
-          description: expense.Description, 
-          amount: amount
-        });
+    // Add payroll/expenses to the date map
+    payrollData?.forEach(expense => {
+      const date = parseDate(expense.dueDate);
+      if (!date) {
+        console.debug(`Skipping expense ${expense.role} - missing or invalid due date`);
+        return;
+      }
+
+      const dateKey = format(date, 'yyyy-MM-dd');
+      const amount = typeof expense.amount === 'string'
+        ? Number(expense.amount.replace(/[^0-9.-]+/g, ''))
+        : Number(expense.amount);
+
+      if (!dateMap.has(dateKey)) {
+        dateMap.set(dateKey, { income: 0, expenses: 0, events: [] });
+      }
+      const mapEntry = dateMap.get(dateKey);
+      mapEntry.expenses += amount;
+      mapEntry.events.push({
+        type: 'expense',
+        description: expense.role,
+        amount: -amount
       });
+    });
 
     // Generate 14 days of projections
     for (let i = 0; i < 14; i++) {
@@ -104,23 +122,22 @@ const ProjectionsTab = ({ cashManagementData, performanceData, invoicesData = []
       const dateKey = format(projectionDate, 'yyyy-MM-dd');
       
       const dateData = dateMap.get(dateKey) || { 
-        inflows: 0, 
-        outflows: 0, 
-        details: { invoices: [], creditCardPayments: [] } 
+        income: 0, 
+        expenses: 0,
+        events: []
       };
 
       // Add the average daily spend to the total outflows
-      const totalDayOutflows = dateData.outflows + avgDailySpend;
+      const totalDayOutflows = dateData.expenses + avgDailySpend;
 
       const dailyProjection = {
         date: projectionDate,
-        inflows: dateData.inflows,
+        inflows: dateData.income,
         outflows: totalDayOutflows,
-        balance: runningBalance + dateData.inflows - totalDayOutflows,
+        balance: runningBalance + dateData.income - totalDayOutflows,
         details: {
-          invoices: dateData.details.invoices,
-          creditCardPayments: dateData.details.creditCardPayments,
-          avgDailySpend: avgDailySpend
+          avgDailySpend: avgDailySpend,
+          events: dateData.events
         }
       };
       
@@ -135,19 +152,12 @@ const ProjectionsTab = ({ cashManagementData, performanceData, invoicesData = []
   const totalInflows = generatedProjections.reduce((sum, day) => sum + day.inflows, 0);
   const totalOutflows = generatedProjections.reduce((sum, day) => sum + day.outflows, 0);
 
-  const projectionData = {
-    currentBalance: projTotalCash,
-    creditAvailable: cashManagementData?.creditAvailable || 0,
-    projections: generatedProjections,
-    totalInflows: totalInflows,
-    totalOutflows: totalOutflows
-  };
-
   return (
     <div className="space-y-6">
       <EnhancedCashFlowProjection 
-        projectionData={projectionData}
-        historicalSpendData={performanceData}
+        projections={generatedProjections}
+        totalInflows={totalInflows}
+        totalOutflows={totalOutflows}
       />
     </div>
   );
