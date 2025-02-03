@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
 import { ChevronDown, ChevronRight, Calendar } from 'lucide-react';
 import _ from 'lodash';
+import PLWrapper from './PLWrapper';
 
 const formatCurrency = (value) => {
   if (!value) return '$0';
@@ -191,59 +192,24 @@ const MonthlyDetails = ({ monthData, month }) => {
 
 const ImprovedPLDashboard = ({ plData, summaryData }) => {
   const [selectedMonth, setSelectedMonth] = useState('');
-  const [monthlyData, setMonthlyData] = useState(null);
 
   useEffect(() => {
     if (plData?.monthly) {
+      // Set initial selected month to the most recent month
       const months = Object.keys(plData.monthly);
-      setSelectedMonth(months[months.length - 1] || '');
-      setMonthlyData(plData.monthly);
+      if (months.length > 0 && !selectedMonth) {
+        setSelectedMonth(months[months.length - 1]);
+      }
     }
   }, [plData]);
 
-  // Debug log
-  console.log('PL Data:', {
-    plData,
-    monthlyData,
-    selectedMonth,
-    currentMonthData: monthlyData?.[selectedMonth]
-  });
-
-  if (!monthlyData || !selectedMonth) {
-    return (
-      <div className="text-gray-500 p-4">
-        Loading P&L data...
-      </div>
-    );
-  }
-
-  const currentMonthData = monthlyData[selectedMonth] || [];
-
   return (
     <div className="space-y-6">
-      {/* Summary Table */}
-      <SummaryTable summaryData={summaryData} />
-
-      {/* Month Selector */}
-      <div className="bg-white rounded-lg shadow p-4">
-        <div className="flex items-center justify-between">
-          <h2 className="text-lg font-medium">Monthly Details</h2>
-          <select 
-            value={selectedMonth}
-            onChange={(e) => setSelectedMonth(e.target.value)}
-            className="form-select rounded-md border-gray-300 shadow-sm focus:border-blue-500"
-          >
-            {Object.keys(monthlyData).map(month => (
-              <option key={month} value={month}>{month}</option>
-            ))}
-          </select>
-        </div>
-      </div>
-
-      {/* Monthly Details */}
-      <MonthlyDetails 
-        monthData={currentMonthData}
-        month={selectedMonth}
+      <PLWrapper 
+        plData={plData}
+        monthlyData={plData?.monthly || {}}
+        selectedMonth={selectedMonth}
+        onMonthChange={setSelectedMonth}
       />
     </div>
   );

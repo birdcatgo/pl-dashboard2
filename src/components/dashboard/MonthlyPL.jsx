@@ -2,106 +2,100 @@ import React from 'react';
 import _ from 'lodash';
 
 const MonthlyPL = ({ monthlyData }) => {
-  console.log('Monthly data received:', monthlyData);
-  console.log('Raw Monthly Data:', JSON.stringify(monthlyData, null, 2));
-
   if (!monthlyData) return null;
 
-  const formatCurrency = (num) => {
+  const formatCurrency = (amount) => {
+    if (typeof amount === 'string') {
+      amount = parseFloat(amount.replace(/[$,]/g, '') || 0);
+    }
     return new Intl.NumberFormat('en-US', {
       style: 'currency',
       currency: 'USD',
       minimumFractionDigits: 2,
-    }).format(num);
+    }).format(amount);
   };
 
-  // Flatten all monthly data into a single array for grouping
-  const allData = _(Object.values(monthlyData))
-    .flatten()
-    .value();
+  // Render Income Section
+  const renderIncomeSection = () => {
+    if (!monthlyData.incomeData?.length) return null;
 
-  // Separate data into Revenue (Income) and Expenses (Expense)
-  const groupedData = _.groupBy(allData, 'Income/Expense');
-  const revenueData = groupedData['Income'] || [];
-  const expenseData = groupedData['Expense'] || [];
+    const totalIncome = monthlyData.incomeData.reduce((sum, item) => 
+      sum + parseFloat(item.AMOUNT.replace(/[$,]/g, '') || 0), 0
+    );
 
-  // Group Revenue and Expense by Description
-  const revenueByDescription = _.groupBy(revenueData, 'DESCRIPTION');
-  const expenseByDescription = _.groupBy(expenseData, 'DESCRIPTION');
+    return (
+      <div className="mb-8">
+        <div className="flex justify-between items-center mb-4">
+          <h2 className="text-xl font-bold">Income</h2>
+          <div className="text-xl font-bold text-green-600">
+            Total: {formatCurrency(totalIncome)}
+          </div>
+        </div>
+        <div className="space-y-2">
+          {monthlyData.incomeData.map((item, idx) => (
+            <div key={idx} className="flex justify-between items-center py-1">
+              <span>{item.DESCRIPTION}</span>
+              <span className="text-green-600">{formatCurrency(item.AMOUNT)}</span>
+            </div>
+          ))}
+        </div>
+      </div>
+    );
+  };
+
+  // Render Expense Category
+  const renderExpenseCategory = (categoryName, items) => {
+    const categoryTotal = items.reduce((sum, item) => 
+      sum + parseFloat(item.AMOUNT.replace(/[$,]/g, '') || 0), 0
+    );
+
+    return (
+      <div key={categoryName} className="mb-4">
+        <div className="flex justify-between items-center mb-2">
+          <h3 className="text-lg font-semibold">{categoryName}</h3>
+          <span className="font-semibold text-red-600">
+            {formatCurrency(categoryTotal)}
+          </span>
+        </div>
+        <div className="space-y-1 ml-4">
+          {items.map((item, idx) => (
+            <div key={idx} className="flex justify-between items-center text-sm">
+              <span>{item.DESCRIPTION}</span>
+              <span className="text-red-600">{formatCurrency(item.AMOUNT)}</span>
+            </div>
+          ))}
+        </div>
+      </div>
+    );
+  };
+
+  // Render Expenses Section
+  const renderExpensesSection = () => {
+    if (!monthlyData.categories) return null;
+
+    return (
+      <div className="mb-8">
+        <div className="flex justify-between items-center mb-4">
+          <h2 className="text-xl font-bold">Expenses</h2>
+          <div className="text-xl font-bold text-red-600">
+            Total: {formatCurrency(monthlyData.totalExpenses)}
+          </div>
+        </div>
+        <div className="space-y-6">
+          {Object.entries(monthlyData.categories).map(([category, items]) => 
+            renderExpenseCategory(category, items)
+          )}
+        </div>
+      </div>
+    );
+  };
 
   return (
-    <div className="grid grid-cols-2 gap-4">
-      {/* Revenue Section */}
-      <div>
-        <h2 className="text-xl font-bold">Revenue</h2>
-        {Object.entries(revenueByDescription).map(([description, items]) => (
-          <details key={description} className="mb-4">
-            <summary>
-              <span className="font-bold">{description}</span>: {formatCurrency(_.sumBy(items, 'AMOUNT'))}
-            </summary>
-            <div className="mt-2 space-y-2">
-              {items.map((item, index) => (
-                <div key={index} className="p-2 border rounded bg-gray-50">
-                  <div><strong>Description:</strong> {item.DESCRIPTION}</div>
-                  <div><strong>Amount:</strong> {formatCurrency(item.AMOUNT)}</div>
-                  <div><strong>Category:</strong> {item.CATEGORY}</div>
-                </div>
-              ))}
-            </div>
-          </details>
-        ))}
-      </div>
-
-      {/* Expense Section */}
-      <div>
-        <h2 className="text-xl font-bold">Expenses</h2>
-        {Object.entries(expenseByDescription).map(([description, items]) => (
-          <details key={description} className="mb-4">
-            <summary>
-              <span className="font-bold">{description}</span>: {formatCurrency(_.sumBy(items, 'AMOUNT'))}
-            </summary>
-            <div className="mt-2 space-y-2">
-              {items.map((item, index) => (
-                <div key={index} className="p-2 border rounded bg-gray-50">
-                  <div><strong>Description:</strong> {item.DESCRIPTION}</div>
-                  <div><strong>Amount:</strong> {formatCurrency(item.AMOUNT)}</div>
-                  <div><strong>Category:</strong> {item.CATEGORY}</div>
-                </div>
-              ))}
-            </div>
-          </details>
-        ))}
-      </div>
+    <div className="space-y-8">
+      {renderIncomeSection()}
+      {renderExpensesSection()}
     </div>
   );
 };
-return (
-  <div>
-    {Object.entries(monthlyData).map(([month, data]) => (
-      <div key={month}>
-        <h2>{month}</h2>
-        <table>
-          <thead>
-            <tr>
-              <th>Description</th>
-              <th>Amount</th>
-              <th>Category</th>
-              <th>Income/Expense</th>
-            </tr>
-          </thead>
-          <tbody>
-            {data.map((row, index) => (
-              <tr key={index}>
-                <td>{row.DESCRIPTION}</td>
-                <td>{formatCurrency(row.AMOUNT)}</td>
-                <td>{row.CATEGORY}</td>
-                <td>{row['Income/Expense']}</td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
-    ))}
-  </div>
-);
+
 export default MonthlyPL;

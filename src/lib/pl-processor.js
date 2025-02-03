@@ -6,7 +6,7 @@ import _ from 'lodash';
 export async function processPLData(response) {
   try {
     const monthlyData = {};
-    const months = ['June', 'July', 'August', 'September', 'October', 'November', 'December', 'January' ];
+    const months = ['June', 'July', 'August', 'September', 'October', 'November', 'December', 'January'];
     const summaryData = [];
     
     months.forEach(month => {
@@ -15,27 +15,57 @@ export async function processPLData(response) {
         range.range.startsWith(month))?.values || [];
         
       if (monthRows.length > 1) { // Skip header row
-        monthlyData[month] = monthRows.slice(1).map(row => ({
-          DESCRIPTION: row[0] || '',
-          AMOUNT: parseFloat(row[1]?.replace(/[$,]/g, '') || 0),
-          CATEGORY: row[2] || '',
-          'Income/Expense': row[3] || ''
+        // Process monthly data with proper grouping
+        const processedRows = monthRows.slice(1).map(row => ({
+          DESCRIPTION: row[0]?.trim() || '',
+          AMOUNT: row[1]?.replace(/[$,]/g, '') || '0',
+          CATEGORY: row[2]?.trim() || '',
+          'Income/Expense': row[3]?.trim() || ''
         }));
 
-        // Calculate summary data
-        const income = monthlyData[month]
-          .filter(row => row['Income/Expense'] === 'Income')
-          .reduce((sum, row) => sum + row.AMOUNT, 0);
-          
-        const expenses = monthlyData[month]
-          .filter(row => row['Income/Expense'] === 'Expense')
-          .reduce((sum, row) => sum + Math.abs(row.AMOUNT), 0);
+        // Group data by Income/Expense type
+        const incomeData = processedRows.filter(row => 
+          row['Income/Expense'] === 'Income'
+        ).sort((a, b) => parseFloat(a.AMOUNT) - parseFloat(b.AMOUNT));
 
+        const expenseData = processedRows.filter(row => 
+          row['Income/Expense'] === 'Expense'
+        );
+
+        // Group expenses by category
+        const categories = expenseData.reduce((acc, row) => {
+          const category = row.CATEGORY || 'Uncategorized';
+          if (!acc[category]) {
+            acc[category] = [];
+          }
+          acc[category].push(row);
+          return acc;
+        }, {});
+
+        // Calculate totals
+        const totalIncome = incomeData.reduce((sum, row) => 
+          sum + parseFloat(row.AMOUNT), 0
+        );
+
+        const totalExpenses = expenseData.reduce((sum, row) => 
+          sum + parseFloat(row.AMOUNT), 0
+        );
+
+        monthlyData[month] = {
+          monthDataArray: processedRows,
+          incomeData,
+          expenseData,
+          categories,
+          totalIncome,
+          totalExpenses
+        };
+
+        // Add to summary data
         summaryData.push({
           Month: month,
-          Income: income,
-          Expenses: expenses,
-          NetProfit: income - expenses
+          Income: totalIncome,
+          Expenses: totalExpenses,
+          NetProfit: totalIncome - totalExpenses
         });
       }
     });
