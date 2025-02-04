@@ -164,7 +164,6 @@ export default async function handler(req, res) {
       'Summary!A:U',
       'Bank Structure!A:M',
       'Network Payment Schedule!A:H',
-      'Invoices!A:G',
       'January!A:D',
       'December!A:D',
       'November!A:D',
@@ -173,7 +172,8 @@ export default async function handler(req, res) {
       'August!A:D',
       'July!A:D',
       'June!A:D',
-      "'Network Terms'!A2:I"
+      'Network Terms!A2:I',
+      'Invoices!A:F'
     ]);
 
     const batchResponse = await sheets.spreadsheets.values.batchGet({
@@ -186,7 +186,7 @@ export default async function handler(req, res) {
         'Summary!A:U',
         'Bank Structure!A:M',
         'Network Payment Schedule!A:H',
-        'Invoices!A:G',
+        'Invoices!A:F',
         'January!A:D',
         'December!A:D',
         'November!A:D',
@@ -195,8 +195,8 @@ export default async function handler(req, res) {
         'August!A:D',
         'July!A:D',
         'June!A:D',
-        "'Network Terms'!A2:I",
-      ],
+        'Network Terms!A2:I'
+      ]
     });
 
     // Log the full response structure
@@ -207,19 +207,6 @@ export default async function handler(req, res) {
         hasValues: !!range.values,
         rowCount: range?.values?.length
       }))
-    });
-
-    // Find Network Terms data
-    const networkTermsResponse = batchResponse.data.valueRanges.find(
-      range => range.range.includes('Network Terms')
-    );
-
-    console.log('Network Terms Response:', {
-      found: !!networkTermsResponse,
-      range: networkTermsResponse?.range,
-      hasValues: !!networkTermsResponse?.values,
-      valueCount: networkTermsResponse?.values?.length,
-      values: networkTermsResponse?.values
     });
 
     // Extract array positions for debugging
@@ -240,24 +227,8 @@ export default async function handler(req, res) {
       augustResponse,
       julyResponse,
       juneResponse,
-      networkTermsResponse2,
+      networkTermsResponse,
     ] = batchResponse.data.valueRanges || [];
-
-    console.log('Array position check:', {
-      networkTermsPosition: batchResponse.data.valueRanges.length - 1,
-      lastItem: networkTermsResponse2?.range,
-      hasValues: !!networkTermsResponse2?.values,
-      valueCount: networkTermsResponse2?.values?.length
-    });
-
-    // Add this logging
-    console.log('Raw invoices response:', {
-      range: invoicesResponse?.range,
-      hasValues: !!invoicesResponse?.values,
-      rowCount: invoicesResponse?.values?.length,
-      firstRow: invoicesResponse?.values?.[0],
-      secondRow: invoicesResponse?.values?.[1]
-    });
 
     // Initialize result object with empty arrays
     let result = {
@@ -279,10 +250,9 @@ export default async function handler(req, res) {
       const financialResourcesResponse = await sheets.spreadsheets.values.get({
         spreadsheetId: process.env.SHEET_ID,
         range: 'Financial Resources!A:D',
-        valueRenderOption: 'UNFORMATTED_VALUE'  // Get raw values
+        valueRenderOption: 'UNFORMATTED_VALUE'
       });
 
-      // Add error checking and logging
       if (!financialResourcesResponse?.data?.values) {
         console.error('No financial resources data received');
         result.rawData.financialResources = [];
@@ -293,9 +263,8 @@ export default async function handler(req, res) {
           financialResources: []
         };
       } else {
-        // Process the financial resources
         result.rawData.financialResources = financialResourcesResponse.data.values
-          .slice(1)  // Skip header row
+          .slice(1)
           .filter(row => row[0] && row[0] !== 'Account Name')
           .map(row => ({
             account: row[0]?.trim(),
@@ -304,7 +273,6 @@ export default async function handler(req, res) {
             limit: parseFloat((row[3] || '0').toString().replace(/[$,]/g, ''))
           }));
 
-        // Calculate the totals for Available Resources
         const cashAccounts = ['Cash in Bank', 'Slash Account', 'Business Savings (JP MORGAN)'];
 
         result.cashFlowData = {
@@ -330,21 +298,57 @@ export default async function handler(req, res) {
       };
     }
 
-    // Process Invoices
-    result.rawData.invoices = Array.isArray(invoicesResponse?.values)
-      ? invoicesResponse.values.slice(1).map(row => ({
-          Network: row[0]?.trim() || '',
-          PeriodStart: row[1]?.trim() || '',
-          PeriodEnd: row[2]?.trim() || '',
-          DueDate: row[3]?.trim() || '',
-          Amount: parseFloat((row[4] || '0').replace(/[$,]/g, '')),
-          InvoiceNumber: row[5]?.trim() || '',
-          Status: row[6]?.trim() || 'Unpaid'
-        }))
-      : [];
+    // Process Invoices - Updated with fixes
+    console.log('Processing invoices:', {
+      hasValues: !!invoicesResponse?.values,
+      rowCount: invoicesResponse?.values?.length,
+      sampleRow: invoicesResponse?.values?.[1]
+    });
 
-    console.log('Processed invoices:', result.rawData.invoices);
+    // Single, consolidated invoice processing
+    if (invoicesResponse?.values) {
+      console.log('Raw invoice data:', invoicesResponse.values.slice(0, 2));
+      
+      result.rawData.invoices = invoicesResponse.values
+        .slice(1) // Skip header row
+        .filter(row => row.length >= 6) // Ensure we have all required columns
+        .map(row => {
+          // Helper function to clean currency strings that might appear in date fields
+          const cleanDateString = (str) => {
+            if (!str) return '';
+            // If it looks like a currency value, return empty string
+            if (str.includes('$') || str.includes(',')) return '';
+            return str.trim();
+          };
 
+          // Helper function to parse amount
+          const parseAmount = (str) => {
+            if (!str) return 0;
+            const cleaned = str.toString().replace(/[$,]/g, '');
+            const parsed = parseFloat(cleaned);
+            return isNaN(parsed) ? 0 : parsed;
+          };
+
+          return {
+            Network: row[0]?.trim() || '',
+            PeriodStart: cleanDateString(row[1]),
+            PeriodEnd: cleanDateString(row[2]),
+            DueDate: cleanDateString(row[3]),
+            AmountDue: parseAmount(row[4]),
+            InvoiceNumber: row[5]?.toString().trim() || ''
+          };
+        })
+        .filter(row => row.Network); // Only keep rows with a network name
+
+      console.log('Processed invoices:', {
+        count: result.rawData.invoices.length,
+        sample: result.rawData.invoices[0],
+        fields: result.rawData.invoices[0] ? Object.keys(result.rawData.invoices[0]) : []
+      });
+    } else {
+      console.log('No invoice data found in response');
+      result.rawData.invoices = [];
+    }
     // Process Payroll
     result.rawData.payroll = Array.isArray(payrollResponse?.values)
       ? payrollResponse.values.slice(1).map(row => ({
@@ -365,7 +369,6 @@ export default async function handler(req, res) {
     if (mainResponse?.values) {
       const headers = mainResponse.values[0];
       
-      // Log the raw data distribution
       console.log('Raw Data Analysis:', {
         totalRows: mainResponse.values.length,
         rowLengths: mainResponse.values.slice(1).reduce((acc, row) => {
@@ -379,14 +382,13 @@ export default async function handler(req, res) {
       });
 
       const performanceData = mainResponse.values
-        .slice(1)  // Skip header row
+        .slice(1)
         .map((row) => {
-          // Log any potentially problematic rows
           if (row.length < 10) {
             console.log('Short row:', { length: row.length, data: row });
           }
 
-          const processed = {
+          return {
             Date: row[0] || '',
             Network: row[1] || '',
             Offer: row[2] || '',
@@ -399,26 +401,11 @@ export default async function handler(req, res) {
             'Expected Payment': row[9] || '',
             'Running Balance': parseFloat((row[10] || '0').replace(/[$,]/g, '')) || 0,
           };
-          return processed;
         })
-        .filter(row => row.Date); // Only filter out rows without dates
+        .filter(row => row.Date);
 
       result.performanceData = performanceData;
     }
-    if (invoicesResponse?.values) {
-      result.rawData.invoices = invoicesResponse.values.slice(1)
-        .filter(row => row.length >= 7)
-        .map(row => ({
-          Network: row[0],
-          PeriodStart: row[1],
-          PeriodEnd: row[2],
-          DueDate: row[3],
-          Amount: parseFloat((row[4] || '0').replace(/[$,]/g, '')),
-          InvoiceNumber: row[5],
-          Status: row[6] || 'Unpaid'
-        }));
-    }
-
 
     // Process Network Payments
     const networkPayments = Array.isArray(networkPaymentsResponse?.values)
@@ -430,15 +417,14 @@ export default async function handler(req, res) {
           dailyBudget: parseFloat((row[4] || '0').replace(/[$,]/g, '')),
           currentExposure: parseFloat((row[5] || '0').replace(/[$,]/g, '')),
           availableBudget: parseFloat((row[6] || '0').replace(/[$,]/g, '')),
-          riskLevel: row[7]?.trim() || ''  // Ensure this has a default value
+          riskLevel: row[7]?.trim() || ''
         }))
       : [];
 
-    // Add it to the result
     result.networkPaymentsData = networkPayments;
 
-    // Process Network Terms data with validation
-    const networkTerms = networkTermsResponse2?.values?.map(row => {
+    // Process Network Terms
+    const networkTerms = networkTermsResponse?.values?.map(row => {
       if (!row || row.length < 9) {
         console.log('Skipping invalid row:', row);
         return null;
@@ -446,35 +432,30 @@ export default async function handler(req, res) {
 
       const runningTotal = parseFloat((row[7] || '0').replace(/[$,]/g, ''));
       
-      // Skip if running total is 0
       if (runningTotal <= 0) {
         return null;
       }
 
-      // Get the last date from performance data
       const lastDate = mainResponse?.values
-        ?.slice(1) // Skip header row
+        ?.slice(1)
         ?.sort((a, b) => new Date(b[0]) - new Date(a[0]))?.[0]?.[0];
 
-      // Get spend for the last date for this network-offer combination
       const lastDateSpend = mainResponse?.values
         ?.filter(perfRow => 
           perfRow[0] === lastDate && 
-          perfRow[1] === row[0]?.trim() && // network
-          perfRow[2] === row[1]?.trim()    // offer
+          perfRow[1] === row[0]?.trim() && 
+          perfRow[2] === row[1]?.trim()
         )
         ?.reduce((sum, perfRow) => {
           const spend = parseFloat(perfRow[4]?.replace(/[$,]/g, '') || '0');
           return sum + (isNaN(spend) ? 0 : spend);
         }, 0) || 0;
 
-      // Calculate cap utilization
       const dailyCap = row[8] === 'Uncapped' ? null : 
                       row[8] === 'N/A' ? null :
                       row[8] === 'TBC' ? null :
                       parseFloat((row[8] || '0').replace(/[$,]/g, ''));
       
-      // Only calculate utilization if we have a valid daily cap
       const capUtilization = (dailyCap && dailyCap > 0) 
         ? (lastDateSpend / dailyCap * 100)
         : null;
@@ -494,11 +475,10 @@ export default async function handler(req, res) {
                  dailyCap,
         lastDateSpend: lastDateSpend || 0,
         capUtilization: capUtilization,
-        lastDate // Include the date for reference
+        lastDate
       };
     }).filter(Boolean);
 
-    // Sort by running total
     networkTerms?.sort((a, b) => b.runningTotal - a.runningTotal);
 
     console.log('Final Network Terms:', {
@@ -507,17 +487,14 @@ export default async function handler(req, res) {
       allData: networkTerms
     });
 
-    // Add to result
     result.networkTerms = networkTerms || [];
 
-    // Log final result structure
     console.log('API Response Structure:', {
       hasNetworkTerms: !!result.networkTerms,
       networkTermsCount: result.networkTerms.length,
       allKeys: Object.keys(result)
     });
 
-    // In your API route where you first get the data from Google Sheets
     console.log('Raw Sheet Response:', {
       totalRows: mainResponse?.values?.length,
       firstRow: mainResponse?.values?.[1],

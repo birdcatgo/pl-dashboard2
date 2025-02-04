@@ -1,156 +1,90 @@
-import React, { useMemo } from 'react';
-import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
+import React, { useEffect } from 'react';
 
-const InvoicesTable = ({ data = [] }) => {
-  console.log('Raw Invoice Data:', data); // Debug log
+const InvoicesTable = ({ data }) => {
+  useEffect(() => {
+    console.log('Invoice data structure:', {
+      fullData: data,
+      rawData: data?.rawData,
+      sampleInvoice: data?.rawData?.[0],
+      fields: data?.rawData?.[0] ? Object.keys(data?.rawData[0]) : [],
+      dataType: typeof data,
+      isArray: Array.isArray(data?.rawData)
+    });
+  }, [data]);
 
-  // Ensure data is an array and has content
-  const invoices = Array.isArray(data) ? data : [];
+  // Ensure data is properly formatted and handle potential undefined/null
+  const invoices = Array.isArray(data?.rawData) ? data.rawData : 
+                  Array.isArray(data) ? data : [];
 
-  // Calculate metrics
-  const metrics = useMemo(() => {
-    return invoices.reduce((acc, invoice) => {
-      const amount = parseFloat(invoice.Amount || 0);
-      if (invoice.Status === 'Unpaid') {
-        acc.totalUnpaid += amount;
-        acc.unpaidCount++;
-      }
-      acc.totalAmount += amount;
-      return acc;
-    }, { totalUnpaid: 0, unpaidCount: 0, totalAmount: 0 });
-  }, [invoices]);
-
-  const formatCurrency = (value) => {
-    return new Intl.NumberFormat('en-US', {
-      style: 'currency',
-      currency: 'USD',
-      minimumFractionDigits: 0,
-      maximumFractionDigits: 0,
-    }).format(value);
+  // Format currency with error handling
+  const formatCurrency = (amount) => {
+    try {
+      const numAmount = typeof amount === 'string' ? parseFloat(amount.replace(/[$,]/g, '')) : amount;
+      return new Intl.NumberFormat('en-US', {
+        style: 'currency',
+        currency: 'USD'
+      }).format(numAmount || 0);
+    } catch (error) {
+      console.error('Currency formatting error:', error);
+      return '$0.00';
+    }
   };
 
-  // Sort invoices by due date (most recent first)
-  const sortedInvoices = useMemo(() => {
-    return [...invoices].sort((a, b) => {
-      const dateA = new Date(a.DueDate);
-      const dateB = new Date(b.DueDate);
-      return dateB - dateA;
-    });
-  }, [invoices]);
-
-  // Format date function
+  // Format date with additional error handling
   const formatDate = (dateString) => {
     if (!dateString) return '';
-    const date = new Date(dateString);
-    return date.toLocaleDateString('en-US', {
-      month: 'short',
-      day: 'numeric',
-      year: 'numeric'
-    });
+    try {
+      // Check if it's already a date string
+      const date = new Date(dateString);
+      if (isNaN(date.getTime())) {
+        // Try to parse date in different formats
+        const parts = dateString.split('/');
+        if (parts.length === 3) {
+          return `${parts[0].padStart(2, '0')}/${parts[1].padStart(2, '0')}/${parts[2]}`;
+        }
+        return dateString;
+      }
+      return date.toLocaleDateString('en-US');
+    } catch (error) {
+      console.error('Date formatting error:', error);
+      return dateString;
+    }
   };
 
   if (!invoices.length) {
     return (
-      <div className="text-center p-6 text-gray-500">
+      <div className="p-4 text-center text-gray-500">
         No invoice data available
       </div>
     );
   }
 
   return (
-    <div className="space-y-6">
-      {/* Summary Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-        <Card className="bg-red-50">
-          <CardContent className="pt-6">
-            <div className="text-sm text-red-600 font-medium">Outstanding Balance</div>
-            <div className="text-2xl font-bold text-red-700">
-              {formatCurrency(metrics.totalUnpaid)}
-            </div>
-            <div className="text-sm text-red-600 mt-1">
-              {metrics.unpaidCount} unpaid invoice{metrics.unpaidCount !== 1 ? 's' : ''}
-            </div>
-          </CardContent>
-        </Card>
-        <Card className="bg-blue-50">
-          <CardContent className="pt-6">
-            <div className="text-sm text-blue-600 font-medium">Total Invoices</div>
-            <div className="text-2xl font-bold text-blue-700">
-              {formatCurrency(metrics.totalAmount)}
-            </div>
-            <div className="text-sm text-blue-600 mt-1">
-              {invoices.length} total invoice{invoices.length !== 1 ? 's' : ''}
-            </div>
-          </CardContent>
-        </Card>
-        <Card className="bg-green-50">
-          <CardContent className="pt-6">
-            <div className="text-sm text-green-600 font-medium">Collection Rate</div>
-            <div className="text-2xl font-bold text-green-700">
-              {metrics.totalAmount ? 
-                ((1 - metrics.totalUnpaid / metrics.totalAmount) * 100).toFixed(1) : 0}%
-            </div>
-            <div className="text-sm text-green-600 mt-1">
-              of invoices collected
-            </div>
-          </CardContent>
-        </Card>
-      </div>
-
-      {/* Invoices Table */}
-      <Card>
-        <CardHeader>
-          <CardTitle>Invoice Details</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className="overflow-x-auto">
-            <table className="min-w-full divide-y divide-gray-200">
-              <thead className="bg-gray-50">
-                <tr>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Network</th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Period</th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Due Date</th>
-                  <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase">Amount</th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Invoice #</th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Status</th>
-                </tr>
-              </thead>
-              <tbody className="bg-white divide-y divide-gray-200">
-                {sortedInvoices.map((invoice, index) => (
-                  <tr key={index} className="hover:bg-gray-50">
-                    <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
-                      {invoice.Network || 'N/A'}
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                      {invoice.PeriodStart && invoice.PeriodEnd ? 
-                        `${formatDate(invoice.PeriodStart)} - ${formatDate(invoice.PeriodEnd)}` : 
-                        'N/A'}
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                      {formatDate(invoice.DueDate)}
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-right text-gray-900">
-                      {formatCurrency(invoice.Amount)}
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                      {invoice.InvoiceNumber || 'N/A'}
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm">
-                      <span className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${
-                        invoice.Status === 'Unpaid' 
-                          ? 'bg-red-100 text-red-800' 
-                          : 'bg-green-100 text-green-800'
-                      }`}>
-                        {invoice.Status || 'Unknown'}
-                      </span>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </CardContent>
-      </Card>
+    <div className="overflow-x-auto shadow-md rounded-lg">
+      <table className="min-w-full bg-white">
+        <thead className="bg-gray-50">
+          <tr>
+            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider border-b">Network</th>
+            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider border-b">Period Start</th>
+            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider border-b">Period End</th>
+            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider border-b">Due Date</th>
+            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider border-b">Amount Due</th>
+            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider border-b">Invoice Number</th>
+          </tr>
+        </thead>
+        <tbody className="bg-white divide-y divide-gray-200">
+          {invoices.map((invoice, index) => (
+            <tr key={`${invoice.Network}-${invoice.InvoiceNumber}-${index}`} className="hover:bg-gray-50">
+              <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{invoice.Network}</td>
+              <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{formatDate(invoice.PeriodStart)}</td>
+              <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{formatDate(invoice.PeriodEnd)}</td>
+              <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{formatDate(invoice.DueDate)}</td>
+              <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{formatCurrency(invoice.AmountDue)}</td>
+              <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{invoice.InvoiceNumber}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
     </div>
   );
 };
