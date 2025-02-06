@@ -29,6 +29,7 @@ import PLDashboard from '@/components/dashboard/PLDashboard';
 import CashFlowProjection from '../components/dashboard/CashFlowProjection';
 import ImprovedPLDashboard from '../components/dashboard/ImprovedPLDashboard';
 import Highlights from '../components/dashboard/Highlights';
+import FinancialOverview from '../components/dashboard/FinancialOverview';
 
 export default function DashboardPage() {
   const [plData, setPlData] = useState(null);
@@ -75,6 +76,7 @@ export default function DashboardPage() {
     { id: 'upcoming-expenses', label: 'Expenses' },
     { id: 'cash-position', label: 'Cash Position' },
     { id: 'highlights', label: 'Highlights' },
+    { id: 'financial-overview', label: 'Financial Overview' },
   ];
 
 // Update the processSheetData function in index.js
@@ -123,6 +125,7 @@ const processSheetData = (data) => {
 
     // Process PL data
     if (data.plData) {
+      console.log('Raw P&L data:', data.plData);
       setPlData(data.plData);
     }
 
@@ -346,6 +349,13 @@ const processSheetData = (data) => {
         return (
           <div className="space-y-6">
             <Highlights performanceData={performanceData} />
+          </div>
+        );
+  
+      case 'financial-overview':
+        return (
+          <div className="space-y-6">
+            <FinancialOverview plData={plData} />
           </div>
         );
   
