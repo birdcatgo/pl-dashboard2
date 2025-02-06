@@ -63,6 +63,9 @@ export default function DashboardPage() {
 
   const tabs = [
     { id: 'overview-v2', label: 'Overview' },
+    { id: 'financial-overview', label: 'Financial Overview' },
+    { id: 'highlights', label: 'Highlights' },
+    { id: 'cash-position', label: 'Cash Position' },
     { id: 'net-profit', label: 'Net Profit' },
     { id: 'bank-goals', label: 'Profit Distribution' },
     { id: 'cash-credit', label: 'Credit Line' },
@@ -73,10 +76,7 @@ export default function DashboardPage() {
     { id: 'network', label: 'Offer Performance' },
     { id: 'media-buyers', label: 'Media Buyers' },
     { id: 'invoices', label: 'Invoices' },
-    { id: 'upcoming-expenses', label: 'Expenses' },
-    { id: 'cash-position', label: 'Cash Position' },
-    { id: 'highlights', label: 'Highlights' },
-    { id: 'financial-overview', label: 'Financial Overview' },
+    { id: 'upcoming-expenses', label: 'Expenses' }
   ];
 
 // Update the processSheetData function in index.js
@@ -345,17 +345,17 @@ const processSheetData = (data) => {
           />
         );
   
-      case 'highlights':
-        return (
-          <div className="space-y-6">
-            <Highlights performanceData={performanceData} />
-          </div>
-        );
-  
       case 'financial-overview':
         return (
           <div className="space-y-6">
             <FinancialOverview plData={plData} />
+          </div>
+        );
+  
+      case 'highlights':
+        return (
+          <div className="space-y-6">
+            <Highlights performanceData={performanceData} />
           </div>
         );
   

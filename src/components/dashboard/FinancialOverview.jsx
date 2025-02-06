@@ -3,7 +3,7 @@ import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
 import { format, subMonths, format as formatDate } from 'date-fns';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, BarChart, Bar, Legend, ComposedChart, Area, ReferenceLine } from 'recharts';
 
-const SLACK_WEBHOOK_URL = "https://hooks.slack.com/services/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";
+const SLACK_WEBHOOK_URL = process.env.NEXT_PUBLIC_SLACK_WEBHOOK_URL;
 
 const formatCurrency = (amount) => {
   return new Intl.NumberFormat('en-US', {

@@ -2,6 +2,10 @@ import { google } from 'googleapis';
 import { processCashFlowData } from '@/lib/cash-flow-processor';
 import _ from 'lodash';
 
+const GOOGLE_SHEETS_CLIENT_EMAIL = process.env.NEXT_PUBLIC_GOOGLE_CLIENT_EMAIL;
+const GOOGLE_SHEETS_PRIVATE_KEY = process.env.NEXT_PUBLIC_GOOGLE_PRIVATE_KEY?.replace(/\\n/g, '\n');
+const SHEET_ID = process.env.NEXT_PUBLIC_SHEET_ID;
+
 async function processPLData(batchResponse) {
   try {
     const monthlyData = {};
@@ -144,8 +148,8 @@ export default async function handler(req, res) {
 
     const auth = new google.auth.GoogleAuth({
       credentials: {
-        client_email: process.env.GOOGLE_CLIENT_EMAIL,
-        private_key: process.env.GOOGLE_PRIVATE_KEY?.replace(/\\n/g, '\n'),
+        client_email: GOOGLE_SHEETS_CLIENT_EMAIL,
+        private_key: GOOGLE_SHEETS_PRIVATE_KEY,
       },
       scopes: ['https://www.googleapis.com/auth/spreadsheets.readonly'],
     });
@@ -153,7 +157,7 @@ export default async function handler(req, res) {
     const sheets = google.sheets({ version: 'v4', auth });
     
     // Log the spreadsheet ID
-    console.log('Spreadsheet ID:', process.env.SHEET_ID);
+    console.log('Spreadsheet ID:', SHEET_ID);
 
     // Log the ranges we're requesting
     console.log('Requesting sheet ranges:', [
@@ -177,7 +181,7 @@ export default async function handler(req, res) {
     ]);
 
     const batchResponse = await sheets.spreadsheets.values.batchGet({
-      spreadsheetId: process.env.SHEET_ID,
+      spreadsheetId: SHEET_ID,
       ranges: [
         'Main Sheet!A:L',
         'Financial Resources!A:D',
@@ -248,7 +252,7 @@ export default async function handler(req, res) {
     // Process Financial Resources
     try {
       const financialResourcesResponse = await sheets.spreadsheets.values.get({
-        spreadsheetId: process.env.SHEET_ID,
+        spreadsheetId: SHEET_ID,
         range: 'Financial Resources!A:D',
         valueRenderOption: 'UNFORMATTED_VALUE'
       });
