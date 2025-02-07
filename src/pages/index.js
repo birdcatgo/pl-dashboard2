@@ -348,7 +348,12 @@ const processSheetData = (data) => {
       case 'financial-overview':
         return (
           <div className="space-y-6">
-            <FinancialOverview plData={plData} />
+            <FinancialOverview 
+              plData={plData}
+              cashFlowData={cashManagementData}
+              invoicesData={invoicesData}
+              networkTerms={rawData?.networkTerms}
+            />
           </div>
         );
   

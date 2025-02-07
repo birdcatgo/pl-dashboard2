@@ -2,10 +2,6 @@ import { google } from 'googleapis';
 import { processCashFlowData } from '@/lib/cash-flow-processor';
 import _ from 'lodash';
 
-const GOOGLE_SHEETS_CLIENT_EMAIL = process.env.NEXT_PUBLIC_GOOGLE_CLIENT_EMAIL;
-const GOOGLE_SHEETS_PRIVATE_KEY = process.env.NEXT_PUBLIC_GOOGLE_PRIVATE_KEY?.replace(/\\n/g, '\n');
-const SHEET_ID = process.env.NEXT_PUBLIC_SHEET_ID;
-
 async function processPLData(batchResponse) {
   try {
     const monthlyData = {};
@@ -141,9 +137,33 @@ async function processBankStructureData(bankStructureResponse) {
 
 export default async function handler(req, res) {
   try {
-    // Add request method check
     if (req.method !== 'GET') {
       return res.status(405).json({ error: 'Method not allowed' });
+    }
+
+    const GOOGLE_SHEETS_CLIENT_EMAIL = process.env.GOOGLE_SHEETS_CLIENT_EMAIL;
+    const GOOGLE_SHEETS_PRIVATE_KEY = process.env.GOOGLE_SHEETS_PRIVATE_KEY?.replace(/\\n/g, '\n');
+    const SHEET_ID = process.env.GOOGLE_SHEETS_ID;
+
+    // Debug environment variables
+    console.log('Environment Variables Check:', {
+      hasClientEmail: !!GOOGLE_SHEETS_CLIENT_EMAIL,
+      clientEmailLength: GOOGLE_SHEETS_CLIENT_EMAIL?.length,
+      hasPrivateKey: !!GOOGLE_SHEETS_PRIVATE_KEY,
+      privateKeyLength: GOOGLE_SHEETS_PRIVATE_KEY?.length,
+      hasSheetId: !!SHEET_ID,
+      sheetId: SHEET_ID
+    });
+
+    // Validate required environment variables
+    if (!GOOGLE_SHEETS_CLIENT_EMAIL) {
+      throw new Error('Missing Google Client Email');
+    }
+    if (!GOOGLE_SHEETS_PRIVATE_KEY) {
+      throw new Error('Missing Google Private Key');
+    }
+    if (!SHEET_ID) {
+      throw new Error('Missing Sheet ID');
     }
 
     const auth = new google.auth.GoogleAuth({
@@ -152,6 +172,12 @@ export default async function handler(req, res) {
         private_key: GOOGLE_SHEETS_PRIVATE_KEY,
       },
       scopes: ['https://www.googleapis.com/auth/spreadsheets.readonly'],
+    });
+
+    // Debug auth object
+    console.log('Auth object created:', {
+      hasCredentials: !!auth.credentials,
+      hasScopes: !!auth.scopes,
     });
 
     const sheets = google.sheets({ version: 'v4', auth });
@@ -202,15 +228,11 @@ export default async function handler(req, res) {
         'Network Terms!A2:I'
       ]
     });
-
-    // Log the full response structure
-    console.log('Batch response ranges:', {
-      totalRanges: batchResponse.data.valueRanges.length,
-      ranges: batchResponse.data.valueRanges.map(range => ({
-        range: range.range,
-        hasValues: !!range.values,
-        rowCount: range?.values?.length
-      }))
+    
+    // Log successful batch response
+    console.log('Batch response received:', {
+      success: true,
+      rangesCount: batchResponse.data.valueRanges.length
     });
 
     // Extract array positions for debugging
@@ -511,7 +533,25 @@ export default async function handler(req, res) {
 
     return res.status(200).json(result);
   } catch (error) {
-    console.error('API Error:', error);
-    return res.status(500).json({ error: 'Server Error', details: error.message });
+    // Enhanced error logging
+    console.error('API Error Details:', {
+      message: error.message,
+      stack: error.stack,
+      code: error.code,
+      status: error.status,
+      details: error.response?.data,
+      env: {
+        hasClientEmail: !!process.env.GOOGLE_SHEETS_CLIENT_EMAIL,
+        hasPrivateKey: !!process.env.GOOGLE_SHEETS_PRIVATE_KEY,
+        hasSheetId: !!process.env.GOOGLE_SHEETS_ID
+      }
+    });
+
+    return res.status(500).json({
+      error: 'Internal server error',
+      message: error.message,
+      code: error.code,
+      status: error.status
+    });
   }
 }

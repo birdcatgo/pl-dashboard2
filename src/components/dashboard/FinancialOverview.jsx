@@ -2,6 +2,7 @@ import React, { useMemo, useState } from 'react';
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
 import { format, subMonths, format as formatDate } from 'date-fns';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, BarChart, Bar, Legend, ComposedChart, Area, ReferenceLine } from 'recharts';
+import FinancialSnapshot from './FinancialSnapshot';
 
 const SLACK_WEBHOOK_URL = process.env.NEXT_PUBLIC_SLACK_WEBHOOK_URL;
 
@@ -1709,7 +1710,7 @@ const ProfitTrendChart = ({ plData }) => {
               </th>
               <th className="px-4 py-3 text-right font-medium text-gray-600 border-l bg-gray-100 w-40">Total Expenses</th>
               <th className="px-4 py-3 text-right font-medium text-gray-600 w-24">
-                <span className="text-gray-500">Ads</span>
+                <span className="text-gray-500">Ad Spend</span>
               </th>
               <th className="px-4 py-3 text-right font-medium text-gray-600 w-24">
                 <span className="text-gray-500">Payroll</span>
@@ -1753,7 +1754,7 @@ const ProfitTrendChart = ({ plData }) => {
   );
 };
 
-const FinancialOverview = ({ plData }) => {
+const FinancialOverview = ({ plData, cashFlowData, invoicesData, networkTerms }) => {
   console.log('P&L Data received:', plData);
 
   const lastThreeMonths = useMemo(() => {
@@ -1879,90 +1880,98 @@ const FinancialOverview = ({ plData }) => {
         <CardTitle>Financial Overview (Last 3 Months)</CardTitle>
       </CardHeader>
       <CardContent>
-        <ProfitabilitySnapshot monthlyData={processedData} />
-        <KPITrends monthlyData={processedData} />
-        
-        <QuickActions 
-          insights={processedData} 
-          plData={plData}
-        />
+        <div className="space-y-8">
+          <FinancialSnapshot 
+            cashFlowData={cashFlowData}
+            invoicesData={invoicesData}
+            networkTerms={networkTerms}
+          />
+          
+          <ProfitabilitySnapshot monthlyData={processedData} />
+          <KPITrends monthlyData={processedData} />
+          
+          <QuickActions 
+            insights={processedData} 
+            plData={plData}
+          />
 
-        <RevenueCategory 
-          monthlyData={processedData.map(d => ({ month: d.month, amount: d.revenue }))}
-          plData={plData}
-        />
+          <RevenueCategory 
+            monthlyData={processedData.map(d => ({ month: d.month, amount: d.revenue }))}
+            plData={plData}
+          />
 
-        <ExpenseCategory 
-          title="Payroll (Salaries, Bonuses, Commissions)" 
-          monthlyData={processedData.map(d => ({ month: d.month, amount: d.payroll }))}
-          monthlyExpenses={plData.monthly[lastThreeMonths[2].name]?.expenseData.filter(e => 
-            e.CATEGORY?.toLowerCase().includes('payroll') ||
-            e.CATEGORY?.toLowerCase().includes('salary')
-          )}
-          plData={plData}
-        />
-        <ExpenseCategory 
-          title="Advertising Spend" 
-          monthlyData={processedData.map(d => ({ month: d.month, amount: d.adSpend }))}
-          monthlyExpenses={plData.monthly[lastThreeMonths[2].name]?.expenseData.filter(e => {
-            const category = e.CATEGORY?.toLowerCase() || '';
-            return category.includes('facebook') ||
-                   category.includes('ad spend') ||
-                   category.includes('advertising') ||
-                   category.includes('media buy') ||
-                   category.includes('google') ||
-                   category.includes('tiktok') ||
-                   category.includes('youtube') ||
-                   category.includes('ads') ||
-                   category.includes('marketing') ||
-                   category.includes('promotion');
-          })}
-          plData={plData}
-        />
-        <ExpenseCategory 
-          title="Subscriptions (Tools & Software)" 
-          monthlyData={processedData.map(d => ({ month: d.month, amount: d.subscriptions }))}
-          monthlyExpenses={plData.monthly[lastThreeMonths[2].name]?.expenseData.filter(e => 
-            e.CATEGORY?.toLowerCase().includes('subscription') ||
-            e.CATEGORY?.toLowerCase().includes('software')
-          )}
-          plData={plData}
-        />
-        <ExpenseCategory 
-          title="Miscellaneous Expenses" 
-          monthlyData={processedData.map(d => ({ month: d.month, amount: d.miscellaneous }))}
-          monthlyExpenses={plData.monthly[lastThreeMonths[2].name]?.expenseData.filter(e => {
-            const category = e.CATEGORY?.toLowerCase() || '';
-            // Include expenses that don't fit in other categories
-            return !category.includes('payroll') &&
-                   !category.includes('salary') &&
-                   !category.includes('commission') &&
-                   !category.includes('bonus') &&
-                   !category.includes('facebook') &&
-                   !category.includes('ad spend') &&
-                   !category.includes('advertising') &&
-                   !category.includes('media buy') &&
-                   !category.includes('subscription') &&
-                   !category.includes('software') &&
-                   !category.includes('saas') &&
-                   !category.includes('service');
-          })}
-          plData={plData}
-        />
+          <ExpenseCategory 
+            title="Payroll (Salaries, Bonuses, Commissions)" 
+            monthlyData={processedData.map(d => ({ month: d.month, amount: d.payroll }))}
+            monthlyExpenses={plData.monthly[lastThreeMonths[2].name]?.expenseData.filter(e => 
+              e.CATEGORY?.toLowerCase().includes('payroll') ||
+              e.CATEGORY?.toLowerCase().includes('salary')
+            )}
+            plData={plData}
+          />
+          <ExpenseCategory 
+            title="Advertising Spend" 
+            monthlyData={processedData.map(d => ({ month: d.month, amount: d.adSpend }))}
+            monthlyExpenses={plData.monthly[lastThreeMonths[2].name]?.expenseData.filter(e => {
+              const category = e.CATEGORY?.toLowerCase() || '';
+              return category.includes('facebook') ||
+                     category.includes('ad spend') ||
+                     category.includes('advertising') ||
+                     category.includes('media buy') ||
+                     category.includes('google') ||
+                     category.includes('tiktok') ||
+                     category.includes('youtube') ||
+                     category.includes('ads') ||
+                     category.includes('marketing') ||
+                     category.includes('promotion');
+            })}
+            plData={plData}
+          />
+          <ExpenseCategory 
+            title="Subscriptions (Tools & Software)" 
+            monthlyData={processedData.map(d => ({ month: d.month, amount: d.subscriptions }))}
+            monthlyExpenses={plData.monthly[lastThreeMonths[2].name]?.expenseData.filter(e => 
+              e.CATEGORY?.toLowerCase().includes('subscription') ||
+              e.CATEGORY?.toLowerCase().includes('software')
+            )}
+            plData={plData}
+          />
+          <ExpenseCategory 
+            title="Miscellaneous Expenses" 
+            monthlyData={processedData.map(d => ({ month: d.month, amount: d.miscellaneous }))}
+            monthlyExpenses={plData.monthly[lastThreeMonths[2].name]?.expenseData.filter(e => {
+              const category = e.CATEGORY?.toLowerCase() || '';
+              // Include expenses that don't fit in other categories
+              return !category.includes('payroll') &&
+                     !category.includes('salary') &&
+                     !category.includes('commission') &&
+                     !category.includes('bonus') &&
+                     !category.includes('facebook') &&
+                     !category.includes('ad spend') &&
+                     !category.includes('advertising') &&
+                     !category.includes('media buy') &&
+                     !category.includes('subscription') &&
+                     !category.includes('software') &&
+                     !category.includes('saas') &&
+                     !category.includes('service');
+            })}
+            plData={plData}
+          />
 
-        <BreakEvenAnalysis monthlyData={processedData} />
-        
-        <IncomeComparisonTable 
-          monthlyData={processedData}
-          plData={plData}
-        />
-        
-        <ExpenseComparisonTable 
-          monthlyData={processedData}
-          plData={plData}
-        />
+          <BreakEvenAnalysis monthlyData={processedData} />
+          
+          <IncomeComparisonTable 
+            monthlyData={processedData}
+            plData={plData}
+          />
+          
+          <ExpenseComparisonTable 
+            monthlyData={processedData}
+            plData={plData}
+          />
 
-        <ProfitTrendChart plData={plData} />
+          <ProfitTrendChart plData={plData} />
+        </div>
       </CardContent>
     </Card>
   );
