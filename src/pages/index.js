@@ -30,6 +30,7 @@ import CashFlowProjection from '../components/dashboard/CashFlowProjection';
 import ImprovedPLDashboard from '../components/dashboard/ImprovedPLDashboard';
 import Highlights from '../components/dashboard/Highlights';
 import FinancialOverview from '../components/dashboard/FinancialOverview';
+import RevenueFlowAnalysis from '../components/dashboard/RevenueFlowAnalysis';
 
 export default function DashboardPage() {
   const [plData, setPlData] = useState(null);
@@ -76,7 +77,8 @@ export default function DashboardPage() {
     { id: 'network', label: 'Offer Performance' },
     { id: 'media-buyers', label: 'Media Buyers' },
     { id: 'invoices', label: 'Invoices' },
-    { id: 'upcoming-expenses', label: 'Expenses' }
+    { id: 'upcoming-expenses', label: 'Expenses' },
+    { id: 'revenue-flow', label: 'Revenue Flow' },
   ];
 
 // Update the processSheetData function in index.js
@@ -362,6 +364,16 @@ const processSheetData = (data) => {
           <div className="space-y-6">
             <Highlights performanceData={performanceData} />
           </div>
+        );
+  
+      case 'revenue-flow':
+        return (
+          <RevenueFlowAnalysis 
+            performanceData={performanceData}
+            networkTerms={rawData?.networkTerms}
+            invoicesData={invoicesData}
+            plData={plData}
+          />
         );
   
       default:
