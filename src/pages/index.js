@@ -68,6 +68,7 @@ export default function DashboardPage() {
   const tabs = [
     { id: 'overview-v2', label: 'Overview' },
     { id: 'financial-overview', label: 'Financial Overview' },
+    { id: 'tradeshift', label: 'Tradeshift Cards', icon: '💳' },
     { id: 'highlights', label: 'Highlights' },
     { id: 'cash-position', label: 'Cash Position' },
     { id: 'net-profit', label: 'Net Profit' },
@@ -81,8 +82,7 @@ export default function DashboardPage() {
     { id: 'media-buyers', label: 'Media Buyers' },
     { id: 'invoices', label: 'Invoices' },
     { id: 'upcoming-expenses', label: 'Expenses' },
-    { id: 'revenue-flow', label: 'Revenue Flow' },
-    { id: 'tradeshift', label: 'Tradeshift Cards', icon: '💳' }
+    { id: 'revenue-flow', label: 'Revenue Flow' }
   ];
 
   const fetchData = async () => {
