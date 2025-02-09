@@ -11,12 +11,23 @@ const formatCurrency = (amount) => {
   }).format(amount);
 };
 
+const tradeshiftMapping = {
+  '1011': 'Convert 2 Freedom',
+  '1003': 'Convert 2 Freedom',
+  '1004': 'Rightway Marketing',
+  '2007': 'Quit 9 to 5',
+  '2009': 'Online Legacies',
+  '2006': 'Torson Enterprises'
+};
+
 const CardGroup = ({ cardData, cardNumber }) => {
   const [isExpanded, setIsExpanded] = React.useState(false);
   const totalAmount = useMemo(() => 
     cardData.reduce((sum, item) => sum + (parseFloat(item.amount) || 0), 0),
     [cardData]
   );
+
+  const businessName = tradeshiftMapping[cardNumber];
 
   return (
     <div className="mb-6">
@@ -26,7 +37,12 @@ const CardGroup = ({ cardData, cardNumber }) => {
       >
         <div className="flex items-center space-x-2">
           {isExpanded ? <ChevronDown className="h-5 w-5" /> : <ChevronRight className="h-5 w-5" />}
-          <h3 className="text-lg font-medium">Card {cardNumber}</h3>
+          <div>
+            <h3 className="text-lg font-medium">Card {cardNumber}</h3>
+            {businessName && (
+              <p className="text-sm text-blue-600">{businessName} Tradeshift</p>
+            )}
+          </div>
         </div>
         <span className="text-lg font-semibold">{formatCurrency(totalAmount)}</span>
       </div>

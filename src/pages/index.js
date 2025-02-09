@@ -32,6 +32,7 @@ import Highlights from '../components/dashboard/Highlights';
 import FinancialOverview from '../components/dashboard/FinancialOverview';
 import RevenueFlowAnalysis from '../components/dashboard/RevenueFlowAnalysis';
 import TradeshiftOverview from '../components/dashboard/TradeshiftOverview';
+import CreditCardLimits from '../components/dashboard/CreditCardLimits';
 
 export default function DashboardPage() {
   const [plData, setPlData] = useState(null);
@@ -385,6 +386,9 @@ export default function DashboardPage() {
           <div className="space-y-6">
             <TradeshiftOverview 
               tradeshiftData={tradeshiftData} 
+            />
+            <CreditCardLimits 
+              financialResources={rawData?.financialResources || []}
             />
           </div>
         );
