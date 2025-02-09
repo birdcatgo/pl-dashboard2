@@ -31,6 +31,7 @@ import ImprovedPLDashboard from '../components/dashboard/ImprovedPLDashboard';
 import Highlights from '../components/dashboard/Highlights';
 import FinancialOverview from '../components/dashboard/FinancialOverview';
 import RevenueFlowAnalysis from '../components/dashboard/RevenueFlowAnalysis';
+import TradeshiftOverview from '../components/dashboard/TradeshiftOverview';
 
 export default function DashboardPage() {
   const [plData, setPlData] = useState(null);
@@ -61,6 +62,7 @@ export default function DashboardPage() {
   const [mediaBuyerData, setMediaBuyerData] = useState(null);
   const [rawData, setRawData] = useState(null);
   const [summaryData, setSummaryData] = useState([]);
+  const [tradeshiftData, setTradeshiftData] = useState([]);
 
   const tabs = [
     { id: 'overview-v2', label: 'Overview' },
@@ -79,127 +81,128 @@ export default function DashboardPage() {
     { id: 'invoices', label: 'Invoices' },
     { id: 'upcoming-expenses', label: 'Expenses' },
     { id: 'revenue-flow', label: 'Revenue Flow' },
+    { id: 'tradeshift', label: 'Tradeshift Cards', icon: '💳' }
   ];
 
-// Update the processSheetData function in index.js
-const processSheetData = (data) => {
-  try {
-    console.log('Raw API response:', data);
-    
-    // Process invoices data
-    if (data.rawData?.invoices) {
-      console.log('Setting invoices data:', data.rawData.invoices);
-      setInvoicesData(data.rawData.invoices);
-    }
-
-    setRawData({
-      ...data.rawData,
-      networkTerms: data.networkTerms // Add networkTerms to rawData
-    });
-
-    // Add logging
-    console.log('Processing sheet data invoices:', {
-      hasInvoices: !!data.rawData?.invoices,
-      invoiceCount: data.rawData?.invoices?.length
-    });
-    
-    if (data.rawData?.creditCardExpenses) {
-      const creditCardExpenses = data.rawData.creditCardExpenses.map(expense => ({
-        ...expense, 
-        Type: 'Credit Card',
-      }));
-      console.log('Credit card expenses:', creditCardExpenses);
-      setPayrollData(prevData => [...prevData, ...creditCardExpenses]);
-    }
-    // Check for payroll in rawData
-    if (data.rawData?.payroll) {
-      console.log('Raw payroll data before processing:', data.rawData.payroll);
-      setPayrollData(data.rawData.payroll);
-      console.log('Processed payroll data after setting:', data.rawData.payroll);
-    }
-
-    // Process performance data
-    if (data.performanceData) {
-      setPerformanceData(data.performanceData);
-      const processed = processPerformanceData(data.performanceData, dateRange);
-      setDashboardData(processed);
-    }
-
-    // Process PL data
-    if (data.plData) {
-      console.log('Raw P&L data:', data.plData);
-      setPlData(data.plData);
-    }
-
-    // Process cash flow data
-    if (data.cashFlowData) {
-      const validatedData = {
-        ...data.cashFlowData,
-        financialResources: Array.isArray(data.cashFlowData?.financialResources)
-          ? data.cashFlowData.financialResources.filter(
-              resource => resource && typeof resource.account === 'string'
-            )
-          : [],
-      };
-
-      console.log('Validated cash flow data:', validatedData);
-      setCashManagementData(validatedData);
-    }
-
-    if (data.networkPaymentsData) {
-      setNetworkPaymentsData(data.networkPaymentsData);
-    }
-
-    if (data.summaryData) {
-      setSummaryData(data.summaryData);
-    }
-  } catch (error) {
-    console.error('Error processing sheet data:', error);
-    setError('Failed to process updated data');
-  }
-};
-
-   const loadDashboardData = async () => {
+  const fetchData = async () => {
     try {
-      if (isRefreshing) return;
-      setIsRefreshing(true);
+      setIsLoading(true);
       setError(null);
-  
+      
       const response = await fetch('/api/sheets');
-      if (!response.ok) {
-        throw new Error(`HTTP error! status: ${response.status}`);
+      const data = await response.json();
+      
+      console.log('API Response:', data); // Debug log
+      
+      if (data.tradeshiftData) {
+        console.log('Setting tradeshift data:', data.tradeshiftData);
+        setTradeshiftData(data.tradeshiftData);
       }
 
-      const data = await response.json();
-      console.log('API Response:', data);
+      processSheetData(data);
+      setLastUpdated(new Date());
+    } catch (error) {
+      console.error('Error fetching data:', error);
+      setError('Failed to fetch updated data');
+    } finally {
+      setIsLoading(false);
+      setIsRefreshing(false);
+    }
+  };
+
+  const processSheetData = (data) => {
+    try {
+      console.log('Raw API response:', data);
       
-      // Process the data
-      setPerformanceData(data.performanceData);
+      // Process invoices data
+      if (data.rawData?.invoices) {
+        console.log('Setting invoices data:', data.rawData.invoices);
+        setInvoicesData(data.rawData.invoices);
+      }
+
+      // Add logging for Tradeshift data
+      console.log('Processing Tradeshift data:', {
+        hasTradeshift: !!data.tradeshiftData,
+        tradeshiftLength: data.tradeshiftData?.length,
+        sampleTradeshift: data.tradeshiftData?.[0]
+      });
+
+      // Set tradeshift data directly
+      if (data.tradeshiftData) {
+        console.log('Setting tradeshift data:', data.tradeshiftData);
+        setTradeshiftData(data.tradeshiftData);
+      }
+
       setRawData({
         ...data.rawData,
         networkTerms: data.networkTerms
       });
-      setCashManagementData(data.cashFlowData);
-      setPlData(data.plData);
-      setMediaBuyerData(data.rawData.mediaBuyerSpend);
-      setNetworkPaymentsData(data.networkPaymentsData);
-      setPayrollData(data.rawData?.payroll || []);
+
+      // Add logging
+      console.log('Processing sheet data invoices:', {
+        hasInvoices: !!data.rawData?.invoices,
+        invoiceCount: data.rawData?.invoices?.length
+      });
       
-      setInvoicesData(data.rawData?.invoices || []);
-      
-      setLastUpdated(new Date());
+      if (data.rawData?.creditCardExpenses) {
+        const creditCardExpenses = data.rawData.creditCardExpenses.map(expense => ({
+          ...expense, 
+          Type: 'Credit Card',
+        }));
+        console.log('Credit card expenses:', creditCardExpenses);
+        setPayrollData(prevData => [...prevData, ...creditCardExpenses]);
+      }
+      // Check for payroll in rawData
+      if (data.rawData?.payroll) {
+        console.log('Raw payroll data before processing:', data.rawData.payroll);
+        setPayrollData(data.rawData.payroll);
+        console.log('Processed payroll data after setting:', data.rawData.payroll);
+      }
+
+      // Process performance data
+      if (data.performanceData) {
+        setPerformanceData(data.performanceData);
+        const processed = processPerformanceData(data.performanceData, dateRange);
+        setDashboardData(processed);
+      }
+
+      // Process PL data
+      if (data.plData) {
+        console.log('Raw P&L data:', data.plData);
+        setPlData(data.plData);
+      }
+
+      // Process cash flow data
+      if (data.cashFlowData) {
+        const validatedData = {
+          ...data.cashFlowData,
+          financialResources: Array.isArray(data.cashFlowData?.financialResources)
+            ? data.cashFlowData.financialResources.filter(
+                resource => resource && typeof resource.account === 'string'
+              )
+            : [],
+        };
+
+        console.log('Validated cash flow data:', validatedData);
+        setCashManagementData(validatedData);
+      }
+
+      if (data.networkPaymentsData) {
+        setNetworkPaymentsData(data.networkPaymentsData);
+      }
+
+      if (data.summaryData) {
+        setSummaryData(data.summaryData);
+      }
     } catch (error) {
-      console.error('Error fetching dashboard data:', error);
-      setError(error.message || 'Failed to load data');
-    } finally {
-      setIsRefreshing(false);
-      setIsLoading(false);
+      console.error('Error processing sheet data:', error);
+      setError('Failed to process updated data');
     }
   };
 
   // Load data on mount
   useEffect(() => {
-    loadDashboardData();
+    fetchData();
   }, []);
 
   const handleDateChange = (newDateRange) => {
@@ -212,7 +215,7 @@ const processSheetData = (data) => {
 
   const handleRefresh = () => { 
     if (!isRefreshing) {
-      loadDashboardData();
+      fetchData();
     }
   };
 
@@ -376,10 +379,25 @@ const processSheetData = (data) => {
           />
         );
   
+      case 'tradeshift':
+        console.log('Rendering tradeshift tab with data:', tradeshiftData);
+        return (
+          <div className="space-y-6">
+            <TradeshiftOverview 
+              tradeshiftData={tradeshiftData} 
+            />
+          </div>
+        );
+  
       default:
         return null;
     }
   };
+
+  // Add useEffect to log state changes
+  useEffect(() => {
+    console.log('Tradeshift data state updated:', tradeshiftData);
+  }, [tradeshiftData]);
 
   return (
     <main className="min-h-screen bg-gray-100">

@@ -135,6 +135,45 @@ async function processBankStructureData(bankStructureResponse) {
   }
 }
 
+async function processTradeShiftData(response) {
+  console.log('Processing Tradeshift response:', response); // Debug log
+
+  if (!response?.values || response.values.length <= 1) {
+    console.log('No valid Tradeshift data found');
+    return [];
+  }
+  
+  try {
+    // Skip header row and process data
+    const rows = response.values.slice(1).map(row => {
+      if (!row || row.length < 5) {
+        console.log('Invalid row:', row);
+        return null;
+      }
+
+      const amount = parseFloat((row[2] || '0').replace(/[$,]/g, ''));
+      if (isNaN(amount)) {
+        console.log('Invalid amount:', row[2]);
+        return null;
+      }
+
+      return {
+        purpose: row[0]?.trim() || '',
+        card: row[1]?.trim() || '',
+        amount: amount,
+        merchantName: row[3]?.trim() || '',
+        cardLastDigits: row[4]?.trim() || ''
+      };
+    }).filter(Boolean); // Remove any null entries
+
+    console.log('Processed Tradeshift rows:', rows.length);
+    return rows;
+  } catch (error) {
+    console.error('Error processing Tradeshift data:', error);
+    return [];
+  }
+}
+
 export default async function handler(req, res) {
   try {
     if (req.method !== 'GET') {
@@ -203,7 +242,8 @@ export default async function handler(req, res) {
       'July!A:D',
       'June!A:D',
       'Network Terms!A2:I',
-      'Invoices!A:F'
+      'Invoices!A:F',
+      'Tradeshift Check!A:E'
     ]);
 
     const batchResponse = await sheets.spreadsheets.values.batchGet({
@@ -225,7 +265,8 @@ export default async function handler(req, res) {
         'August!A:D',
         'July!A:D',
         'June!A:D',
-        'Network Terms!A2:I'
+        'Network Terms!A2:I',
+        'Tradeshift Check!A:E'
       ]
     });
     
@@ -254,6 +295,7 @@ export default async function handler(req, res) {
       julyResponse,
       juneResponse,
       networkTermsResponse,
+      tradeshiftResponse
     ] = batchResponse.data.valueRanges || [];
 
     // Initialize result object with empty arrays
@@ -268,7 +310,8 @@ export default async function handler(req, res) {
         payroll: [],
         mediaBuyerSpend: [],
       },
-      networkTerms: []
+      networkTerms: [],
+      tradeshiftData: []
     };
 
     // Process Financial Resources
@@ -531,27 +574,19 @@ export default async function handler(req, res) {
       }
     });
 
-    return res.status(200).json(result);
-  } catch (error) {
-    // Enhanced error logging
-    console.error('API Error Details:', {
-      message: error.message,
-      stack: error.stack,
-      code: error.code,
-      status: error.status,
-      details: error.response?.data,
-      env: {
-        hasClientEmail: !!process.env.GOOGLE_SHEETS_CLIENT_EMAIL,
-        hasPrivateKey: !!process.env.GOOGLE_SHEETS_PRIVATE_KEY,
-        hasSheetId: !!process.env.GOOGLE_SHEETS_ID
-      }
+    // Add Tradeshift data processing with more logging
+    const tradeshiftData = await processTradeShiftData(tradeshiftResponse);
+    console.log('Processed Tradeshift data:', {
+      hasData: !!tradeshiftData,
+      dataLength: tradeshiftData?.length,
+      sampleData: tradeshiftData?.[0]
     });
 
-    return res.status(500).json({
-      error: 'Internal server error',
-      message: error.message,
-      code: error.code,
-      status: error.status
-    });
+    result.tradeshiftData = tradeshiftData;
+
+    res.status(200).json(result);
+  } catch (error) {
+    console.error('API Error:', error);
+    res.status(500).json({ error: error.message });
   }
 }
