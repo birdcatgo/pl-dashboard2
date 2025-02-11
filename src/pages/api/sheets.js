@@ -382,15 +382,12 @@ export default async function handler(req, res) {
         .slice(1) // Skip header row
         .filter(row => row.length >= 6) // Ensure we have all required columns
         .map(row => {
-          // Helper function to clean currency strings that might appear in date fields
           const cleanDateString = (str) => {
             if (!str) return '';
-            // If it looks like a currency value, return empty string
             if (str.includes('$') || str.includes(',')) return '';
             return str.trim();
           };
 
-          // Helper function to parse amount
           const parseAmount = (str) => {
             if (!str) return 0;
             const cleaned = str.toString().replace(/[$,]/g, '');
@@ -403,7 +400,8 @@ export default async function handler(req, res) {
             PeriodStart: cleanDateString(row[1]),
             PeriodEnd: cleanDateString(row[2]),
             DueDate: cleanDateString(row[3]),
-            AmountDue: parseAmount(row[4]),
+            Amount: parseAmount(row[4]),  // Changed from AmountDue to Amount
+            Status: 'Unpaid',  // Added Status field
             InvoiceNumber: row[5]?.toString().trim() || ''
           };
         })

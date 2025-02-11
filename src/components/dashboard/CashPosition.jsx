@@ -3,6 +3,21 @@ import { Card, CardHeader, CardTitle, CardContent } from '../ui/card';
 import { TrendingUp, TrendingDown, DollarSign, CreditCard, Calendar, Briefcase } from 'lucide-react';
 
 const CashPosition = ({ cashFlowData, networkPaymentsData, invoicesData = [] }) => {
+  // Add detailed debug logging for invoice data
+  console.log('CashPosition Invoice Data:', {
+    invoicesData,
+    isArray: Array.isArray(invoicesData),
+    length: invoicesData?.length,
+    sample: invoicesData?.[0],
+    rawData: invoicesData,
+    parsedSample: invoicesData?.[0] ? {
+      status: invoicesData[0].Status,
+      dueDate: invoicesData[0].DueDate,
+      amount: invoicesData[0].Amount,
+      network: invoicesData[0].Network
+    } : null
+  });
+
   // Add debug logging
   console.log('CashPosition received:', {
     cashFlowData,
@@ -48,10 +63,7 @@ const CashPosition = ({ cashFlowData, networkPaymentsData, invoicesData = [] }) 
 
   // Calculate total unpaid invoices
   const totalUnpaidInvoices = validInvoices.reduce((total, invoice) => {
-    if (invoice?.Status === 'Unpaid') {
-      return total + (parseFloat(invoice.Amount) || 0);
-    }
-    return total;
+    return total + (parseFloat(invoice.AmountDue) || 0);
   }, 0);
 
   // Fixed monthly expenses
@@ -67,10 +79,9 @@ const CashPosition = ({ cashFlowData, networkPaymentsData, invoicesData = [] }) 
 
   // Split invoices into overdue and upcoming
   const { overdueInvoices, upcomingInvoices, totalOverdue, totalUpcoming } = validInvoices
-    .filter(invoice => invoice?.Status === 'Unpaid')
     .reduce((acc, invoice) => {
       const dueDate = new Date(invoice.DueDate);
-      const amount = parseFloat(invoice.Amount) || 0;
+      const amount = parseFloat(invoice.AmountDue) || 0;
       
       if (dueDate < today) {
         acc.overdueInvoices.push(invoice);
@@ -88,17 +99,73 @@ const CashPosition = ({ cashFlowData, networkPaymentsData, invoicesData = [] }) 
       totalUpcoming: 0 
     });
 
+  // Add this function before the return statement
+  const consolidateInvoices = (invoices) => {
+    return Object.values(invoices.reduce((acc, invoice) => {
+      const network = invoice.Network;
+      if (!acc[network]) {
+        acc[network] = {
+          Network: network,
+          invoices: [],
+          totalAmount: 0,
+          earliestDueDate: new Date(invoice.DueDate),
+          latestDueDate: new Date(invoice.DueDate)
+        };
+      }
+      
+      acc[network].invoices.push(invoice);
+      acc[network].totalAmount += parseFloat(invoice.AmountDue) || 0;
+      
+      const dueDate = new Date(invoice.DueDate);
+      if (dueDate < acc[network].earliestDueDate) {
+        acc[network].earliestDueDate = dueDate;
+      }
+      if (dueDate > acc[network].latestDueDate) {
+        acc[network].latestDueDate = dueDate;
+      }
+      
+      return acc;
+    }, {}));
+  };
+
+  // Then update the Overdue and Upcoming sections to use the consolidated data
+  const consolidatedOverdue = consolidateInvoices(overdueInvoices);
+  const consolidatedUpcoming = consolidateInvoices(upcomingInvoices);
+
+  // First, add these helper functions at the top with the other ones
+  const groupCreditCards = (financialResources) => {
+    return financialResources
+      ?.filter(resource => !['Cash in Bank', 'Slash Account', 'Business Savings (JP MORGAN)'].includes(resource.account))
+      .map(card => ({
+        name: card.account,
+        limit: parseFloat(card.limit?.toString().replace(/[$,]/g, '') || '0'),
+        available: parseFloat(card.available?.toString().replace(/[$,]/g, '') || '0'),
+        owing: parseFloat(card.owing?.toString().replace(/[$,]/g, '') || '0'),
+        utilization: card.limit ? ((card.limit - card.available) / card.limit * 100).toFixed(1) : 0
+      }))
+      .sort((a, b) => b.owing - a.owing) || [];
+  };
+
+  const monthlyExpenseCategories = [
+    { name: 'Payroll', amount: 30000 },
+    { name: 'Software & Tools', amount: 5000 },
+    { name: 'Office & Utilities', amount: 3000 },
+    { name: 'Marketing', amount: 15000 },
+    { name: 'Professional Services', amount: 7000 },
+    { name: 'Miscellaneous', amount: 5000 }
+  ];
+
   return (
     <div className="space-y-6">
       {/* Net Position Card */}
       <Card className={`border-l-4 ${netPosition >= 0 ? 'border-l-green-500' : 'border-l-red-500'}`}>
-        <CardHeader>
+        <CardHeader className="pb-2">
           <CardTitle className="flex items-center justify-between">
             <div className="flex items-center space-x-2">
               <DollarSign className="h-6 w-6" />
-              <span>Net Position</span>
+              <span className="text-xl">Net Position</span>
             </div>
-            <span className={`text-3xl font-bold ${netPosition >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+            <span className={`text-2xl font-bold ml-4 ${netPosition >= 0 ? 'text-green-600' : 'text-red-600'}`}>
               {formatCurrency(netPosition)}
             </span>
           </CardTitle>
@@ -111,19 +178,19 @@ const CashPosition = ({ cashFlowData, networkPaymentsData, invoicesData = [] }) 
               <div className="space-y-2">
                 <div className="flex justify-between">
                   <span className="text-gray-600">Cash in Bank</span>
-                  <span>{formatCurrency(cashInBank)}</span>
+                  <span className="text-lg font-semibold text-green-600 ml-4">{formatCurrency(cashInBank)}</span>
                 </div>
                 <div className="flex justify-between">
                   <span className="text-gray-600">Overdue Invoices</span>
-                  <span>{formatCurrency(totalOverdue)}</span>
+                  <span className="text-lg font-semibold text-red-600 ml-4">{formatCurrency(totalOverdue)}</span>
                 </div>
                 <div className="flex justify-between">
                   <span className="text-gray-600">Upcoming Invoices</span>
-                  <span>{formatCurrency(totalUpcoming)}</span>
+                  <span className="text-lg font-semibold text-green-600 ml-4">{formatCurrency(totalUpcoming)}</span>
                 </div>
                 <div className="flex justify-between pt-2 border-t border-green-200">
                   <span className="font-medium">Total</span>
-                  <span className="font-bold text-green-700">{formatCurrency(totalCredits)}</span>
+                  <span className="font-bold text-green-700 ml-4">{formatCurrency(totalCredits)}</span>
                 </div>
               </div>
             </div>
@@ -134,15 +201,15 @@ const CashPosition = ({ cashFlowData, networkPaymentsData, invoicesData = [] }) 
               <div className="space-y-2">
                 <div className="flex justify-between">
                   <span className="text-gray-600">Credit Card Debt</span>
-                  <span>{formatCurrency(totalCreditCardDebt)}</span>
+                  <span className="text-lg font-semibold text-red-600 ml-4">{formatCurrency(totalCreditCardDebt)}</span>
                 </div>
                 <div className="flex justify-between">
                   <span className="text-gray-600">Monthly Expenses</span>
-                  <span>{formatCurrency(averageMonthlyExpenses)}</span>
+                  <span className="text-lg font-semibold text-red-600 ml-4">{formatCurrency(averageMonthlyExpenses)}</span>
                 </div>
                 <div className="flex justify-between pt-2 border-t border-red-200">
                   <span className="font-medium">Total</span>
-                  <span className="font-bold text-red-700">{formatCurrency(totalOwing)}</span>
+                  <span className="font-bold text-red-700 ml-4">{formatCurrency(totalOwing)}</span>
                 </div>
               </div>
             </div>
@@ -153,119 +220,277 @@ const CashPosition = ({ cashFlowData, networkPaymentsData, invoicesData = [] }) 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
         {/* Credits Section */}
         <Card className="border-l-4 border-l-green-500">
-          <CardHeader className="pb-3">
-            <CardTitle className="flex items-center space-x-2">
-              <TrendingUp className="h-5 w-5 text-green-500" />
-              <span>Credits</span>
-            </CardTitle>
+          <CardHeader className="pb-2">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center space-x-2">
+                <TrendingUp className="h-5 w-5 text-green-500" />
+                <span className="text-lg font-semibold">Credits</span>
+              </div>
+              <span className="text-lg font-bold text-green-600 ml-4">
+                {formatCurrency(totalCredits)}
+              </span>
+            </div>
           </CardHeader>
           <CardContent className="space-y-6">
-            {/* Cash and Invoices Summary */}
-            <div className="space-y-2">
-              <div className="flex justify-between items-center bg-green-50 p-3 rounded-lg">
-                <div className="flex items-center space-x-2">
-                  <Briefcase className="h-5 w-5 text-gray-500" />
-                  <span>Total Cash</span>
-                </div>
-                <span className="text-lg font-semibold text-green-600">{formatCurrency(cashInBank)}</span>
+            {/* Cash Summary */}
+            <div className="flex justify-between items-center bg-green-50 p-3 rounded-lg">
+              <div className="flex items-center space-x-2">
+                <Briefcase className="h-5 w-5 text-gray-500" />
+                <span>Total Cash</span>
               </div>
-              
+              <span className="text-lg font-semibold text-green-600 ml-4">{formatCurrency(cashInBank)}</span>
+            </div>
+
+            {/* Invoice Summaries - Side by Side */}
+            <div className="grid grid-cols-2 gap-4">
+              {/* Overdue Summary */}
               <div className="flex justify-between items-center bg-red-50 p-3 rounded-lg">
                 <div className="flex items-center space-x-2">
                   <Calendar className="h-5 w-5 text-red-500" />
-                  <span>Overdue Invoices</span>
+                  <span>Overdue ({overdueInvoices.length})</span>
                 </div>
-                <span className="text-lg font-semibold text-red-600">{formatCurrency(totalOverdue)}</span>
+                <span className="text-lg font-semibold text-red-600 ml-4">{formatCurrency(totalOverdue)}</span>
               </div>
 
+              {/* Upcoming Summary */}
               <div className="flex justify-between items-center bg-green-50 p-3 rounded-lg">
                 <div className="flex items-center space-x-2">
                   <Calendar className="h-5 w-5 text-gray-500" />
-                  <span>Upcoming Invoices</span>
+                  <span>Upcoming ({upcomingInvoices.length})</span>
                 </div>
-                <span className="text-lg font-semibold text-green-600">{formatCurrency(totalUpcoming)}</span>
+                <span className="text-lg font-semibold text-green-600 ml-4">{formatCurrency(totalUpcoming)}</span>
               </div>
             </div>
 
-            {/* Unpaid Invoices Details */}
-            <div>
-              {overdueInvoices.length > 0 && (
-                <>
-                  <div className="flex items-center space-x-2 mb-3 text-lg font-medium">
-                    <Calendar className="h-5 w-5 text-red-500" />
-                    <span>Overdue Invoices</span>
+            {/* Invoice Details - Side by Side */}
+            <div className="grid grid-cols-2 gap-4">
+              {/* Overdue Invoices Section */}
+              <div className="border border-red-200 rounded-lg overflow-hidden">
+                <div className="bg-red-50 px-4 py-2 border-b border-red-200">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center space-x-2">
+                      <Calendar className="h-5 w-5 text-red-500" />
+                      <h3 className="font-medium text-red-900">Overdue</h3>
+                    </div>
+                    <span className="font-medium text-red-600 ml-4">
+                      {formatCurrency(totalOverdue)}
+                    </span>
                   </div>
-                  <div className="space-y-2 mb-6">
-                    {overdueInvoices.map((invoice, index) => (
-                      <div key={index} className="flex justify-between items-center bg-red-50 p-3 rounded-lg">
-                        <div className="flex flex-col">
-                          <span className="font-medium">{invoice.Network}</span>
-                          <span className="text-sm text-red-600">Due: {invoice.DueDate}</span>
+                </div>
+                <div className="divide-y divide-red-100 max-h-[400px] overflow-y-auto">
+                  {consolidatedOverdue.map((networkGroup, index) => (
+                    <div key={index} className="px-4 py-3 hover:bg-red-50 transition-colors">
+                      <div className="flex justify-between items-start">
+                        <div className="space-y-1">
+                          <div className="font-medium text-gray-900">
+                            {networkGroup.Network}
+                            <span className="ml-2 text-sm text-red-600">
+                              ({networkGroup.invoices.length} invoices)
+                            </span>
+                          </div>
+                          <div className="text-sm text-red-600">
+                            Due: {networkGroup.earliestDueDate.toLocaleDateString()}
+                            {networkGroup.invoices.length > 1 && 
+                              ` - ${networkGroup.latestDueDate.toLocaleDateString()}`
+                            }
+                          </div>
+                          <div className="text-xs text-gray-500">
+                            {networkGroup.invoices.map((inv, i) => (
+                              <div key={i} className="flex justify-between text-xs">
+                                <span>#{inv.InvoiceNumber}: {inv.PeriodStart} - {inv.PeriodEnd}</span>
+                                <span className="ml-4">{formatCurrency(parseFloat(inv.AmountDue) || 0)}</span>
+                              </div>
+                            ))}
+                          </div>
                         </div>
-                        <span className="text-red-600 font-semibold">
-                          {formatCurrency(parseFloat(invoice.Amount) || 0)}
-                        </span>
+                        <div className="text-right">
+                          <div className="font-semibold text-red-600 ml-4">
+                            {formatCurrency(networkGroup.totalAmount)}
+                          </div>
+                          <div className="text-xs text-gray-500">
+                            Total for {networkGroup.Network}
+                          </div>
+                        </div>
                       </div>
-                    ))}
-                  </div>
-                </>
-              )}
+                    </div>
+                  ))}
+                </div>
+              </div>
 
-              {upcomingInvoices.length > 0 && (
-                <>
-                  <div className="flex items-center space-x-2 mb-3 text-lg font-medium">
-                    <Calendar className="h-5 w-5 text-gray-500" />
-                    <span>Upcoming Invoices</span>
+              {/* Upcoming Invoices Section */}
+              <div className="border border-green-200 rounded-lg overflow-hidden">
+                <div className="bg-green-50 px-4 py-2 border-b border-green-200">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center space-x-2">
+                      <Calendar className="h-5 w-5 text-green-500" />
+                      <h3 className="font-medium text-green-900">Upcoming</h3>
+                    </div>
+                    <span className="font-medium text-green-600 ml-4">
+                      {formatCurrency(totalUpcoming)}
+                    </span>
                   </div>
-                  <div className="space-y-2">
-                    {upcomingInvoices.map((invoice, index) => (
-                      <div key={index} className="flex justify-between items-center bg-green-50 p-3 rounded-lg">
-                        <div className="flex flex-col">
-                          <span className="font-medium">{invoice.Network}</span>
-                          <span className="text-sm text-gray-500">Due: {invoice.DueDate}</span>
+                </div>
+                <div className="divide-y divide-green-100 max-h-[400px] overflow-y-auto">
+                  {consolidatedUpcoming.map((networkGroup, index) => (
+                    <div key={index} className="px-4 py-3 hover:bg-green-50 transition-colors">
+                      <div className="flex justify-between items-start">
+                        <div className="space-y-1">
+                          <div className="font-medium text-gray-900">
+                            {networkGroup.Network}
+                            <span className="ml-2 text-sm text-green-600">
+                              ({networkGroup.invoices.length} invoices)
+                            </span>
+                          </div>
+                          <div className="text-sm text-green-600">
+                            Due: {networkGroup.earliestDueDate.toLocaleDateString()}
+                            {networkGroup.invoices.length > 1 && 
+                              ` - ${networkGroup.latestDueDate.toLocaleDateString()}`
+                            }
+                          </div>
+                          <div className="text-xs text-gray-500">
+                            {networkGroup.invoices.map((inv, i) => (
+                              <div key={i} className="flex justify-between text-xs">
+                                <span>#{inv.InvoiceNumber}: {inv.PeriodStart} - {inv.PeriodEnd}</span>
+                                <span className="ml-4">{formatCurrency(parseFloat(inv.AmountDue) || 0)}</span>
+                              </div>
+                            ))}
+                          </div>
                         </div>
-                        <span className="text-green-600 font-semibold">
-                          {formatCurrency(parseFloat(invoice.Amount) || 0)}
-                        </span>
+                        <div className="text-right">
+                          <div className="font-semibold text-green-600 ml-4">
+                            {formatCurrency(networkGroup.totalAmount)}
+                          </div>
+                          <div className="text-xs text-gray-500">
+                            Total for {networkGroup.Network}
+                          </div>
+                        </div>
                       </div>
-                    ))}
-                  </div>
-                </>
-              )}
+                    </div>
+                  ))}
+                </div>
+              </div>
             </div>
           </CardContent>
         </Card>
 
         {/* Owing Section */}
         <Card className="border-l-4 border-l-red-500">
-          <CardHeader className="pb-3">
-            <CardTitle className="flex items-center space-x-2">
-              <TrendingDown className="h-5 w-5 text-red-500" />
-              <span>Owing</span>
-            </CardTitle>
+          <CardHeader className="pb-2">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center space-x-2">
+                <TrendingDown className="h-5 w-5 text-red-500" />
+                <span className="text-lg font-semibold">Owing</span>
+              </div>
+              <span className="text-lg font-bold text-red-600 ml-4">
+                {formatCurrency(totalOwing)}
+              </span>
+            </div>
           </CardHeader>
           <CardContent className="space-y-6">
-            {/* Credit Card Debt */}
-            <div>
-              <div className="flex items-center space-x-2 mb-3 text-lg font-medium">
-                <CreditCard className="h-5 w-5 text-gray-500" />
-                <span>Credit Card Debt</span>
-              </div>
+            {/* Summary Cards - Side by Side */}
+            <div className="grid grid-cols-2 gap-4">
+              {/* Credit Card Summary */}
               <div className="flex justify-between items-center bg-red-50 p-3 rounded-lg">
-                <span>Total Credit Card Debt</span>
-                <span className="text-lg font-semibold text-red-600">{formatCurrency(totalCreditCardDebt)}</span>
+                <div className="flex items-center space-x-2">
+                  <CreditCard className="h-5 w-5 text-red-500" />
+                  <span>Credit Cards</span>
+                </div>
+                <span className="text-lg font-semibold text-red-600 ml-4">{formatCurrency(totalCreditCardDebt)}</span>
+              </div>
+
+              {/* Monthly Expenses Summary */}
+              <div className="flex justify-between items-center bg-red-50 p-3 rounded-lg">
+                <div className="flex items-center space-x-2">
+                  <Calendar className="h-5 w-5 text-red-500" />
+                  <span>Monthly Expenses</span>
+                </div>
+                <span className="text-lg font-semibold text-red-600 ml-4">{formatCurrency(averageMonthlyExpenses)}</span>
               </div>
             </div>
 
-            {/* Monthly Expenses */}
-            <div>
-              <div className="flex items-center space-x-2 mb-3 text-lg font-medium">
-                <Calendar className="h-5 w-5 text-gray-500" />
-                <span>Monthly Expenses</span>
+            {/* Detailed Sections - Side by Side */}
+            <div className="grid grid-cols-2 gap-4">
+              {/* Credit Card Details */}
+              <div className="border border-red-200 rounded-lg overflow-hidden">
+                <div className="bg-red-50 px-4 py-2 border-b border-red-200">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center space-x-2">
+                      <CreditCard className="h-5 w-5 text-red-500" />
+                      <h3 className="font-medium text-red-900">Credit Cards</h3>
+                    </div>
+                    <span className="font-medium text-red-600 ml-4">
+                      {formatCurrency(totalCreditCardDebt)}
+                    </span>
+                  </div>
+                </div>
+                <div className="divide-y divide-red-100 max-h-[400px] overflow-y-auto">
+                  {groupCreditCards(cashFlowData?.financialResources).map((card, index) => (
+                    <div key={index} className="px-4 py-3 hover:bg-red-50 transition-colors">
+                      <div className="flex justify-between items-start">
+                        <div className="space-y-1">
+                          <div className="font-medium text-gray-900">{card.name}</div>
+                          <div className="text-xs text-gray-500">
+                            <div className="flex justify-between">
+                              <span>Available:</span>
+                              <span className="text-green-600 ml-4">{formatCurrency(card.available)}</span>
+                            </div>
+                            <div className="flex justify-between">
+                              <span>Limit:</span>
+                              <span className="ml-4">{formatCurrency(card.limit)}</span>
+                            </div>
+                            <div className="flex justify-between">
+                              <span>Utilization:</span>
+                              <span className={`${card.utilization > 80 ? 'text-red-600' : 'text-gray-600'} ml-4`}>
+                                {card.utilization}%
+                              </span>
+                            </div>
+                          </div>
+                        </div>
+                        <div className="text-right">
+                          <div className="font-semibold text-red-600 ml-4">
+                            {formatCurrency(card.owing)}
+                          </div>
+                          <div className="text-xs text-gray-500">Balance</div>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
               </div>
-              <div className="flex justify-between items-center bg-red-50 p-3 rounded-lg">
-                <span>Average Monthly</span>
-                <span className="text-lg font-semibold text-red-600">{formatCurrency(averageMonthlyExpenses)}</span>
+
+              {/* Monthly Expenses Details */}
+              <div className="border border-red-200 rounded-lg overflow-hidden">
+                <div className="bg-red-50 px-4 py-2 border-b border-red-200">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center space-x-2">
+                      <Calendar className="h-5 w-5 text-red-500" />
+                      <h3 className="font-medium text-red-900">Monthly Expenses</h3>
+                    </div>
+                    <span className="font-medium text-red-600 ml-4">
+                      {formatCurrency(averageMonthlyExpenses)}
+                    </span>
+                  </div>
+                </div>
+                <div className="divide-y divide-red-100 max-h-[400px] overflow-y-auto">
+                  {monthlyExpenseCategories.map((category, index) => (
+                    <div key={index} className="px-4 py-3 hover:bg-red-50 transition-colors">
+                      <div className="flex justify-between items-start">
+                        <div className="space-y-1">
+                          <div className="font-medium text-gray-900">{category.name}</div>
+                          <div className="text-xs text-gray-500">
+                            {((category.amount / averageMonthlyExpenses) * 100).toFixed(1)}% of total
+                          </div>
+                        </div>
+                        <div className="text-right">
+                          <div className="font-semibold text-red-600 ml-4">
+                            {formatCurrency(category.amount)}
+                          </div>
+                          <div className="text-xs text-gray-500">Monthly Average</div>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
               </div>
             </div>
           </CardContent>
