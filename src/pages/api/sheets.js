@@ -309,6 +309,7 @@ export default async function handler(req, res) {
         invoices: [],
         payroll: [],
         mediaBuyerSpend: [],
+        networkTerms: []
       },
       networkTerms: [],
       tradeshiftData: []
@@ -581,6 +582,12 @@ export default async function handler(req, res) {
     });
 
     result.tradeshiftData = tradeshiftData;
+
+    console.log('API sending networkTerms:', {
+      hasTerms: !!result.networkTerms,
+      termsCount: result.networkTerms.length,
+      sampleTerm: result.networkTerms[0]
+    });
 
     res.status(200).json(result);
   } catch (error) {

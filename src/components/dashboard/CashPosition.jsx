@@ -1,8 +1,44 @@
-import React from 'react';
+import React, { useMemo } from 'react';
 import { Card, CardHeader, CardTitle, CardContent } from '../ui/card';
 import { TrendingUp, TrendingDown, DollarSign, CreditCard, Calendar, Briefcase } from 'lucide-react';
+import { format } from 'date-fns';
 
-const CashPosition = ({ cashFlowData, networkPaymentsData, invoicesData = [] }) => {
+const CashPosition = ({ cashFlowData, networkPaymentsData, invoicesData }) => {
+  // Process invoices data
+  const processedInvoices = useMemo(() => {
+    if (!Array.isArray(invoicesData)) return [];
+    
+    const today = new Date();
+    return invoicesData.map(invoice => ({
+      network: invoice.Network,
+      amount: parseFloat(invoice.Amount || 0),
+      dueDate: new Date(invoice.DueDate),
+      periodStart: new Date(invoice.PeriodStart),
+      periodEnd: new Date(invoice.PeriodEnd),
+      invoiceNumber: invoice.InvoiceNumber,
+      isOverdue: new Date(invoice.DueDate) < today
+    })).sort((a, b) => a.dueDate - b.dueDate);
+  }, [invoicesData]);
+
+  // Separate overdue and upcoming invoices
+  const { overdueInvoices, upcomingInvoices } = useMemo(() => {
+    const today = new Date();
+    return processedInvoices.reduce((acc, invoice) => {
+      if (invoice.dueDate < today) {
+        acc.overdueInvoices.push(invoice);
+      } else {
+        acc.upcomingInvoices.push(invoice);
+      }
+      return acc;
+    }, { overdueInvoices: [], upcomingInvoices: [] });
+  }, [processedInvoices]);
+
+  // Calculate totals
+  const totals = useMemo(() => ({
+    overdueTotal: overdueInvoices.reduce((sum, inv) => sum + inv.amount, 0),
+    upcomingTotal: upcomingInvoices.reduce((sum, inv) => sum + inv.amount, 0)
+  }), [overdueInvoices, upcomingInvoices]);
+
   // Add detailed debug logging for invoice data
   console.log('CashPosition Invoice Data:', {
     invoicesData,
@@ -58,65 +94,35 @@ const CashPosition = ({ cashFlowData, networkPaymentsData, invoicesData = [] }) 
     return resource.limit > 0 ? total + (limit - available) : total;
   }, 0) || 0;
 
-  // Ensure invoicesData is an array
-  const validInvoices = Array.isArray(invoicesData) ? invoicesData : [];
-
-  // Calculate total unpaid invoices
-  const totalUnpaidInvoices = validInvoices.reduce((total, invoice) => {
-    return total + (parseFloat(invoice.AmountDue) || 0);
-  }, 0);
-
   // Fixed monthly expenses
   const averageMonthlyExpenses = 65000;
 
   // Calculate net position
-  const totalCredits = cashInBank + totalUnpaidInvoices;
+  const totalCredits = cashInBank + totals.overdueTotal + totals.upcomingTotal;
   const totalOwing = totalCreditCardDebt + averageMonthlyExpenses;
   const netPosition = totalCredits - totalOwing;
 
   // Add these calculations after the existing ones
   const today = new Date();
 
-  // Split invoices into overdue and upcoming
-  const { overdueInvoices, upcomingInvoices, totalOverdue, totalUpcoming } = validInvoices
-    .reduce((acc, invoice) => {
-      const dueDate = new Date(invoice.DueDate);
-      const amount = parseFloat(invoice.AmountDue) || 0;
-      
-      if (dueDate < today) {
-        acc.overdueInvoices.push(invoice);
-        acc.totalOverdue += amount;
-      } else {
-        acc.upcomingInvoices.push(invoice);
-        acc.totalUpcoming += amount;
-      }
-      
-      return acc;
-    }, { 
-      overdueInvoices: [], 
-      upcomingInvoices: [], 
-      totalOverdue: 0, 
-      totalUpcoming: 0 
-    });
-
   // Add this function before the return statement
   const consolidateInvoices = (invoices) => {
     return Object.values(invoices.reduce((acc, invoice) => {
-      const network = invoice.Network;
+      const network = invoice.network;
       if (!acc[network]) {
         acc[network] = {
           Network: network,
           invoices: [],
           totalAmount: 0,
-          earliestDueDate: new Date(invoice.DueDate),
-          latestDueDate: new Date(invoice.DueDate)
+          earliestDueDate: new Date(invoice.dueDate),
+          latestDueDate: new Date(invoice.dueDate)
         };
       }
       
       acc[network].invoices.push(invoice);
-      acc[network].totalAmount += parseFloat(invoice.AmountDue) || 0;
+      acc[network].totalAmount += parseFloat(invoice.amount) || 0;
       
-      const dueDate = new Date(invoice.DueDate);
+      const dueDate = new Date(invoice.dueDate);
       if (dueDate < acc[network].earliestDueDate) {
         acc[network].earliestDueDate = dueDate;
       }
@@ -182,11 +188,11 @@ const CashPosition = ({ cashFlowData, networkPaymentsData, invoicesData = [] }) 
                 </div>
                 <div className="flex justify-between">
                   <span className="text-gray-600">Overdue Invoices</span>
-                  <span className="text-lg font-semibold text-red-600 ml-4">{formatCurrency(totalOverdue)}</span>
+                  <span className="text-lg font-semibold text-red-600 ml-4">{formatCurrency(totals.overdueTotal)}</span>
                 </div>
                 <div className="flex justify-between">
                   <span className="text-gray-600">Upcoming Invoices</span>
-                  <span className="text-lg font-semibold text-green-600 ml-4">{formatCurrency(totalUpcoming)}</span>
+                  <span className="text-lg font-semibold text-green-600 ml-4">{formatCurrency(totals.upcomingTotal)}</span>
                 </div>
                 <div className="flex justify-between pt-2 border-t border-green-200">
                   <span className="font-medium">Total</span>
@@ -249,7 +255,7 @@ const CashPosition = ({ cashFlowData, networkPaymentsData, invoicesData = [] }) 
                   <Calendar className="h-5 w-5 text-red-500" />
                   <span>Overdue ({overdueInvoices.length})</span>
                 </div>
-                <span className="text-lg font-semibold text-red-600 ml-4">{formatCurrency(totalOverdue)}</span>
+                <span className="text-lg font-semibold text-red-600 ml-4">{formatCurrency(totals.overdueTotal)}</span>
               </div>
 
               {/* Upcoming Summary */}
@@ -258,7 +264,7 @@ const CashPosition = ({ cashFlowData, networkPaymentsData, invoicesData = [] }) 
                   <Calendar className="h-5 w-5 text-gray-500" />
                   <span>Upcoming ({upcomingInvoices.length})</span>
                 </div>
-                <span className="text-lg font-semibold text-green-600 ml-4">{formatCurrency(totalUpcoming)}</span>
+                <span className="text-lg font-semibold text-green-600 ml-4">{formatCurrency(totals.upcomingTotal)}</span>
               </div>
             </div>
 
@@ -273,7 +279,7 @@ const CashPosition = ({ cashFlowData, networkPaymentsData, invoicesData = [] }) 
                       <h3 className="font-medium text-red-900">Overdue</h3>
                     </div>
                     <span className="font-medium text-red-600 ml-4">
-                      {formatCurrency(totalOverdue)}
+                      {formatCurrency(totals.overdueTotal)}
                     </span>
                   </div>
                 </div>
@@ -297,8 +303,8 @@ const CashPosition = ({ cashFlowData, networkPaymentsData, invoicesData = [] }) 
                           <div className="text-xs text-gray-500">
                             {networkGroup.invoices.map((inv, i) => (
                               <div key={i} className="flex justify-between text-xs">
-                                <span>#{inv.InvoiceNumber}: {inv.PeriodStart} - {inv.PeriodEnd}</span>
-                                <span className="ml-4">{formatCurrency(parseFloat(inv.AmountDue) || 0)}</span>
+                                <span>#{inv.invoiceNumber}: {inv.periodStart.toLocaleDateString()} - {inv.periodEnd.toLocaleDateString()}</span>
+                                <span className="ml-4">{formatCurrency(inv.amount)}</span>
                               </div>
                             ))}
                           </div>
@@ -326,7 +332,7 @@ const CashPosition = ({ cashFlowData, networkPaymentsData, invoicesData = [] }) 
                       <h3 className="font-medium text-green-900">Upcoming</h3>
                     </div>
                     <span className="font-medium text-green-600 ml-4">
-                      {formatCurrency(totalUpcoming)}
+                      {formatCurrency(totals.upcomingTotal)}
                     </span>
                   </div>
                 </div>
@@ -350,8 +356,8 @@ const CashPosition = ({ cashFlowData, networkPaymentsData, invoicesData = [] }) 
                           <div className="text-xs text-gray-500">
                             {networkGroup.invoices.map((inv, i) => (
                               <div key={i} className="flex justify-between text-xs">
-                                <span>#{inv.InvoiceNumber}: {inv.PeriodStart} - {inv.PeriodEnd}</span>
-                                <span className="ml-4">{formatCurrency(parseFloat(inv.AmountDue) || 0)}</span>
+                                <span>#{inv.invoiceNumber}: {inv.periodStart.toLocaleDateString()} - {inv.periodEnd.toLocaleDateString()}</span>
+                                <span className="ml-4">{formatCurrency(inv.amount)}</span>
                               </div>
                             ))}
                           </div>
@@ -496,6 +502,86 @@ const CashPosition = ({ cashFlowData, networkPaymentsData, invoicesData = [] }) 
           </CardContent>
         </Card>
       </div>
+
+      {/* Overdue Invoices Section */}
+      {overdueInvoices.length > 0 && (
+        <div className="bg-white rounded-lg shadow">
+          <div className="px-6 py-4 border-b border-gray-200">
+            <div className="flex justify-between items-center">
+              <h3 className="text-lg font-medium text-gray-900">Overdue Invoices</h3>
+              <div className="text-red-600 font-semibold">
+                {formatCurrency(totals.overdueTotal)}
+              </div>
+            </div>
+          </div>
+          <div className="overflow-x-auto">
+            <table className="min-w-full divide-y divide-gray-200">
+              <thead className="bg-gray-50">
+                <tr>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Network</th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Invoice #</th>
+                  <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase">Amount</th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Due Date</th>
+                </tr>
+              </thead>
+              <tbody className="bg-white divide-y divide-gray-200">
+                {overdueInvoices.map((invoice, index) => (
+                  <tr key={index} className="hover:bg-gray-50">
+                    <td className="px-6 py-4 text-sm text-gray-900">{invoice.network}</td>
+                    <td className="px-6 py-4 text-sm text-gray-500">{invoice.invoiceNumber}</td>
+                    <td className="px-6 py-4 text-sm text-right font-medium text-red-600">
+                      {formatCurrency(invoice.amount)}
+                    </td>
+                    <td className="px-6 py-4 text-sm text-gray-500">
+                      {format(invoice.dueDate, 'MMM d, yyyy')}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
+
+      {/* Upcoming Invoices Section */}
+      {upcomingInvoices.length > 0 && (
+        <div className="bg-white rounded-lg shadow">
+          <div className="px-6 py-4 border-b border-gray-200">
+            <div className="flex justify-between items-center">
+              <h3 className="text-lg font-medium text-gray-900">Upcoming Invoices</h3>
+              <div className="text-green-600 font-semibold">
+                {formatCurrency(totals.upcomingTotal)}
+              </div>
+            </div>
+          </div>
+          <div className="overflow-x-auto">
+            <table className="min-w-full divide-y divide-gray-200">
+              <thead className="bg-gray-50">
+                <tr>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Network</th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Invoice #</th>
+                  <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase">Amount</th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Due Date</th>
+                </tr>
+              </thead>
+              <tbody className="bg-white divide-y divide-gray-200">
+                {upcomingInvoices.map((invoice, index) => (
+                  <tr key={index} className="hover:bg-gray-50">
+                    <td className="px-6 py-4 text-sm text-gray-900">{invoice.network}</td>
+                    <td className="px-6 py-4 text-sm text-gray-500">{invoice.invoiceNumber}</td>
+                    <td className="px-6 py-4 text-sm text-right font-medium text-green-600">
+                      {formatCurrency(invoice.amount)}
+                    </td>
+                    <td className="px-6 py-4 text-sm text-gray-500">
+                      {format(invoice.dueDate, 'MMM d, yyyy')}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

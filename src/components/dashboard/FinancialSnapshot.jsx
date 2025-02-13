@@ -11,6 +11,13 @@ const formatCurrency = (amount) => {
 };
 
 export default function FinancialSnapshot({ cashFlowData, invoicesData, networkTerms }) {
+  console.log('FinancialSnapshot received networkTerms:', {
+    hasNetworkTerms: !!networkTerms,
+    networkTermsCount: networkTerms?.length,
+    sampleTerm: networkTerms?.[0],
+    fullData: networkTerms
+  });
+
   // Calculate total cash in bank
   const cashInBank = cashFlowData?.availableCash || 0;
   
@@ -20,11 +27,21 @@ export default function FinancialSnapshot({ cashFlowData, invoicesData, networkT
     ?.reduce((total, card) => total + (card.owing || 0), 0) || 0;
   
   // Calculate total outstanding invoices
-  const outstandingInvoices = invoicesData?.reduce((total, invoice) => total + (invoice.AmountDue || 0), 0) || 0;
-  
-  // Calculate total network exposure
-  const networkExposure = networkTerms?.reduce((total, term) => total + (term.runningTotal || 0), 0) || 0;
-  
+  const outstandingInvoices = invoicesData?.reduce((total, invoice) => 
+    total + parseFloat(invoice.Amount || 0), 0) || 0;
+
+  // Calculate network exposure - updated calculation
+  const networkExposure = networkTerms?.reduce((total, network) => {
+    if (!network || typeof network.runningTotal !== 'number') return total;
+    return total + network.runningTotal;
+  }, 0) || 0;
+
+  console.log('Network exposure calculation:', {
+    networkTerms: networkTerms,
+    calculatedExposure: networkExposure,
+    sampleNetwork: networkTerms?.[0]
+  });
+
   // Calculate potential bottom line
   const potentialBottomLine = cashInBank + outstandingInvoices - creditCardDebt;
 

@@ -30,6 +30,11 @@ const InvoicesTable = ({ data }) => {
     }
   };
 
+  // Get amount from invoice, checking both Amount and AmountDue fields
+  const getInvoiceAmount = (invoice) => {
+    return invoice.AmountDue || invoice.Amount || 0;
+  };
+
   // Format date with additional error handling
   const formatDate = (dateString) => {
     if (!dateString) return '';
@@ -79,7 +84,7 @@ const InvoicesTable = ({ data }) => {
               <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{formatDate(invoice.PeriodStart)}</td>
               <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{formatDate(invoice.PeriodEnd)}</td>
               <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{formatDate(invoice.DueDate)}</td>
-              <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{formatCurrency(invoice.AmountDue)}</td>
+              <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{formatCurrency(getInvoiceAmount(invoice))}</td>
               <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{invoice.InvoiceNumber}</td>
             </tr>
           ))}

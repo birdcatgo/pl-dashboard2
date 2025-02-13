@@ -1755,6 +1755,36 @@ const ProfitTrendChart = ({ plData }) => {
 };
 
 const FinancialOverview = ({ plData, cashFlowData, invoicesData, networkTerms }) => {
+  console.log('Financial Overview received networkTerms:', {
+    hasTerms: !!networkTerms,
+    termsCount: networkTerms?.length,
+    sampleTerm: networkTerms?.[0],
+    fullNetworkTerms: networkTerms
+  });
+
+  // Process invoices data
+  const processedInvoices = useMemo(() => {
+    if (!Array.isArray(invoicesData)) return [];
+    
+    return invoicesData.map(invoice => ({
+      network: invoice.Network || 'Unknown',
+      amount: parseFloat(invoice.Amount || 0),
+      dueDate: new Date(invoice.DueDate),
+      status: invoice.Status || 'Pending',
+      invoiceNumber: invoice.InvoiceNumber || '-'
+    })).filter(invoice => invoice.amount > 0);
+  }, [invoicesData]);
+
+  const invoiceTotals = useMemo(() => {
+    return processedInvoices.reduce((acc, invoice) => {
+      acc.total += invoice.amount;
+      if (invoice.dueDate < new Date()) {
+        acc.overdue += invoice.amount;
+      }
+      return acc;
+    }, { total: 0, overdue: 0 });
+  }, [processedInvoices]);
+
   console.log('P&L Data received:', plData);
 
   const lastThreeMonths = useMemo(() => {
@@ -1875,12 +1905,12 @@ const FinancialOverview = ({ plData, cashFlowData, invoicesData, networkTerms })
   }
 
   return (
-    <Card className="bg-white">
+    <Card>
       <CardHeader>
         <CardTitle>Financial Overview</CardTitle>
       </CardHeader>
       <CardContent>
-        <div className="space-y-8">
+        <div className="space-y-6">
           {/* Current Financial Position */}
           <FinancialSnapshot 
             cashFlowData={cashFlowData}
