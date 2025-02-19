@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react';
+import React, { useMemo, useState, useEffect } from 'react';
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
 import { format, subMonths, format as formatDate } from 'date-fns';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, BarChart, Bar, Legend, ComposedChart, Area, ReferenceLine } from 'recharts';
@@ -17,7 +17,39 @@ const formatCurrency = (amount) => {
 
 const ExpenseDetails = ({ expenses, onClose, isAdvertising = false }) => {
   const [selectedForCancellation, setSelectedForCancellation] = useState([]);
+  const [selectedForReview, setSelectedForReview] = useState([]);
+  const [notes, setNotes] = useState({});
   const [isSending, setIsSending] = useState(false);
+
+  // Load saved notes from localStorage
+  useEffect(() => {
+    const savedNotes = localStorage.getItem('expenseNotes');
+    if (savedNotes) {
+      setNotes(JSON.parse(savedNotes));
+    }
+  }, []);
+
+  const handleToggleSelection = (expense) => {
+    if (selectedForCancellation.includes(expense)) {
+      setSelectedForCancellation(selectedForCancellation.filter(e => e !== expense));
+    } else {
+      setSelectedForCancellation([...selectedForCancellation, expense]);
+    }
+  };
+
+  const handleToggleReview = (expense) => {
+    if (selectedForReview.includes(expense)) {
+      setSelectedForReview(selectedForReview.filter(e => e !== expense));
+    } else {
+      setSelectedForReview([...selectedForReview, expense]);
+    }
+  };
+
+  const handleNoteChange = (expense, note) => {
+    const newNotes = { ...notes, [expense.DESCRIPTION]: note };
+    setNotes(newNotes);
+    localStorage.setItem('expenseNotes', JSON.stringify(newNotes));
+  };
 
   const parseAmount = (amount) => {
     if (typeof amount === 'number') return amount;
@@ -27,22 +59,14 @@ const ExpenseDetails = ({ expenses, onClose, isAdvertising = false }) => {
     return 0;
   };
 
-  const handleToggleCancellation = (expense) => {
-    setSelectedForCancellation(prev => {
-      const isSelected = prev.some(item => item.DESCRIPTION === expense.DESCRIPTION);
-      if (isSelected) {
-        return prev.filter(item => item.DESCRIPTION !== expense.DESCRIPTION);
-      } else {
-        return [...prev, expense];
-      }
-    });
-  };
-
   const sendToSlack = async () => {
-    if (selectedForCancellation.length === 0) return;
+    if (selectedForCancellation.length === 0 && selectedForReview.length === 0) return;
 
     setIsSending(true);
-    const total = selectedForCancellation.reduce((sum, expense) => 
+    const cancellationTotal = selectedForCancellation.reduce((sum, expense) => 
+      sum + parseAmount(expense.AMOUNT), 0
+    );
+    const reviewTotal = selectedForReview.reduce((sum, expense) => 
       sum + parseAmount(expense.AMOUNT), 0
     );
 
@@ -52,8 +76,53 @@ const ExpenseDetails = ({ expenses, onClose, isAdvertising = false }) => {
           type: "header",
           text: {
             type: "plain_text",
-            text: "🚫 Subscriptions To Be Cancelled",
+            text: "📋 Expense Review & Cancellation Report",
             emoji: true
+          }
+        }
+      ]
+    };
+
+    // Add Review Section if there are items to review
+    if (selectedForReview.length > 0) {
+      message.blocks.push(
+        {
+          type: "section",
+          text: {
+            type: "mrkdwn",
+            text: "*🔍 Items To Be Reviewed*"
+          }
+        },
+        {
+          type: "section",
+          text: {
+            type: "mrkdwn",
+            text: selectedForReview.map(expense => 
+              `• *${expense.DESCRIPTION}* - ${formatCurrency(parseAmount(expense.AMOUNT))}/month`
+            ).join('\n')
+          }
+        },
+        {
+          type: "section",
+          text: {
+            type: "mrkdwn",
+            text: `*Total Under Review:* ${formatCurrency(reviewTotal)}`
+          }
+        }
+      );
+    }
+
+    // Add Cancellation Section if there are items to cancel
+    if (selectedForCancellation.length > 0) {
+      message.blocks.push(
+        {
+          type: "divider"
+        },
+        {
+          type: "section",
+          text: {
+            type: "mrkdwn",
+            text: "*🚫 Items To Be Cancelled*"
           }
         },
         {
@@ -66,26 +135,30 @@ const ExpenseDetails = ({ expenses, onClose, isAdvertising = false }) => {
           }
         },
         {
-          type: "divider"
-        },
-        {
           type: "section",
           text: {
             type: "mrkdwn",
-            text: `*Total Monthly Savings:* ${formatCurrency(total)}`
+            text: `*Total Monthly Savings:* ${formatCurrency(cancellationTotal)}`
           }
-        },
-        {
-          type: "context",
-          elements: [
-            {
-              type: "mrkdwn",
-              text: `🕒 Generated on ${new Date().toLocaleDateString()}`
-            }
-          ]
         }
-      ]
-    };
+      );
+    }
+
+    // Add footer
+    message.blocks.push(
+      {
+        type: "divider"
+      },
+      {
+        type: "context",
+        elements: [
+          {
+            type: "mrkdwn",
+            text: `🕒 Generated on ${new Date().toLocaleDateString()}`
+          }
+        ]
+      }
+    );
 
     try {
       const response = await fetch(SLACK_WEBHOOK_URL, {
@@ -99,6 +172,7 @@ const ExpenseDetails = ({ expenses, onClose, isAdvertising = false }) => {
       if (response.ok) {
         alert('Successfully sent to Slack!');
         setSelectedForCancellation([]);
+        setSelectedForReview([]);
       } else {
         throw new Error('Failed to send to Slack');
       }
@@ -112,78 +186,109 @@ const ExpenseDetails = ({ expenses, onClose, isAdvertising = false }) => {
 
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-      <div className="bg-white rounded-lg p-6 max-w-2xl w-full max-h-[80vh] overflow-y-auto">
+      <div className="bg-white rounded-lg p-6 max-w-4xl w-full max-h-[80vh] overflow-y-auto">
         <div className="flex justify-between items-center mb-4">
           <h3 className="text-lg font-medium">Expense Breakdown</h3>
           <div className="flex items-center gap-4">
-            {selectedForCancellation.length > 0 && (
-              <button
-                onClick={sendToSlack}
-                disabled={isSending}
-                className={`px-4 py-2 rounded-lg text-sm font-medium ${
-                  isSending 
-                    ? 'bg-gray-300 cursor-not-allowed' 
-                    : 'bg-blue-600 hover:bg-blue-700 text-white'
-                }`}
-              >
-                {isSending ? 'Sending...' : 'Send to Slack'}
-              </button>
-            )}
-            <button onClick={onClose} className="text-gray-500 hover:text-gray-700">
-              ✕
+            <button
+              onClick={sendToSlack}
+              disabled={isSending}
+              className={`px-4 py-2 rounded-lg text-sm font-medium ${
+                isSending 
+                  ? 'bg-gray-300 cursor-not-allowed' 
+                  : 'bg-blue-600 hover:bg-blue-700 text-white'
+              }`}
+            >
+              {isSending ? 'Sending...' : 'Send to Slack'}
             </button>
+            <button onClick={onClose} className="text-gray-500 hover:text-gray-700">✕</button>
           </div>
         </div>
-        <table className="w-full">
-          <thead>
-            <tr className="text-left border-b">
-              <th className="pb-2">Description</th>
-              <th className="pb-2 text-right">Amount</th>
-              <th className="pb-2 text-center">To Be Cancelled</th>
-            </tr>
-          </thead>
-          <tbody>
-            {expenses?.map((expense, index) => (
-              <tr key={index} className="border-b hover:bg-gray-50">
-                <td className="py-2">{expense.DESCRIPTION || 'N/A'}</td>
-                <td className="py-2 text-right">{formatCurrency(parseAmount(expense.AMOUNT))}</td>
-                <td className="py-2 text-center">
-                  <button
-                    onClick={() => handleToggleCancellation(expense)}
-                    className={`w-6 h-6 rounded ${
-                      selectedForCancellation.some(item => item.DESCRIPTION === expense.DESCRIPTION)
-                        ? 'bg-red-600 text-white'
-                        : 'bg-gray-200 hover:bg-gray-300'
-                    }`}
-                  >
-                    {selectedForCancellation.some(item => item.DESCRIPTION === expense.DESCRIPTION) ? '✓' : ''}
-                  </button>
-                </td>
+        <div className="overflow-x-auto">
+          <table className="w-full">
+            <thead>
+              <tr className="text-left border-b">
+                <th className="pb-2">Description</th>
+                <th className="pb-2 text-right">Amount</th>
+                {!isAdvertising && (
+                  <>
+                    <th className="pb-2 text-center">To Be Reviewed</th>
+                    <th className="pb-2 text-center">To Be Cancelled</th>
+                    <th className="pb-2">Notes</th>
+                  </>
+                )}
               </tr>
-            ))}
-          </tbody>
-          <tfoot className="bg-gray-50">
-            <tr>
-              <td className="py-2 font-medium">Total</td>
-              <td className="py-2 text-right font-medium">
-                {formatCurrency(
-                  expenses?.reduce((sum, expense) => sum + parseAmount(expense.AMOUNT), 0) || 0
-                )}
-              </td>
-              <td className="py-2 text-center font-medium">
-                {selectedForCancellation.length > 0 && (
-                  <span className="text-sm text-red-600">
-                    {formatCurrency(
-                      selectedForCancellation.reduce((sum, expense) => 
-                        sum + parseAmount(expense.AMOUNT), 0
-                      )
-                    )} to cancel
-                  </span>
-                )}
-              </td>
-            </tr>
-          </tfoot>
-        </table>
+            </thead>
+            <tbody>
+              {expenses?.map((expense, index) => (
+                <tr key={index} className="border-b">
+                  <td className="py-2">{expense.DESCRIPTION}</td>
+                  <td className="py-2 text-right">
+                    {formatCurrency(parseAmount(expense.AMOUNT))}
+                  </td>
+                  {!isAdvertising && (
+                    <>
+                      <td className="py-2 text-center">
+                        <input
+                          type="checkbox"
+                          checked={selectedForReview.includes(expense)}
+                          onChange={() => handleToggleReview(expense)}
+                          className="h-4 w-4 text-blue-600 rounded border-gray-300 focus:ring-blue-500"
+                        />
+                      </td>
+                      <td className="py-2 text-center">
+                        <input
+                          type="checkbox"
+                          checked={selectedForCancellation.includes(expense)}
+                          onChange={() => handleToggleSelection(expense)}
+                          className="h-4 w-4 text-red-600 rounded border-gray-300 focus:ring-red-500"
+                        />
+                      </td>
+                      <td className="py-2">
+                        <input
+                          type="text"
+                          value={notes[expense.DESCRIPTION] || ''}
+                          onChange={(e) => handleNoteChange(expense, e.target.value)}
+                          placeholder="Add a note..."
+                          className="w-full border rounded-md px-2 py-1 text-sm"
+                        />
+                      </td>
+                    </>
+                  )}
+                </tr>
+              ))}
+            </tbody>
+            <tfoot className="bg-gray-50">
+              <tr>
+                <td className="py-2 font-medium">Total Expenses</td>
+                <td className="py-2 text-right font-medium">
+                  {formatCurrency(
+                    expenses?.reduce((sum, expense) => sum + parseAmount(expense.AMOUNT), 0) || 0
+                  )}
+                </td>
+                <td className="py-2 text-center font-medium">
+                  {selectedForReview.length > 0 && (
+                    <span className="text-sm text-blue-600">
+                      {selectedForReview.length} to review
+                    </span>
+                  )}
+                </td>
+                <td className="py-2 text-center font-medium">
+                  {selectedForCancellation.length > 0 && (
+                    <span className="text-sm text-red-600">
+                      {formatCurrency(
+                        selectedForCancellation.reduce((sum, expense) => 
+                          sum + parseAmount(expense.AMOUNT), 0
+                        )
+                      )} to cancel
+                    </span>
+                  )}
+                </td>
+                <td></td>
+              </tr>
+            </tfoot>
+          </table>
+        </div>
       </div>
     </div>
   );
