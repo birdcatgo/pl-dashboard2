@@ -18,16 +18,25 @@ const formatCurrency = (amount) => {
 const ExpenseDetails = ({ expenses, onClose, isAdvertising = false }) => {
   const [selectedForCancellation, setSelectedForCancellation] = useState([]);
   const [selectedForReview, setSelectedForReview] = useState([]);
+  const [nonC2FItems, setNonC2FItems] = useState([]);
   const [notes, setNotes] = useState({});
   const [isSending, setIsSending] = useState(false);
 
-  // Load saved notes from localStorage
+  // Load saved non-C2F items from localStorage
   useEffect(() => {
-    const savedNotes = localStorage.getItem('expenseNotes');
-    if (savedNotes) {
-      setNotes(JSON.parse(savedNotes));
+    const savedNonC2F = localStorage.getItem('nonC2FExpenses');
+    if (savedNonC2F) {
+      setNonC2FItems(JSON.parse(savedNonC2F));
     }
   }, []);
+
+  const handleToggleNonC2F = (expense) => {
+    const newNonC2F = nonC2FItems.includes(expense)
+      ? nonC2FItems.filter(e => e !== expense)
+      : [...nonC2FItems, expense];
+    setNonC2FItems(newNonC2F);
+    localStorage.setItem('nonC2FExpenses', JSON.stringify(newNonC2F));
+  };
 
   const handleToggleSelection = (expense) => {
     if (selectedForCancellation.includes(expense)) {
@@ -210,6 +219,7 @@ const ExpenseDetails = ({ expenses, onClose, isAdvertising = false }) => {
               <tr className="text-left border-b">
                 <th className="pb-2">Description</th>
                 <th className="pb-2 text-right">Amount</th>
+                <th className="pb-2 text-center">Non C2F</th>
                 {!isAdvertising && (
                   <>
                     <th className="pb-2 text-center">To Be Reviewed</th>
@@ -225,6 +235,14 @@ const ExpenseDetails = ({ expenses, onClose, isAdvertising = false }) => {
                   <td className="py-2">{expense.DESCRIPTION}</td>
                   <td className="py-2 text-right">
                     {formatCurrency(parseAmount(expense.AMOUNT))}
+                  </td>
+                  <td className="py-2 text-center">
+                    <input
+                      type="checkbox"
+                      checked={nonC2FItems.includes(expense)}
+                      onChange={() => handleToggleNonC2F(expense)}
+                      className="h-4 w-4 text-yellow-600 rounded border-gray-300 focus:ring-yellow-500"
+                    />
                   </td>
                   {!isAdvertising && (
                     <>
@@ -267,24 +285,39 @@ const ExpenseDetails = ({ expenses, onClose, isAdvertising = false }) => {
                   )}
                 </td>
                 <td className="py-2 text-center font-medium">
-                  {selectedForReview.length > 0 && (
-                    <span className="text-sm text-blue-600">
-                      {selectedForReview.length} to review
-                    </span>
-                  )}
-                </td>
-                <td className="py-2 text-center font-medium">
-                  {selectedForCancellation.length > 0 && (
-                    <span className="text-sm text-red-600">
+                  {nonC2FItems.length > 0 && (
+                    <span className="text-sm text-yellow-600">
                       {formatCurrency(
-                        selectedForCancellation.reduce((sum, expense) => 
+                        nonC2FItems.reduce((sum, expense) => 
                           sum + parseAmount(expense.AMOUNT), 0
                         )
-                      )} to cancel
+                      )} non-C2F
                     </span>
                   )}
                 </td>
-                <td></td>
+                {!isAdvertising && (
+                  <>
+                    <td className="py-2 text-center font-medium">
+                      {selectedForReview.length > 0 && (
+                        <span className="text-sm text-blue-600">
+                          {selectedForReview.length} to review
+                        </span>
+                      )}
+                    </td>
+                    <td className="py-2 text-center font-medium">
+                      {selectedForCancellation.length > 0 && (
+                        <span className="text-sm text-red-600">
+                          {formatCurrency(
+                            selectedForCancellation.reduce((sum, expense) => 
+                              sum + parseAmount(expense.AMOUNT), 0
+                            )
+                          )} to cancel
+                        </span>
+                      )}
+                    </td>
+                    <td></td>
+                  </>
+                )}
               </tr>
             </tfoot>
           </table>
