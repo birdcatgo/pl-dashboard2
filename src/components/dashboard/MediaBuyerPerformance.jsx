@@ -25,6 +25,7 @@ import {
 } from 'chart.js';
 import { TrendingUp, TrendingDown, ArrowRight, Activity } from 'lucide-react';
 import { Switch } from "@/components/ui/switch";
+import { format, parseISO, isWithinInterval } from 'date-fns';
 
 // Register ChartJS components
 ChartJS.register(
@@ -160,8 +161,112 @@ const formatDateRange = (startDate, endDate) => {
 const MediaBuyerPerformance = ({ performanceData, dateRange }) => {
   const [selectedBuyers, setSelectedBuyers] = useState(['all']);
   const [selectedNetworks, setSelectedNetworks] = useState(['all']);
-  const [expandedRows, setExpandedRows] = useState(new Set());
+  const [expandedBuyers, setExpandedBuyers] = useState(new Set());
   const [isCumulative, setIsCumulative] = useState(false);
+
+  // First filter data by date range - Optimize the date comparison
+  const filteredByDate = useMemo(() => {
+    if (!performanceData?.length) return [];
+
+    // Pre-calculate the comparison dates once
+    const startDate = new Date(dateRange.startDate);
+    const endDate = new Date(dateRange.endDate);
+    startDate.setUTCHours(0, 0, 0, 0);
+    endDate.setUTCHours(23, 59, 59, 999);
+
+    // Create a cache for parsed dates to avoid repeated parsing
+    const dateCache = new Map();
+
+    return performanceData.filter(entry => {
+      if (!entry.Date) return false;
+
+      try {
+        // Use cached date if available
+        let entryDate = dateCache.get(entry.Date);
+        if (!entryDate) {
+          const [month, day, year] = entry.Date.split('/').map(num => parseInt(num, 10));
+          entryDate = new Date(year, month - 1, day);
+          entryDate.setUTCHours(0, 0, 0, 0);
+          dateCache.set(entry.Date, entryDate);
+        }
+
+        return entryDate >= startDate && entryDate <= endDate;
+      } catch (error) {
+        console.error('Error processing date:', error, entry);
+        return false;
+      }
+    });
+  }, [performanceData, dateRange.startDate, dateRange.endDate]); // Remove dateRange object to prevent unnecessary recalculation
+
+  // Then process the filtered data - Optimize the data processing
+  const processedData = useMemo(() => {
+    if (!filteredByDate.length) return { buyerMetrics: [], buyerOptions: ['all'] };
+
+    // Pre-calculate field names to avoid repeated lookups
+    const buyerData = new Map();
+    const buyerOptions = new Set(['all']);
+
+    // Single pass through the data
+    filteredByDate.forEach(row => {
+      const buyer = row.MediaBuyer || row['Media Buyer'] || 'Unknown';
+      buyerOptions.add(buyer);
+
+      let buyerMetrics = buyerData.get(buyer);
+      if (!buyerMetrics) {
+        buyerMetrics = {
+          name: buyer,
+          spend: 0,
+          revenue: 0,
+          margin: 0,
+          networkData: new Map()
+        };
+        buyerData.set(buyer, buyerMetrics);
+      }
+
+      const spend = parseFloat(row.Spend || row['Ad Spend'] || row['Total Ad Spend'] || 0);
+      const revenue = parseFloat(row.Revenue || row['Total Revenue'] || 0);
+      const margin = revenue - spend;
+
+      buyerMetrics.spend += spend;
+      buyerMetrics.revenue += revenue;
+      buyerMetrics.margin += margin;
+
+      const network = row.Network;
+      if (network) {
+        let networkMetrics = buyerMetrics.networkData.get(network);
+        if (!networkMetrics) {
+          networkMetrics = { spend: 0, revenue: 0, margin: 0 };
+          buyerMetrics.networkData.set(network, networkMetrics);
+        }
+        networkMetrics.spend += spend;
+        networkMetrics.revenue += revenue;
+        networkMetrics.margin += margin;
+      }
+    });
+
+    // Convert Map to array and calculate final metrics
+    const buyerMetrics = Array.from(buyerData.values()).map(metrics => ({
+      ...metrics,
+      roi: metrics.spend ? ((metrics.revenue / metrics.spend) - 1) * 100 : 0,
+      networkData: Object.fromEntries(metrics.networkData)
+    }));
+
+    // Sort by margin descending
+    buyerMetrics.sort((a, b) => b.margin - a.margin);
+
+    return {
+      buyerMetrics,
+      buyerOptions: Array.from(buyerOptions)
+    };
+  }, [filteredByDate]);
+
+  // Debug logging
+  console.log('MediaBuyerPerformance state:', {
+    dateRange,
+    totalData: performanceData?.length,
+    filteredData: filteredByDate.length,
+    processedMetrics: processedData.buyerMetrics.length
+  });
 
   // Get unique buyers and networks
   const { buyers, networks } = useMemo(() => {
@@ -191,67 +296,50 @@ const MediaBuyerPerformance = ({ performanceData, dateRange }) => {
     };
   }, [performanceData]);
 
-  // Filter data based on selections
-  const filteredData = useMemo(() => {
-    if (!performanceData) return [];
+  // Add this useEffect to debug date issues
+  useEffect(() => {
+    if (performanceData?.length) {
+      const dates = performanceData
+        .map(entry => entry.Date)
+        .filter(Boolean)
+        .map(date => {
+          const [month, day, year] = date.split('/').map(num => parseInt(num, 10));
+          return new Date(year, month - 1, day);
+        })
+        .sort((a, b) => b - a);
 
-    return performanceData.filter(entry => {
-      // Parse dates using local time to avoid timezone issues
-      const [month, day, year] = entry.Date.split('/');
-      const entryDate = new Date(year, month - 1, day);
-      
-      // Parse start and end dates the same way
-      const startDate = new Date(dateRange.startDate);
-      const endDate = new Date(dateRange.endDate);
-      
-      // Set all times to midnight for consistent comparison
-      entryDate.setHours(0, 0, 0, 0);
-      startDate.setHours(0, 0, 0, 0);
-      endDate.setHours(23, 59, 59, 999);
-
-      const matchesDate = entryDate >= startDate && entryDate <= endDate;
-
-      // Debug logging
-      console.log('Date Check:', {
-        rawEntryDate: entry.Date,
-        parsedEntry: entryDate.toLocaleDateString(),
-        parsedStart: startDate.toLocaleDateString(),
-        parsedEnd: endDate.toLocaleDateString(),
-        isAfterStart: entryDate >= startDate,
-        isBeforeEnd: entryDate <= endDate,
-        matches: matchesDate
+      console.log('Available Dates:', {
+        latest: dates[0]?.toISOString(),
+        earliest: dates[dates.length - 1]?.toISOString(),
+        totalDates: dates.length,
+        sampleDates: dates.slice(0, 3).map(d => d.toISOString())
       });
-
-      const matchesBuyer = selectedBuyers.includes('all') || selectedBuyers.includes(entry['Media Buyer']);
-      const matchesNetwork = selectedNetworks.includes('all') || selectedNetworks.includes(entry.Network);
-      
-      return matchesDate && matchesBuyer && matchesNetwork;
-    });
-  }, [performanceData, dateRange, selectedBuyers, selectedNetworks]);
+    }
+  }, [performanceData]);
 
   // Add a useEffect to log the filtered results
   useEffect(() => {
     console.log('Filtered Data Results:', {
-      totalRecords: filteredData.length,
+      totalRecords: filteredByDate.length,
       dateRange: {
-        start: dateRange.startDate.toISOString(),
-        end: dateRange.endDate.toISOString()
+        start: dateRange.startDate,
+        end: dateRange.endDate
       },
-      sampleDates: filteredData.slice(0, 5).map(d => d.Date)
+      sampleDates: filteredByDate.slice(0, 5).map(d => d.Date)
     });
-  }, [filteredData, dateRange]);
+  }, [filteredByDate, dateRange]);
 
   // Calculate metrics
   const metrics = useMemo(() => {
-    if (!filteredData.length) return {};
+    if (!filteredByDate.length) return {};
 
-    return filteredData.reduce((acc, entry) => ({
+    return filteredByDate.reduce((acc, entry) => ({
       totalRevenue: (acc.totalRevenue || 0) + parseFloat(entry['Total Revenue'] || 0),
       totalSpend: (acc.totalSpend || 0) + parseFloat(entry['Ad Spend'] || 0),
       totalMargin: (acc.totalMargin || 0) + parseFloat(entry.Margin || 0),
       roi: ((acc.totalMargin || 0) / (acc.totalSpend || 1)) * 100
     }), {});
-  }, [filteredData]);
+  }, [filteredByDate]);
 
   const formatCurrency = (value) => {
     return new Intl.NumberFormat('en-US', {
@@ -264,10 +352,10 @@ const MediaBuyerPerformance = ({ performanceData, dateRange }) => {
 
   // Prepare chart data with proper date sorting
   const chartData = useMemo(() => {
-    if (!filteredData.length) return [];
+    if (!filteredByDate.length) return [];
 
     // Group data by date
-    const dailyData = filteredData.reduce((acc, entry) => {
+    const dailyData = filteredByDate.reduce((acc, entry) => {
       const date = new Date(entry.Date).toISOString().split('T')[0];
       
       if (!acc[date]) {
@@ -293,19 +381,19 @@ const MediaBuyerPerformance = ({ performanceData, dateRange }) => {
     // Sort dates in ascending order
     return Object.values(dailyData)
       .sort((a, b) => new Date(a.date) - new Date(b.date));
-  }, [filteredData]);
+  }, [filteredByDate]);
 
   // Process data for the profit graph with proper date sorting
   const profitChartData = useMemo(() => {
-    if (!filteredData.length) return null;
+    if (!filteredByDate.length) return null;
 
     // Get unique dates and sort them
-    const dates = [...new Set(filteredData.map(item => {
+    const dates = [...new Set(filteredByDate.map(item => {
       const [month, day, year] = item.Date.split('/');
       return new Date(year, month - 1, day).toISOString().split('T')[0];
     }))].sort();
 
-    const mediaBuyers = [...new Set(filteredData.map(item => item['Media Buyer']))];
+    const mediaBuyers = [...new Set(filteredByDate.map(item => item['Media Buyer']))];
     const colors = mediaBuyers.map((_, index) => {
       const hue = (index * 137.508) % 360;
       return `hsl(${hue}, 70%, 50%)`;
@@ -315,7 +403,7 @@ const MediaBuyerPerformance = ({ performanceData, dateRange }) => {
     const datasets = mediaBuyers.map((buyer, index) => {
       let runningTotal = 0;
       const data = dates.map(date => {
-        const dayData = filteredData.filter(item => {
+        const dayData = filteredByDate.filter(item => {
           const itemDate = new Date(item.Date);
           const compareDate = new Date(date);
           return itemDate.toISOString().split('T')[0] === date && 
@@ -354,7 +442,7 @@ const MediaBuyerPerformance = ({ performanceData, dateRange }) => {
       labels: formattedLabels,
       datasets
     };
-  }, [filteredData, isCumulative]);
+  }, [filteredByDate, isCumulative]);
 
   const chartOptions = {
     responsive: true,
@@ -406,255 +494,130 @@ const MediaBuyerPerformance = ({ performanceData, dateRange }) => {
   };
 
   const toggleRow = (mediaBuyer) => {
-    const newExpanded = new Set(expandedRows);
+    const newExpanded = new Set(expandedBuyers);
     if (newExpanded.has(mediaBuyer)) {
       newExpanded.delete(mediaBuyer);
     } else {
       newExpanded.add(mediaBuyer);
     }
-    setExpandedRows(newExpanded);
+    setExpandedBuyers(newExpanded);
   };
+
+  const toggleBuyerExpansion = (buyerName) => {
+    const newExpanded = new Set(expandedBuyers);
+    if (newExpanded.has(buyerName)) {
+      newExpanded.delete(buyerName);
+    } else {
+      newExpanded.add(buyerName);
+    }
+    setExpandedBuyers(newExpanded);
+  };
+
+  if (!performanceData?.length) {
+    return (
+      <Card>
+        <div className="p-6">
+          <p className="text-gray-500">No media buyer performance data available for the selected date range</p>
+        </div>
+      </Card>
+    );
+  }
 
   return (
     <div className="space-y-6">
-      <div className="flex flex-col space-y-4">
-        <h2 className="text-2xl font-bold">Media Buyer Performance</h2>
-        
-        {/* Filters */}
-        <Card className="p-4">
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Media Buyers</label>
-              <MultiSelect
-                options={buyers}
-                selected={selectedBuyers}
-                onChange={setSelectedBuyers}
-                placeholder="Select Media Buyers"
-              />
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Networks</label>
-              <MultiSelect
-                options={networks}
-                selected={selectedNetworks}
-                onChange={setSelectedNetworks}
-                placeholder="Select Networks"
-              />
-            </div>
+      <Card>
+        <div className="p-6">
+          <div className="flex justify-between items-center mb-6">
+            <h2 className="text-lg font-semibold">Media Buyer Performance</h2>
+            <MultiSelect
+              options={processedData.buyerOptions}
+              selected={selectedBuyers}
+              onChange={setSelectedBuyers}
+              placeholder="Select Media Buyers"
+            />
           </div>
-        </Card>
 
-        {/* Performance Metrics */}
-        <PerformanceMetrics metrics={metrics} />
-
-        {/* Performance Chart */}
-        <Card className="p-6">
-          <div className="flex justify-between items-center mb-4">
-            <h3 className="text-xl font-semibold">Daily Performance</h3>
-            <span className="text-sm text-gray-500">
-              {formatDateRange(dateRange.startDate, dateRange.endDate)}
-            </span>
-          </div>
-          <div className="h-[400px]">
-            <ResponsiveContainer width="100%" height="100%">
-              <LineChart data={chartData} margin={{ left: 40, right: 40, bottom: 40 }}>
-                <CartesianGrid strokeDasharray="3 3" />
-                <XAxis 
-                  dataKey="displayDate"
-                  tick={{ fontSize: 12, angle: -45, textAnchor: 'end' }}
-                  height={60}
-                  interval={Math.ceil(chartData.length / 15)}
-                />
-                <YAxis 
-                  tickFormatter={formatCurrency}
-                />
-                <RechartsTooltip 
-                  formatter={(value) => formatCurrency(value)}
-                  labelFormatter={(label) => `Date: ${label}`}
-                />
-                <RechartsLegend />
-                <RechartsLine 
-                  type="monotone" 
-                  dataKey="revenue" 
-                  stroke="#4F46E5" 
-                  name="Revenue"
-                  strokeWidth={2}
-                  dot={false}
-                />
-                <RechartsLine 
-                  type="monotone" 
-                  dataKey="margin" 
-                  stroke="#10B981" 
-                  name="Margin"
-                  strokeWidth={2}
-                  dot={false}
-                />
-                <RechartsLine 
-                  type="monotone" 
-                  dataKey="spend" 
-                  stroke="#EF4444" 
-                  name="Spend"
-                  strokeWidth={2}
-                  dot={false}
-                />
-              </LineChart>
-            </ResponsiveContainer>
-          </div>
-        </Card>
-
-        {/* Daily Profit by Media Buyer Graph */}
-        {profitChartData && (
-          <Card className="p-6">
-            <div className="flex justify-between items-center mb-4">
-              <div className="flex items-center space-x-4">
-                <h3 className="text-xl font-semibold">
-                  {isCumulative ? 'Cumulative' : 'Daily'} Profit by Media Buyer
-                </h3>
-                <div className="flex items-center space-x-2">
-                  <Switch
-                    checked={isCumulative}
-                    onCheckedChange={setIsCumulative}
-                    id="cumulative-mode"
-                  />
-                  <label 
-                    htmlFor="cumulative-mode" 
-                    className="text-sm text-gray-600 cursor-pointer"
-                  >
-                    Show Cumulative
-                  </label>
-                </div>
-              </div>
-              <span className="text-sm text-gray-500">
-                {formatDateRange(dateRange.startDate, dateRange.endDate)}
-              </span>
-            </div>
-            <div className="h-[400px]">
-              <ChartJSLine 
-                data={profitChartData} 
-                options={{
-                  ...chartOptions,
-                  maintainAspectRatio: false,
-                  plugins: {
-                    ...chartOptions.plugins,
-                    title: {
-                      ...chartOptions.plugins.title,
-                      text: [
-                        `${isCumulative ? 'Cumulative' : 'Daily'} Profit by Media Buyer`,
-                        `Period: ${formatDateRange(dateRange.startDate, dateRange.endDate)}`
-                      ]
-                    }
-                  }
-                }} 
-              />
-            </div>
-          </Card>
-        )}
-
-        {/* Detailed Table */}
-        <Card className="p-6">
-          <div className="flex justify-between items-center mb-4">
-            <h3 className="text-xl font-semibold">Detailed Media Buyer Performance</h3>
-            <span className="text-sm text-gray-500">
-              {formatDateRange(dateRange.startDate, dateRange.endDate)}
-            </span>
-          </div>
           <div className="overflow-x-auto">
             <table className="min-w-full divide-y divide-gray-200">
               <thead className="bg-gray-50">
                 <tr>
-                  <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Media Buyer / Network
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    Media Buyer
                   </th>
-                  <th scope="col" className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Revenue
-                  </th>
-                  <th scope="col" className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
                     Spend
                   </th>
-                  <th scope="col" className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    Revenue
+                  </th>
+                  <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
                     Margin
                   </th>
-                  <th scope="col" className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
                     ROI
                   </th>
                 </tr>
               </thead>
               <tbody className="bg-white divide-y divide-gray-200">
-                {groupDataByMediaBuyer(filteredData).map((buyerData) => (
-                  <React.Fragment key={buyerData.mediaBuyer}>
-                    {/* Media Buyer Row */}
-                    <tr 
-                      className="hover:bg-gray-50 cursor-pointer"
-                      onClick={() => toggleRow(buyerData.mediaBuyer)}
-                    >
-                      <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900 flex items-center">
-                        <span className="mr-2">
-                          {expandedRows.has(buyerData.mediaBuyer) ? '▼' : '▶'}
-                        </span>
-                        {buyerData.mediaBuyer}
-                        {/* Add trend indicator */}
-                        {(() => {
-                          const trend = analyzeTrend(filteredData, buyerData.mediaBuyer);
-                          return (
-                            <span className={`ml-2 ${trend.color} flex items-center`}>
-                              {trend.icon === 'up' && <TrendingUp className="w-4 h-4" />}
-                              {trend.icon === 'down' && <TrendingDown className="w-4 h-4" />}
-                              {trend.icon === 'horizontal' && <ArrowRight className="w-4 h-4" />}
-                              {trend.icon === 'volatile' && <Activity className="w-4 h-4" />}
-                              <span className="ml-1 text-xs">{trend.label}</span>
-                            </span>
-                          );
-                        })()}
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-right font-bold text-gray-900">
-                        {formatCurrency(buyerData.revenue)}
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-right font-bold text-gray-900">
-                        {formatCurrency(buyerData.spend)}
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-right font-bold text-gray-900">
-                        {formatCurrency(buyerData.margin)}
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-right font-bold text-gray-900">
-                        {((buyerData.margin / buyerData.spend) * 100).toFixed(1)}%
-                      </td>
-                    </tr>
-
-                    {/* Network Breakdown Rows */}
-                    {expandedRows.has(buyerData.mediaBuyer) && 
-                      Object.values(buyerData.networks)
-                        .sort((a, b) => b.revenue - a.revenue)
-                        .map((networkData) => (
-                          <tr 
-                            key={`${buyerData.mediaBuyer}-${networkData.network}`} 
-                            className="bg-gray-50"
-                          >
-                            <td className="px-6 py-3 whitespace-nowrap text-sm text-gray-500 pl-12">
-                              {networkData.network}
-                            </td>
-                            <td className="px-6 py-3 whitespace-nowrap text-sm text-right text-gray-500">
-                              {formatCurrency(networkData.revenue)}
-                            </td>
-                            <td className="px-6 py-3 whitespace-nowrap text-sm text-right text-gray-500">
-                              {formatCurrency(networkData.spend)}
-                            </td>
-                            <td className="px-6 py-3 whitespace-nowrap text-sm text-right text-gray-500">
-                              {formatCurrency(networkData.margin)}
-                            </td>
-                            <td className="px-6 py-3 whitespace-nowrap text-sm text-right text-gray-500">
-                              {((networkData.margin / networkData.spend) * 100).toFixed(1)}%
-                            </td>
-                          </tr>
-                        ))}
-                  </React.Fragment>
-                ))}
+                {processedData.buyerMetrics
+                  .filter(buyer => selectedBuyers.includes('all') || selectedBuyers.includes(buyer.name))
+                  .map((buyer) => (
+                    <React.Fragment key={buyer.name}>
+                      <tr 
+                        className="hover:bg-gray-50 cursor-pointer"
+                        onClick={() => toggleBuyerExpansion(buyer.name)}
+                      >
+                        <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900 flex items-center">
+                          <span className="mr-2">
+                            {expandedBuyers.has(buyer.name) ? '▼' : '▶'}
+                          </span>
+                          {buyer.name}
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap text-sm text-right text-gray-900">
+                          {formatCurrency(buyer.spend)}
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap text-sm text-right text-gray-900">
+                          {formatCurrency(buyer.revenue)}
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap text-sm text-right text-gray-900">
+                          {formatCurrency(buyer.margin)}
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap text-sm text-right text-gray-900">
+                          {formatPercent(buyer.roi)}
+                        </td>
+                      </tr>
+                      {expandedBuyers.has(buyer.name) && Object.entries(buyer.networkData).map(([network, data]) => (
+                        <tr key={`${buyer.name}-${network}`} className="bg-gray-50">
+                          <td className="px-6 py-2 whitespace-nowrap text-xs text-gray-500 pl-12">
+                            {network}
+                          </td>
+                          <td className="px-6 py-2 whitespace-nowrap text-xs text-right text-gray-500">
+                            {formatCurrency(data.spend)}
+                          </td>
+                          <td className="px-6 py-2 whitespace-nowrap text-xs text-right text-gray-500">
+                            {formatCurrency(data.revenue)}
+                          </td>
+                          <td className="px-6 py-2 whitespace-nowrap text-xs text-right text-gray-500">
+                            {formatCurrency(data.margin)}
+                          </td>
+                          <td className="px-6 py-2 whitespace-nowrap text-xs text-right text-gray-500">
+                            {formatPercent(data.spend ? ((data.revenue / data.spend) - 1) * 100 : 0)}
+                          </td>
+                        </tr>
+                      ))}
+                    </React.Fragment>
+                  ))}
               </tbody>
             </table>
           </div>
-        </Card>
-      </div>
+        </div>
+      </Card>
     </div>
   );
+};
+
+const formatPercent = (value) => {
+  return `${value.toFixed(1)}%`;
 };
 
 export default MediaBuyerPerformance;

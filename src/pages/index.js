@@ -38,7 +38,11 @@ export default function DashboardPage() {
   const [plData, setPlData] = useState(null);
   const [lastUpdated, setLastUpdated] = useState(null);
   const [activeTab, setActiveTab] = useState('overview-v2');
-  const [dateRange, setDateRange] = useState({ startDate: new Date(), endDate: new Date() });
+  const [dateRange, setDateRange] = useState({
+    startDate: new Date(),
+    endDate: new Date(),
+    period: 'last7'
+  });
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState(null);
   const [isRefreshing, setIsRefreshing] = useState(false);
@@ -55,7 +59,7 @@ export default function DashboardPage() {
       creditLine: 3000000
     }
   });
-  const [performanceData, setPerformanceData] = useState(null);
+  const [performanceData, setPerformanceData] = useState([]);
   const [cashManagementData, setCashManagementData] = useState(null);
   const [networkPaymentsData, setNetworkPaymentsData] = useState([]);
   const [invoicesData, setInvoicesData] = useState([]);
@@ -127,11 +131,16 @@ export default function DashboardPage() {
   }, []);
 
   const handleDateChange = (newDateRange) => {
-    setDateRange(newDateRange);
-    if (performanceData.length > 0) {
-      const processed = processPerformanceData(performanceData, newDateRange);
-      setDashboardData(processed);
+    console.log('Date range changed:', newDateRange);
+    
+    // Ensure we have both start and end dates
+    if (!newDateRange.startDate || !newDateRange.endDate) {
+      console.warn('Invalid date range received:', newDateRange);
+      return;
     }
+
+    // Update the date range state
+    setDateRange(newDateRange);
   };
 
   const handleRefresh = () => { 
@@ -328,6 +337,21 @@ export default function DashboardPage() {
     console.log('Tradeshift data state updated:', tradeshiftData);
   }, [tradeshiftData]);
 
+  // Add this function to get the latest date from performance data
+  const getLatestDataDate = (data) => {
+    if (!data?.length) return new Date();
+    
+    const dates = data
+      .map(entry => {
+        if (!entry.Date) return null;
+        const [month, day, year] = entry.Date.split('/').map(num => parseInt(num, 10));
+        return new Date(year, month - 1, day);
+      })
+      .filter(Boolean);
+    
+    return dates.length ? new Date(Math.max(...dates)) : new Date();
+  };
+
   if (isLoading) {
     return (
       <main className="flex-1 p-8">
@@ -410,7 +434,12 @@ export default function DashboardPage() {
           </div>
 
           {['network', 'media-buyers'].includes(activeTab) && (
-            <EnhancedDateSelector onDateChange={handleDateChange} />
+            <EnhancedDateSelector 
+              onDateChange={handleDateChange}
+              selectedPeriod={dateRange.period}
+              defaultRange="last7"
+              latestDate={getLatestDataDate(performanceData)}
+            />
           )}
 
           <div className="mt-6">{renderTabContent()}</div>
