@@ -104,6 +104,18 @@ const OfferPerformance = ({ performanceData, dateRange }) => {
       .sort((a, b) => new Date(a.date) - new Date(b.date));
   }, [filteredData]);
 
+  const [expandedOffers, setExpandedOffers] = useState(new Set());
+
+  const toggleOfferExpansion = (offerName) => {
+    const newExpandedOffers = new Set(expandedOffers);
+    if (newExpandedOffers.has(offerName)) {
+      newExpandedOffers.delete(offerName);
+    } else {
+      newExpandedOffers.add(offerName);
+    }
+    setExpandedOffers(newExpandedOffers);
+  };
+
   return (
     <div className="space-y-6">
       <div className="flex flex-col space-y-4">
@@ -202,27 +214,57 @@ const OfferPerformance = ({ performanceData, dateRange }) => {
                 </tr>
               </thead>
               <tbody className="bg-white divide-y divide-gray-200">
-                {chartData.map((offer) => (
-                  <tr key={offer.name} className="hover:bg-gray-50">
-                    <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
-                      {offer.name}
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                      {selectedNetworks.includes('all') ? 'All Networks' : selectedNetworks.join(', ')}
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-right text-gray-500">
-                      {formatCurrency(offer.revenue)}
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-right text-gray-500">
-                      {formatCurrency(offer.spend)}
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-right text-gray-500">
-                      {formatCurrency(offer.margin)}
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-right text-gray-500">
-                      {((offer.margin / offer.spend) * 100).toFixed(1)}%
-                    </td>
-                  </tr>
+                {chartData.map((offer, index) => (
+                  <React.Fragment key={`${offer.name}-${index}`}>
+                    <tr 
+                      className="hover:bg-gray-50 cursor-pointer"
+                      onClick={() => toggleOfferExpansion(offer.name)}
+                    >
+                      <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900 flex items-center">
+                        <span className="mr-2">
+                          {expandedOffers.has(offer.name) ? '▼' : '▶'}
+                        </span>
+                        {offer.name}
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                        {selectedNetworks.includes('all') ? 'All Networks' : selectedNetworks.join(', ')}
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-right text-gray-500">
+                        {formatCurrency(offer.revenue)}
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-right text-gray-500">
+                        {formatCurrency(offer.spend)}
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-right text-gray-500">
+                        {formatCurrency(offer.margin)}
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-right text-gray-500">
+                        {((offer.margin / offer.spend) * 100).toFixed(1)}%
+                      </td>
+                    </tr>
+                    {expandedOffers.has(offer.name) && Object.entries(offer.networkData).map(([network, data]) => (
+                      <tr 
+                        key={`${offer.name}-${network}`} 
+                        className="bg-gray-50"
+                      >
+                        <td className="px-6 py-2 whitespace-nowrap text-xs text-gray-500 pl-12">
+                          {network}
+                        </td>
+                        <td className="px-6 py-2 whitespace-nowrap text-sm text-right text-gray-500">
+                          {formatCurrency(data.revenue)}
+                        </td>
+                        <td className="px-6 py-2 whitespace-nowrap text-sm text-right text-gray-500">
+                          {formatCurrency(data.spend)}
+                        </td>
+                        <td className="px-6 py-2 whitespace-nowrap text-sm text-right text-gray-500">
+                          {formatCurrency(data.margin)}
+                        </td>
+                        <td className="px-6 py-2 whitespace-nowrap text-sm text-right text-gray-500">
+                          {((data.margin / data.spend) * 100).toFixed(1)}%
+                        </td>
+                      </tr>
+                    ))}
+                  </React.Fragment>
                 ))}
               </tbody>
             </table>
