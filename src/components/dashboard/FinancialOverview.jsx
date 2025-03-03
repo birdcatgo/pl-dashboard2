@@ -345,98 +345,54 @@ const QuickAction = ({ icon, label, onClick, variant = 'default' }) => {
   );
 };
 
-const ExpenseCategory = ({ title, monthlyData, monthlyExpenses, plData }) => {
-  const [showDetails, setShowDetails] = useState(false);
-  const [selectedMonth, setSelectedMonth] = useState(null);
-  const isAdvertising = title === "Advertising Spend";
-
-  const getExpensesForMonth = (monthDate) => {
-    const monthName = format(monthDate, 'MMMM');
-    const category = title.toLowerCase();
-    
-    return plData.monthly[monthName]?.expenseData.filter(e => {
-      const expenseCategory = e.CATEGORY?.toLowerCase() || '';
-      if (category.includes('advertising')) {
-        return expenseCategory.includes('facebook') ||
-               expenseCategory.includes('ad spend') ||
-               expenseCategory.includes('advertising') ||
-               expenseCategory.includes('media buy') ||
-               expenseCategory.includes('google') ||
-               expenseCategory.includes('tiktok') ||
-               expenseCategory.includes('youtube') ||
-               expenseCategory.includes('ads') ||
-               expenseCategory.includes('marketing') ||
-               expenseCategory.includes('promotion');
-      } else if (category.includes('payroll')) {
-        return expenseCategory.includes('payroll') ||
-               expenseCategory.includes('salary');
-      } else if (category.includes('subscriptions')) {
-        return expenseCategory.includes('subscription') ||
-               expenseCategory.includes('software');
-      } else if (category.includes('miscellaneous')) {
-        return !expenseCategory.includes('payroll') &&
-               !expenseCategory.includes('salary') &&
-               !expenseCategory.includes('commission') &&
-               !expenseCategory.includes('bonus') &&
-               !expenseCategory.includes('facebook') &&
-               !expenseCategory.includes('ad spend') &&
-               !expenseCategory.includes('advertising') &&
-               !expenseCategory.includes('media buy') &&
-               !expenseCategory.includes('subscription') &&
-               !expenseCategory.includes('software') &&
-               !expenseCategory.includes('saas') &&
-               !expenseCategory.includes('service');
-      }
-      return false;
-    }) || [];
+const ExpenseCategory = ({ title, monthlyData, monthlyExpenses }) => {
+  const calculateTrend = (current, previous) => {
+    if (!previous || previous === 0) return 0;
+    return ((current - previous) / previous * 100).toFixed(1);
   };
 
-  const calculateTrend = () => {
-    if (monthlyData.length < 2) return 0;
-    const oldestAmount = monthlyData[0].amount;
-    const newestAmount = monthlyData[monthlyData.length - 1].amount;
-    return oldestAmount ? ((newestAmount - oldestAmount) / oldestAmount) * 100 : 0;
+  const getTrendExplanation = (currentAmount, previousAmount, monthDisplay) => {
+    const trend = calculateTrend(currentAmount, previousAmount);
+    const difference = Math.abs(currentAmount - previousAmount);
+    return `${title} ${trend > 0 ? 'increased' : 'decreased'} by ${formatCurrency(difference)} (${Math.abs(trend)}%) compared to ${monthDisplay}`;
   };
 
-  const trend = calculateTrend();
+  // Ensure data is in chronological order (Feb, Jan, Dec)
+  const orderedData = [
+    monthlyData.find(d => d.month === 'February 2025'),
+    monthlyData.find(d => d.month === 'January 2025'),
+    monthlyData.find(d => d.month === 'December 2024')
+  ].filter(Boolean);
 
   return (
     <div className="mb-6">
       <h3 className="text-sm font-medium text-gray-500 mb-2">{title}</h3>
       <div className="grid grid-cols-3 gap-4">
-        {monthlyData.map((data, index) => (
-          <div 
-            key={index} 
-            className="bg-white rounded-lg p-4 shadow-sm cursor-pointer"
-            onClick={() => {
-              setSelectedMonth(data.month);
-              setShowDetails(true);
-            }}
-          >
-            <div className="text-sm text-gray-500">{format(data.month, 'MMMM yyyy')}</div>
-            <div className="flex items-center justify-between mt-1">
-              <div className="text-lg font-semibold">{formatCurrency(data.amount)}</div>
-              {index === monthlyData.length - 1 && trend !== 0 && (
-                <div className={`text-sm ${
-                  trend > 0 ? 'text-red-600' : 'text-green-600'
-                }`}>
-                  {trend > 0 ? '↑' : '↓'}{Math.abs(trend).toFixed(1)}%
-                </div>
-              )}
+        {orderedData.map((data, index) => {
+          const nextMonth = orderedData[index + 1];
+          const trend = nextMonth ? calculateTrend(data.amount, nextMonth.amount) : 0;
+
+          return (
+            <div key={index} className="bg-white rounded-lg p-4 shadow-sm">
+              <div className="text-sm text-gray-500">{data.month}</div>
+              <div className="flex items-center justify-between mt-1">
+                <div className="text-lg font-semibold">{formatCurrency(data.amount)}</div>
+                {index === 0 && nextMonth && (
+                  <div className="relative group">
+                    <div className={`text-sm ${trend > 0 ? 'text-red-600' : 'text-green-600'}`}>
+                      {trend > 0 ? '↑' : '↓'}{Math.abs(trend)}%
+                    </div>
+                    {/* Tooltip */}
+                    <div className="absolute bottom-full right-0 mb-2 hidden group-hover:block w-64 p-2 bg-gray-800 text-white text-xs rounded shadow-lg z-50">
+                      {getTrendExplanation(data.amount, nextMonth.amount, nextMonth.month)}
+                    </div>
+                  </div>
+                )}
+              </div>
             </div>
-          </div>
-        ))}
+          );
+        })}
       </div>
-      {showDetails && selectedMonth && (
-        <ExpenseDetails 
-          expenses={getExpensesForMonth(selectedMonth)}
-          onClose={() => {
-            setShowDetails(false);
-            setSelectedMonth(null);
-          }}
-          isAdvertising={isAdvertising}
-        />
-      )}
     </div>
   );
 };
@@ -1892,6 +1848,62 @@ const ProfitTrendChart = ({ plData }) => {
   );
 };
 
+const processMonthlyData = (monthlyData) => {
+  if (!monthlyData) return [];
+
+  return Object.entries(monthlyData).map(([month, data]) => {
+    const revenue = data.totalIncome || 0;
+    const expenses = data.totalExpenses || 0;
+    const profit = revenue - expenses;
+    const profitMargin = revenue ? ((profit / revenue) * 100).toFixed(1) : '0.0';
+
+    // Get expense categories with expanded category matching
+    const expensesByCategory = data.expenseData?.reduce((acc, expense) => {
+      const category = expense.CATEGORY?.toLowerCase() || '';
+      const description = expense.DESCRIPTION?.toLowerCase() || '';
+      const amount = parseFloat(expense.AMOUNT.replace(/[$,]/g, '') || 0);
+
+      if (category.includes('advertising') || category.includes('ad spend')) {
+        acc.adSpend += amount;
+      } else if (category.includes('payroll') || category.includes('salary')) {
+        acc.payroll += amount;
+      } else if (
+        category.includes('subscription') || 
+        category.includes('software') || 
+        category.includes('saas') || 
+        category.includes('service') ||
+        description.includes('subscription') ||
+        description.includes('software') ||
+        description.includes('license')
+      ) {
+        acc.subscriptions += amount;
+      } else {
+        acc.otherExpenses += amount;
+      }
+      return acc;
+    }, { adSpend: 0, payroll: 0, subscriptions: 0, otherExpenses: 0 });
+
+    // Calculate cash injections
+    const cashInjections = data.incomeData?.reduce((sum, income) => {
+      const description = income.DESCRIPTION?.toLowerCase() || '';
+      const amount = parseFloat(income.AMOUNT.replace(/[$,]/g, '') || 0);
+      return description.includes('investment') || description.includes('injection') ? sum + amount : sum;
+    }, 0);
+
+    // Update year assignment
+    const year = month === 'January' || month === 'February' ? '2025' : '2024';
+    
+    return {
+      month: `${month} ${year}`,
+      revenue,
+      cashInjections,
+      ...expensesByCategory,
+      profit,
+      profitMargin
+    };
+  }).filter(Boolean);
+};
+
 const FinancialOverview = ({ plData, cashFlowData, invoicesData, networkTerms }) => {
   console.log('Financial Overview received networkTerms:', {
     hasTerms: !!networkTerms,
@@ -1933,9 +1945,9 @@ const FinancialOverview = ({ plData, cashFlowData, invoicesData, networkTerms })
       .map(item => ({
         name: item.Month,
         date: new Date(`${item.Month} 1, ${
-          item.Month === 'January' ? '2025' : 
-          item.Month === 'December' || item.Month === 'November' ? '2024' : 
-          '2023'
+          ['January', 'February'].includes(item.Month) ? '2025' : 
+          ['December', 'November'].includes(item.Month) ? '2024' : 
+          '2024'
         }`)
       }));
     
@@ -2042,13 +2054,15 @@ const FinancialOverview = ({ plData, cashFlowData, invoicesData, networkTerms })
     return <div>Loading financial overview...</div>;
   }
 
+  const monthlyData = processMonthlyData(plData.monthly);
+
   return (
     <Card>
       <CardHeader>
         <CardTitle>Financial Overview</CardTitle>
       </CardHeader>
       <CardContent>
-        <div className="space-y-6">
+        <div className="space-y-8">
           {/* Current Financial Position */}
           <FinancialSnapshot 
             cashFlowData={cashFlowData}
@@ -2073,69 +2087,49 @@ const FinancialOverview = ({ plData, cashFlowData, invoicesData, networkTerms })
               plData={plData}
             />
 
-            <RevenueCategory 
-              monthlyData={processedData.map(d => ({ month: d.month, amount: d.revenue }))}
-              plData={plData}
+            {/* Monthly Revenue */}
+            <ExpenseCategory 
+              title="Monthly Revenue"
+              monthlyData={monthlyData.map(d => ({
+                month: d.month,
+                amount: d.revenue
+              }))}
             />
 
+            {/* Payroll */}
             <ExpenseCategory 
-              title="Payroll (Salaries, Bonuses, Commissions)" 
-              monthlyData={processedData.map(d => ({ month: d.month, amount: d.payroll }))}
-              monthlyExpenses={plData.monthly[lastThreeMonths[2].name]?.expenseData.filter(e => 
-                e.CATEGORY?.toLowerCase().includes('payroll') ||
-                e.CATEGORY?.toLowerCase().includes('salary')
-              )}
-              plData={plData}
+              title="Payroll (Salaries, Bonuses, Commissions)"
+              monthlyData={monthlyData.map(d => ({
+                month: d.month,
+                amount: d.payroll
+              }))}
             />
 
+            {/* Ad Spend */}
             <ExpenseCategory 
-              title="Advertising Spend" 
-              monthlyData={processedData.map(d => ({ month: d.month, amount: d.adSpend }))}
-              monthlyExpenses={plData.monthly[lastThreeMonths[2].name]?.expenseData.filter(e => {
-                const category = e.CATEGORY?.toLowerCase() || '';
-                return category.includes('facebook') ||
-                       category.includes('ad spend') ||
-                       category.includes('advertising') ||
-                       category.includes('media buy') ||
-                       category.includes('google') ||
-                       category.includes('tiktok') ||
-                       category.includes('youtube') ||
-                       category.includes('ads') ||
-                       category.includes('marketing') ||
-                       category.includes('promotion');
-              })}
-              plData={plData}
+              title="Advertising Spend"
+              monthlyData={monthlyData.map(d => ({
+                month: d.month,
+                amount: d.adSpend
+              }))}
             />
 
+            {/* Subscriptions */}
             <ExpenseCategory 
-              title="Subscriptions (Tools & Software)" 
-              monthlyData={processedData.map(d => ({ month: d.month, amount: d.subscriptions }))}
-              monthlyExpenses={plData.monthly[lastThreeMonths[2].name]?.expenseData.filter(e => 
-                e.CATEGORY?.toLowerCase().includes('subscription') ||
-                e.CATEGORY?.toLowerCase().includes('software')
-              )}
-              plData={plData}
+              title="Subscriptions (Tools & Software)"
+              monthlyData={monthlyData.map(d => ({
+                month: d.month,
+                amount: d.subscriptions
+              }))}
             />
 
+            {/* Miscellaneous */}
             <ExpenseCategory 
-              title="Miscellaneous Expenses" 
-              monthlyData={processedData.map(d => ({ month: d.month, amount: d.miscellaneous }))}
-              monthlyExpenses={plData.monthly[lastThreeMonths[2].name]?.expenseData.filter(e => {
-                const category = e.CATEGORY?.toLowerCase() || '';
-                return !category.includes('payroll') &&
-                       !category.includes('salary') &&
-                       !category.includes('commission') &&
-                       !category.includes('bonus') &&
-                       !category.includes('facebook') &&
-                       !category.includes('ad spend') &&
-                       !category.includes('advertising') &&
-                       !category.includes('media buy') &&
-                       !category.includes('subscription') &&
-                       !category.includes('software') &&
-                       !category.includes('saas') &&
-                       !category.includes('service');
-              })}
-              plData={plData}
+              title="Miscellaneous Expenses"
+              monthlyData={monthlyData.map(d => ({
+                month: d.month,
+                amount: d.otherExpenses
+              }))}
             />
 
             <BreakEvenAnalysis monthlyData={processedData} />

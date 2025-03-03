@@ -9,7 +9,7 @@ async function processPLData(batchResponse) {
 
     // Process monthly detail sheets
     const monthSheets = batchResponse.data.valueRanges.filter(range => {
-      return /^(June|July|August|September|October|November|December|January)!/.test(range.range);
+      return /^(June|July|August|September|October|November|December|January|February)!/.test(range.range);
     });
 
     monthSheets.forEach(monthSheet => {
@@ -233,6 +233,7 @@ export default async function handler(req, res) {
       'Summary!A:U',
       'Bank Structure!A:M',
       'Network Payment Schedule!A:H',
+      'February!A:D',
       'January!A:D',
       'December!A:D',
       'November!A:D',
@@ -257,6 +258,7 @@ export default async function handler(req, res) {
         'Bank Structure!A:M',
         'Network Payment Schedule!A:H',
         'Invoices!A:F',
+        'February!A:D',
         'January!A:D',
         'December!A:D',
         'November!A:D',
@@ -286,6 +288,7 @@ export default async function handler(req, res) {
       bankStructureResponse,
       networkPaymentsResponse,
       invoicesResponse,
+      februaryResponse,
       januaryResponse,
       decemberResponse,
       novemberResponse,
