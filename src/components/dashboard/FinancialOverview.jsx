@@ -1877,6 +1877,35 @@ const processNetworkRevenue = (monthIncome) => {
 };
 
 const FinancialOverview = ({ plData, cashFlowData, invoicesData, networkTerms }) => {
+  // Add loading state
+  const [isRefreshing, setIsRefreshing] = useState(false);
+
+  const handleRefresh = async () => {
+    try {
+      setIsRefreshing(true);
+      // Make a GET request to your API endpoint
+      const response = await fetch('/api/sheets', {
+        method: 'GET',
+        headers: {
+          'Cache-Control': 'no-cache',
+          'Pragma': 'no-cache'
+        }
+      });
+      
+      if (!response.ok) {
+        throw new Error('Failed to refresh data');
+      }
+
+      // Reload the page to reflect new data
+      window.location.reload();
+    } catch (error) {
+      console.error('Error refreshing data:', error);
+      // You might want to show an error toast here
+    } finally {
+      setIsRefreshing(false);
+    }
+  };
+
   console.log('Financial Overview received networkTerms:', {
     hasTerms: !!networkTerms,
     termsCount: networkTerms?.length,
@@ -2048,99 +2077,130 @@ const FinancialOverview = ({ plData, cashFlowData, invoicesData, networkTerms })
   const monthlyData = processMonthlyData(plData.monthly);
 
   return (
-    <Card>
-      <CardHeader>
-        <CardTitle>Financial Overview</CardTitle>
-      </CardHeader>
-      <CardContent>
-        <div className="space-y-8">
-          {/* Current Financial Position */}
-          <FinancialSnapshot 
-            cashFlowData={cashFlowData}
-            invoicesData={invoicesData}
-            networkTerms={networkTerms}
-          />
+    <div className="p-6">
+      {/* Add refresh button at the top */}
+      <div className="flex justify-between items-center mb-6">
+        <h1 className="text-2xl font-bold text-gray-900">Financial Overview</h1>
+        <button
+          onClick={handleRefresh}
+          disabled={isRefreshing}
+          className={`px-4 py-2 rounded-lg flex items-center gap-2 ${
+            isRefreshing 
+              ? 'bg-gray-300 cursor-not-allowed' 
+              : 'bg-blue-600 hover:bg-blue-700 text-white'
+          }`}
+        >
+          <svg
+            className={`w-4 h-4 ${isRefreshing ? 'animate-spin' : ''}`}
+            fill="none"
+            stroke="currentColor"
+            viewBox="0 0 24 24"
+          >
+            <path
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              strokeWidth={2}
+              d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"
+            />
+          </svg>
+          {isRefreshing ? 'Refreshing...' : 'Refresh Data'}
+        </button>
+      </div>
 
-          {/* Historical Analysis Section */}
-          <div className="border-t pt-8">
-            <div className="mb-6">
-              <h2 className="text-2xl font-bold text-gray-900">Historical Performance Analysis</h2>
-              <p className="text-sm text-gray-500 mt-1">
-                Detailed breakdown of revenue, expenses, and profitability trends over the last 3 months
-              </p>
+      <Card>
+        <CardHeader>
+          <CardTitle>Financial Overview</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="space-y-8">
+            {/* Current Financial Position */}
+            <FinancialSnapshot 
+              cashFlowData={cashFlowData}
+              invoicesData={invoicesData}
+              networkTerms={networkTerms}
+            />
+
+            {/* Historical Analysis Section */}
+            <div className="border-t pt-8">
+              <div className="mb-6">
+                <h2 className="text-2xl font-bold text-gray-900">Historical Performance Analysis</h2>
+                <p className="text-sm text-gray-500 mt-1">
+                  Detailed breakdown of revenue, expenses, and profitability trends over the last 3 months
+                </p>
+              </div>
+
+              <ProfitabilitySnapshot monthlyData={processedData} />
+              <KPITrends monthlyData={processedData} />
+              
+              <QuickActions 
+                insights={processedData} 
+                plData={plData}
+              />
+
+              {/* Monthly Revenue */}
+              <ExpenseCategory 
+                title="Monthly Revenue"
+                monthlyData={monthlyData.map(d => ({
+                  month: d.month,
+                  amount: d.revenue
+                }))}
+              />
+
+              {/* Payroll */}
+              <ExpenseCategory 
+                title="Payroll (Salaries, Bonuses, Commissions)"
+                monthlyData={monthlyData.map(d => ({
+                  month: d.month,
+                  amount: d.payroll
+                }))}
+              />
+
+              {/* Ad Spend */}
+              <ExpenseCategory 
+                title="Advertising Spend"
+                monthlyData={monthlyData.map(d => ({
+                  month: d.month,
+                  amount: d.adSpend
+                }))}
+              />
+
+              {/* Subscriptions */}
+              <ExpenseCategory 
+                title="Subscriptions (Tools & Software)"
+                monthlyData={monthlyData.map(d => ({
+                  month: d.month,
+                  amount: d.subscriptions
+                }))}
+                plData={plData}  // Pass plData here
+              />
+
+              {/* Miscellaneous */}
+              <ExpenseCategory 
+                title="Miscellaneous Expenses"
+                monthlyData={monthlyData.map(d => ({
+                  month: d.month,
+                  amount: d.otherExpenses
+                }))}
+              />
+
+              <BreakEvenAnalysis monthlyData={processedData} />
+              
+              <IncomeComparisonTable 
+                monthlyData={processedData}
+                plData={plData}
+              />
+              
+              <ExpenseComparisonTable 
+                monthlyData={processedData}
+                plData={plData}
+              />
+
+              <ProfitTrendChart plData={plData} />
             </div>
-
-            <ProfitabilitySnapshot monthlyData={processedData} />
-            <KPITrends monthlyData={processedData} />
-            
-            <QuickActions 
-              insights={processedData} 
-              plData={plData}
-            />
-
-            {/* Monthly Revenue */}
-            <ExpenseCategory 
-              title="Monthly Revenue"
-              monthlyData={monthlyData.map(d => ({
-                month: d.month,
-                amount: d.revenue
-              }))}
-            />
-
-            {/* Payroll */}
-            <ExpenseCategory 
-              title="Payroll (Salaries, Bonuses, Commissions)"
-              monthlyData={monthlyData.map(d => ({
-                month: d.month,
-                amount: d.payroll
-              }))}
-            />
-
-            {/* Ad Spend */}
-            <ExpenseCategory 
-              title="Advertising Spend"
-              monthlyData={monthlyData.map(d => ({
-                month: d.month,
-                amount: d.adSpend
-              }))}
-            />
-
-            {/* Subscriptions */}
-            <ExpenseCategory 
-              title="Subscriptions (Tools & Software)"
-              monthlyData={monthlyData.map(d => ({
-                month: d.month,
-                amount: d.subscriptions
-              }))}
-              plData={plData}  // Pass plData here
-            />
-
-            {/* Miscellaneous */}
-            <ExpenseCategory 
-              title="Miscellaneous Expenses"
-              monthlyData={monthlyData.map(d => ({
-                month: d.month,
-                amount: d.otherExpenses
-              }))}
-            />
-
-            <BreakEvenAnalysis monthlyData={processedData} />
-            
-            <IncomeComparisonTable 
-              monthlyData={processedData}
-              plData={plData}
-            />
-            
-            <ExpenseComparisonTable 
-              monthlyData={processedData}
-              plData={plData}
-            />
-
-            <ProfitTrendChart plData={plData} />
           </div>
-        </div>
-      </CardContent>
-    </Card>
+        </CardContent>
+      </Card>
+    </div>
   );
 };
 

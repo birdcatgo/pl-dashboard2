@@ -26,6 +26,7 @@ import {
 import { TrendingUp, TrendingDown, ArrowRight, Activity } from 'lucide-react';
 import { Switch } from "@/components/ui/switch";
 import { format, parseISO, isWithinInterval } from 'date-fns';
+import { Checkbox } from '../ui/checkbox';
 
 // Register ChartJS components
 ChartJS.register(
@@ -163,6 +164,7 @@ const MediaBuyerPerformance = ({ performanceData, dateRange }) => {
   const [selectedNetworks, setSelectedNetworks] = useState(['all']);
   const [expandedBuyers, setExpandedBuyers] = useState(new Set());
   const [isCumulative, setIsCumulative] = useState(false);
+  const [selectedOffers, setSelectedOffers] = useState(new Set());
 
   // First filter data by date range - Optimize the date comparison
   const filteredByDate = useMemo(() => {
@@ -342,21 +344,29 @@ const MediaBuyerPerformance = ({ performanceData, dateRange }) => {
   }, [filteredByDate]);
 
   const formatCurrency = (value) => {
-    return new Intl.NumberFormat('en-US', {
-      style: 'currency',
-      currency: 'USD',
-      minimumFractionDigits: 0,
-      maximumFractionDigits: 0,
-    }).format(value);
-  };
+  return new Intl.NumberFormat('en-US', {
+    style: 'currency',
+    currency: 'USD',
+    minimumFractionDigits: 0,
+    maximumFractionDigits: 0,
+  }).format(value);
+};
 
   // Prepare chart data with proper date sorting
   const chartData = useMemo(() => {
     if (!filteredByDate.length) return [];
 
-    // Group data by date
+    // Only process data for selected buyers
+    const relevantBuyers = selectedBuyers.includes('all') 
+      ? processedData.buyerOptions.filter(buyer => buyer !== 'all')
+      : selectedBuyers;
+
+    // Group data by date and offer for each buyer
     const dailyData = filteredByDate.reduce((acc, entry) => {
+      if (!relevantBuyers.includes(entry['Media Buyer'])) return acc;
+
       const date = new Date(entry.Date).toISOString().split('T')[0];
+      const buyerOffer = `${entry['Media Buyer']} - ${entry.Offer}`;
       
       if (!acc[date]) {
         acc[date] = {
@@ -364,24 +374,48 @@ const MediaBuyerPerformance = ({ performanceData, dateRange }) => {
           displayDate: new Date(entry.Date).toLocaleDateString('en-US', {
             month: 'short',
             day: 'numeric'
-          }),
-          revenue: 0,
-          spend: 0,
-          margin: 0
+          })
         };
       }
       
-      acc[date].revenue += parseFloat(entry['Total Revenue'] || 0);
-      acc[date].spend += parseFloat(entry['Ad Spend'] || 0);
-      acc[date].margin += parseFloat(entry.Margin || 0);
+      if (!acc[date][buyerOffer]) {
+        acc[date][buyerOffer] = 0;
+      }
       
+      // Calculate margin instead of using revenue
+      const revenue = parseFloat(entry['Total Revenue'] || 0);
+      const spend = parseFloat(entry['Ad Spend'] || 0);
+      acc[date][buyerOffer] += revenue - spend;
       return acc;
     }, {});
 
     // Sort dates in ascending order
     return Object.values(dailyData)
       .sort((a, b) => new Date(a.date) - new Date(b.date));
-  }, [filteredByDate]);
+  }, [filteredByDate, selectedBuyers, processedData.buyerOptions]);
+
+  // Get unique buyer-offer combinations for the graph
+  const buyerOfferCombos = useMemo(() => {
+    if (!filteredByDate.length) return [];
+
+    const relevantBuyers = selectedBuyers.includes('all') 
+      ? processedData.buyerOptions.filter(buyer => buyer !== 'all')
+      : selectedBuyers;
+
+    return [...new Set(filteredByDate
+      .filter(entry => relevantBuyers.includes(entry['Media Buyer']))
+      .map(entry => `${entry['Media Buyer']} - ${entry.Offer}`)
+    )];
+  }, [filteredByDate, selectedBuyers, processedData.buyerOptions]);
+
+  // Generate colors for each buyer-offer combination
+  const colorScale = useMemo(() => {
+    return buyerOfferCombos.reduce((acc, combo, index) => {
+      const hue = (index * 137.508) % 360; // Golden ratio for color distribution
+      acc[combo] = `hsl(${hue}, 70%, 50%)`;
+      return acc;
+    }, {});
+  }, [buyerOfferCombos]);
 
   // Process data for the profit graph with proper date sorting
   const profitChartData = useMemo(() => {
@@ -513,6 +547,11 @@ const MediaBuyerPerformance = ({ performanceData, dateRange }) => {
     setExpandedBuyers(newExpanded);
   };
 
+  // Initialize selected offers when buyer-offer combos change
+  useEffect(() => {
+    setSelectedOffers(new Set(buyerOfferCombos));
+  }, [buyerOfferCombos]);
+
   if (!performanceData?.length) {
     return (
       <Card>
@@ -537,10 +576,10 @@ const MediaBuyerPerformance = ({ performanceData, dateRange }) => {
             />
           </div>
 
-          <div className="overflow-x-auto">
-            <table className="min-w-full divide-y divide-gray-200">
-              <thead className="bg-gray-50">
-                <tr>
+        <div className="overflow-x-auto">
+          <table className="min-w-full divide-y divide-gray-200">
+            <thead className="bg-gray-50">
+              <tr>
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                     Media Buyer
                   </th>
@@ -556,9 +595,9 @@ const MediaBuyerPerformance = ({ performanceData, dateRange }) => {
                   <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
                     ROI
                   </th>
-                </tr>
-              </thead>
-              <tbody className="bg-white divide-y divide-gray-200">
+              </tr>
+            </thead>
+            <tbody className="bg-white divide-y divide-gray-200">
                 {processedData.buyerMetrics
                   .filter(buyer => selectedBuyers.includes('all') || selectedBuyers.includes(buyer.name))
                   .map((buyer) => (
@@ -590,25 +629,124 @@ const MediaBuyerPerformance = ({ performanceData, dateRange }) => {
                         <tr key={`${buyer.name}-${network}`} className="bg-gray-50">
                           <td className="px-6 py-2 whitespace-nowrap text-xs text-gray-500 pl-12">
                             {network}
-                          </td>
+                </td>
                           <td className="px-6 py-2 whitespace-nowrap text-xs text-right text-gray-500">
                             {formatCurrency(data.spend)}
-                          </td>
+                </td>
                           <td className="px-6 py-2 whitespace-nowrap text-xs text-right text-gray-500">
                             {formatCurrency(data.revenue)}
-                          </td>
+                </td>
                           <td className="px-6 py-2 whitespace-nowrap text-xs text-right text-gray-500">
                             {formatCurrency(data.margin)}
-                          </td>
+                </td>
                           <td className="px-6 py-2 whitespace-nowrap text-xs text-right text-gray-500">
                             {formatPercent(data.spend ? ((data.revenue / data.spend) - 1) * 100 : 0)}
-                          </td>
-                        </tr>
+                </td>
+              </tr>
                       ))}
                     </React.Fragment>
                   ))}
               </tbody>
-            </table>
+          </table>
+        </div>
+      </div>
+      </Card>
+
+      {/* Daily Revenue Graph */}
+      <Card>
+        <div className="p-6">
+          <h3 className="text-lg font-semibold mb-4">
+            {selectedBuyers.includes('all') 
+              ? 'Daily Margin by Offer (All Media Buyers)'
+              : `Daily Margin by Offer (${selectedBuyers.join(', ')})`}
+          </h3>
+
+          {/* Color-coded offer list with checkboxes */}
+          <div className="mb-6 flex flex-wrap gap-2">
+            <div className="w-full mb-2 flex justify-end">
+              <button
+                className="text-sm text-blue-600 hover:text-blue-800 mr-4"
+                onClick={() => setSelectedOffers(new Set(buyerOfferCombos))}
+              >
+                Select All
+              </button>
+              <button
+                className="text-sm text-blue-600 hover:text-blue-800"
+                onClick={() => setSelectedOffers(new Set())}
+              >
+                Clear All
+              </button>
+            </div>
+            {buyerOfferCombos.map((combo) => (
+              <div
+                key={combo}
+                className="inline-flex items-center px-3 py-1 rounded-full text-sm cursor-pointer"
+                style={{
+                  backgroundColor: selectedOffers.has(combo) ? `${colorScale[combo]}20` : '#f3f4f6',
+                  color: selectedOffers.has(combo) ? colorScale[combo] : '#6b7280',
+                  border: `1px solid ${selectedOffers.has(combo) ? colorScale[combo] : '#e5e7eb'}`
+                }}
+                onClick={() => {
+                  const newSelected = new Set(selectedOffers);
+                  if (newSelected.has(combo)) {
+                    newSelected.delete(combo);
+                  } else {
+                    newSelected.add(combo);
+                  }
+                  setSelectedOffers(newSelected);
+                }}
+              >
+                <Checkbox
+                  checked={selectedOffers.has(combo)}
+                  className="mr-2 h-4 w-4"
+                  style={{
+                    borderColor: selectedOffers.has(combo) ? colorScale[combo] : '#e5e7eb'
+                  }}
+                />
+                {combo}
+              </div>
+            ))}
+          </div>
+
+          <div className="h-[400px]">
+            <ResponsiveContainer width="100%" height="100%">
+              <LineChart data={chartData} margin={{ left: 40, right: 40, bottom: 20 }}>
+                <CartesianGrid strokeDasharray="3 3" />
+                <XAxis 
+                  dataKey="displayDate"
+                  tick={{ fontSize: 12, angle: -45, textAnchor: 'end' }}
+                  height={60}
+                  interval={Math.ceil(chartData.length / 15)}
+                />
+                <YAxis 
+                  tickFormatter={formatCurrency}
+                />
+                <Tooltip 
+                  formatter={(value) => formatCurrency(value)}
+                  labelFormatter={(label) => `Date: ${label}`}
+                  contentStyle={{
+                    backgroundColor: 'rgba(255, 255, 255, 0.95)',
+                    borderRadius: '6px',
+                    border: '1px solid #ddd',
+                    boxShadow: '0 2px 4px rgba(0,0,0,0.1)'
+                  }}
+                  itemStyle={{ padding: '2px 0' }}
+                />
+                {buyerOfferCombos
+                  .filter(combo => selectedOffers.has(combo))
+                  .map((combo) => (
+                    <RechartsLine 
+                      key={combo}
+                      type="monotone" 
+                      dataKey={combo}
+                      stroke={colorScale[combo]}
+                      name={combo}
+                      strokeWidth={2}
+                      dot={false}
+                    />
+                  ))}
+              </LineChart>
+            </ResponsiveContainer>
           </div>
         </div>
       </Card>

@@ -26,6 +26,15 @@ const formatPercent = (value) => {
   return `${Number(numValue).toFixed(1)}%`;
 };
 
+const parseAmount = (amount) => {
+  if (!amount) return 0;
+  if (typeof amount === 'number') return amount;
+  if (typeof amount === 'string') {
+    return parseFloat(amount.replace(/[$,]/g, '') || 0);
+  }
+  return 0;
+};
+
 const SummaryTable = ({ summaryData }) => {
   return (
     <Card>
@@ -112,7 +121,7 @@ const MonthlyDetails = ({ monthData, month }) => {
           <div className="space-y-4">
             {Object.entries(categories).map(([category, items]) => {
               const categoryTotal = items.reduce((sum, item) => 
-                sum + parseFloat(item.AMOUNT.replace(/[$,]/g, '') || 0), 0
+                sum + parseAmount(item.AMOUNT), 0
               );
               
               return (

@@ -54,11 +54,15 @@ async function processPLData(batchResponse) {
           totalExpenses
         };
 
+        const netProfit = totalIncome - totalExpenses;
+        const netPercent = totalIncome > 0 ? (netProfit / totalIncome) * 100 : 0;
+
         summaryData.push({
           Month: monthName,
           Income: totalIncome,
           Expenses: totalExpenses,
-          NetProfit: totalIncome - totalExpenses
+          NetProfit: netProfit,
+          'Net%': netPercent
         });
       }
     }));
@@ -367,7 +371,11 @@ export default async function handler(req, res) {
 
     // Single, consolidated invoice processing
     if (invoicesResponse?.values) {
-      console.log('Raw invoice data:', invoicesResponse.values.slice(0, 2));
+      console.log('Raw invoice data:', {
+        headers: invoicesResponse.values[0],
+        firstRow: invoicesResponse.values[1],
+        totalRows: invoicesResponse.values.length
+      });
       
       result.rawData.invoices = invoicesResponse.values
         .slice(1) // Skip header row
@@ -386,21 +394,26 @@ export default async function handler(req, res) {
             return isNaN(parsed) ? 0 : parsed;
           };
 
-          return {
+          const invoice = {
             Network: row[0]?.trim() || '',
             PeriodStart: cleanDateString(row[1]),
             PeriodEnd: cleanDateString(row[2]),
             DueDate: cleanDateString(row[3]),
-            Amount: parseAmount(row[4]),  // Changed from AmountDue to Amount
-            Status: 'Unpaid',  // Added Status field
-            InvoiceNumber: row[5]?.toString().trim() || ''
+            Amount: parseAmount(row[4]),
+            Status: row[6]?.trim() || 'Unpaid',  // Use actual status if available
+            InvoiceNumber: row[5]?.toString().trim() || '',
+            paid: false // Default to unpaid
           };
+
+          console.log('Processed invoice:', invoice);
+          return invoice;
         })
-        .filter(row => row.Network); // Only keep rows with a network name
+        .filter(row => row.Network && row.Amount > 0); // Only keep rows with a network name and positive amount
 
       console.log('Processed invoices:', {
         count: result.rawData.invoices.length,
         sample: result.rawData.invoices[0],
+        totalAmount: result.rawData.invoices.reduce((sum, inv) => sum + (inv.Amount || 0), 0),
         fields: result.rawData.invoices[0] ? Object.keys(result.rawData.invoices[0]) : []
       });
     } else {
@@ -458,6 +471,7 @@ export default async function handler(req, res) {
             Margin: parseFloat((row[8] || '0').replace(/[$,]/g, '')) || 0,
             'Expected Payment': row[9] || '',
             'Running Balance': parseFloat((row[10] || '0').replace(/[$,]/g, '')) || 0,
+            'Ad Account': row[11] || ''
           };
         })
         .filter(row => row.Date);
@@ -481,16 +495,20 @@ export default async function handler(req, res) {
 
     result.networkPaymentsData = networkPayments;
 
-    // Process Network Terms
+    // Process Network Terms with more detailed logging
     const networkTerms = networkTermsResponse?.values?.map(row => {
       if (!row || row.length < 9) {
-        console.log('Skipping invalid row:', row);
+        console.log('Skipping invalid network terms row:', row);
         return null;
       }
 
       const runningTotal = parseFloat((row[7] || '0').replace(/[$,]/g, ''));
       
       if (runningTotal <= 0) {
+        console.log('Skipping network term with zero or negative running total:', {
+          network: row[0],
+          runningTotal
+        });
         return null;
       }
 
@@ -498,27 +516,7 @@ export default async function handler(req, res) {
         ?.slice(1)
         ?.sort((a, b) => new Date(b[0]) - new Date(a[0]))?.[0]?.[0];
 
-      const lastDateSpend = mainResponse?.values
-        ?.filter(perfRow => 
-          perfRow[0] === lastDate && 
-          perfRow[1] === row[0]?.trim() && 
-          perfRow[2] === row[1]?.trim()
-        )
-        ?.reduce((sum, perfRow) => {
-          const spend = parseFloat(perfRow[4]?.replace(/[$,]/g, '') || '0');
-          return sum + (isNaN(spend) ? 0 : spend);
-        }, 0) || 0;
-
-      const dailyCap = row[8] === 'Uncapped' ? null : 
-                      row[8] === 'N/A' ? null :
-                      row[8] === 'TBC' ? null :
-                      parseFloat((row[8] || '0').replace(/[$,]/g, ''));
-      
-      const capUtilization = (dailyCap && dailyCap > 0) 
-        ? (lastDateSpend / dailyCap * 100)
-        : null;
-
-      return {
+      const networkTerm = {
         network: row[0]?.trim() || '',
         offer: row[1]?.trim() || '',
         payPeriod: row[2]?.trim() || '',
@@ -530,11 +528,12 @@ export default async function handler(req, res) {
         dailyCap: row[8] === 'Uncapped' ? 'Uncapped' : 
                  row[8] === 'N/A' ? 'N/A' :
                  row[8] === 'TBC' ? 'TBC' :
-                 dailyCap,
-        lastDateSpend: lastDateSpend || 0,
-        capUtilization: capUtilization,
+                 parseFloat((row[8] || '0').replace(/[$,]/g, '')),
         lastDate
       };
+
+      console.log('Processed network term:', networkTerm);
+      return networkTerm;
     }).filter(Boolean);
 
     networkTerms?.sort((a, b) => b.runningTotal - a.runningTotal);
@@ -542,6 +541,7 @@ export default async function handler(req, res) {
     console.log('Final Network Terms:', {
       count: networkTerms?.length || 0,
       sample: networkTerms?.[0],
+      totalExposure: networkTerms?.reduce((sum, term) => sum + (term.runningTotal || 0), 0) || 0,
       allData: networkTerms
     });
 

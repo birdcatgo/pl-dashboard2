@@ -211,11 +211,21 @@ const NetProfit = ({ performanceData, dateRange }) => {
                 <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
                   Expenses
                 </th>
-                <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
+                <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider group relative">
                   Net Profit
+                  <div className="hidden group-hover:block absolute z-10 bg-black text-white text-xs rounded p-2 w-48 -left-16 top-8">
+                    Net Profit = Revenue - Expenses
+                    <br />
+                    Shows actual earnings after all costs
+                  </div>
                 </th>
-                <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
+                <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider group relative">
                   Profit Margin
+                  <div className="hidden group-hover:block absolute z-10 bg-black text-white text-xs rounded p-2 w-48 -left-16 top-8">
+                    Profit Margin = (Net Profit / Revenue) × 100
+                    <br />
+                    Shows percentage of revenue kept as profit
+                  </div>
                 </th>
               </tr>
             </thead>

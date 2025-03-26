@@ -50,7 +50,7 @@ const SummaryTable = ({ summaryData }) => {
               {summaryData.map((month, index) => {
                 const revenue = parseFloat(month.Income || 0);
                 const adSpend = parseFloat(month.Advertising || 0);
-                const netProfit = parseFloat(month.Net_Rev || 0);
+                const netProfit = parseFloat(month.NetProfit || 0);
                 const costs = revenue - netProfit; // Calculate total costs
                 const margin = parseFloat(month['Net%'] || 0);
 

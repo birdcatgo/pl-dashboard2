@@ -1,5 +1,5 @@
-import React, { useState, useEffect, useMemo } from 'react';
-import { RefreshCw } from 'lucide-react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
+import { RefreshCw, ChevronDown, Brain, TrendingUp, DollarSign, Target, Calendar, ChartBar, BarChart2, Users } from 'lucide-react';
 import { debounce } from 'lodash';
 import { processPerformanceData } from '../lib/pl-data-processor';
 import EnhancedDateSelector from '../components/dashboard/EnhancedDateSelector';
@@ -33,6 +33,11 @@ import FinancialOverview from '../components/dashboard/FinancialOverview';
 import RevenueFlowAnalysis from '../components/dashboard/RevenueFlowAnalysis';
 import TradeshiftOverview from '../components/dashboard/TradeshiftOverview';
 import CreditCardLimits from '../components/dashboard/CreditCardLimits';
+import ThirtyDayChallenge from '../components/dashboard/ThirtyDayChallenge';
+import MediaBuyerProgress from '../components/dashboard/MediaBuyerProgress';
+import CreditLineManager from '../components/dashboard/CreditLineManager';
+import FinancialOverviewBox from '../components/dashboard/FinancialOverviewBox';
+import AIInsightsPage from '../components/dashboard/AIInsightsPage';
 
 export default function DashboardPage() {
   const [plData, setPlData] = useState(null);
@@ -68,25 +73,32 @@ export default function DashboardPage() {
   const [rawData, setRawData] = useState(null);
   const [summaryData, setSummaryData] = useState([]);
   const [tradeshiftData, setTradeshiftData] = useState([]);
+  const [showMoreMenu, setShowMoreMenu] = useState(false);
+  const moreButtonRef = useRef(null);
 
-  const tabs = [
+  const mainTabs = [
+    { id: 'ai-insights', label: 'AI Insights', icon: Brain },
+    { id: 'highlights', label: 'Highlights', icon: Target },
+    { id: 'net-profit', label: 'Net Profit', icon: TrendingUp },
+    { id: 'cash-credit', label: 'Credit Line', icon: DollarSign },
+    { id: 'network-caps', label: 'Network Caps', icon: ChartBar },
+    { id: 'thirty-day-challenge', label: '30 Day Challenge', icon: Calendar },
+    { id: 'pl', label: 'Profit & Loss', icon: BarChart2 },
+    { id: 'network', label: 'Offer Performance', icon: Target },
+    { id: 'media-buyers', label: 'Media Buyers', icon: Users }
+  ];
+
+  const moreTabs = [
     { id: 'overview-v2', label: 'Overview' },
     { id: 'financial-overview', label: 'Financial Overview' },
-    { id: 'tradeshift', label: 'Tradeshift Cards', icon: '💳' },
-    { id: 'highlights', label: 'Highlights' },
-    { id: 'cash-position', label: 'Cash Position' },
-    { id: 'net-profit', label: 'Net Profit' },
-    { id: 'bank-goals', label: 'Profit Distribution' },
-    { id: 'cash-credit', label: 'Credit Line' },
-    { id: 'network-caps', label: 'Network Caps' },
-    { id: 'daily-spend', label: 'Daily Spend' },
-    { id: 'cash-flow', label: 'Cash Flow' }, 
-    { id: 'pl', label: 'Profit & Loss' },
-    { id: 'network', label: 'Offer Performance' },
-    { id: 'media-buyers', label: 'Media Buyers' },
     { id: 'invoices', label: 'Invoices' },
+    { id: 'cash-position', label: 'Cash Position' },
     { id: 'upcoming-expenses', label: 'Expenses' },
-    { id: 'revenue-flow', label: 'Revenue Flow' }
+    { id: 'revenue-flow', label: 'Revenue Flow' },
+    { id: 'cash-flow', label: 'Cash Flow' },
+    { id: 'daily-spend', label: 'Daily Spend' },
+    { id: 'bank-goals', label: 'Profit Distribution' },
+    { id: 'tradeshift', label: 'Tradeshift Cards' }
   ];
 
   const fetchDashboardData = async () => {
@@ -149,16 +161,78 @@ export default function DashboardPage() {
     }
   };
 
+  const handleMoreClick = () => {
+    if (moreButtonRef.current) {
+      const rect = moreButtonRef.current.getBoundingClientRect();
+      document.documentElement.style.setProperty('--menu-top', `${rect.bottom}px`);
+      document.documentElement.style.setProperty('--menu-left', `${rect.left + (rect.width / 2)}px`);
+    }
+    setShowMoreMenu(!showMoreMenu);
+  };
+
   const renderTabContent = () => {
     switch (activeTab) {
+      case 'ai-insights':
+        return (
+          <div className="space-y-6">
+            <AIInsightsPage
+              performanceData={performanceData}
+              invoicesData={invoicesData}
+              expenseData={payrollData}
+            />
+          </div>
+        );
       case 'net-profit':
         console.log('Net Profit tab data:', {
           performanceData: performanceData?.length,
           dateRange,
           samplePerformanceData: performanceData?.[0]
         });
+
+        // Debug logging for financial metrics
+        console.log('Raw financial data:', {
+          invoicesData,
+          rawData: {
+            networkTerms: rawData?.networkTerms,
+            financialResources: rawData?.financialResources
+          },
+          cashManagementData
+        });
+
+        // Calculate financial metrics
+        const cashInBank = cashManagementData?.availableCash || 0;
+        const creditCardDebt = (rawData?.financialResources || [])
+          .filter(resource => resource.owing > 0)
+          .reduce((sum, card) => sum + (parseFloat(card.owing) || 0), 0);
+        const outstandingInvoices = (invoicesData || [])
+          .filter(invoice => !invoice.paid && invoice.Amount > 0)
+          .reduce((sum, invoice) => sum + (parseFloat(invoice.Amount) || 0), 0);
+        const networkExposure = (rawData?.networkTerms || [])
+          .reduce((sum, term) => sum + (parseFloat(term.runningTotal) || 0), 0);
+
+        console.log('Calculated financial metrics:', {
+          cashInBank,
+          creditCardDebt,
+          outstandingInvoices,
+          networkExposure,
+          invoiceCount: invoicesData?.length,
+          networkTermsCount: rawData?.networkTerms?.length
+        });
+
         return (
           <div className="space-y-6">
+            <FinancialOverviewBox 
+              cashInBank={cashInBank}
+              creditCardDebt={creditCardDebt}
+              outstandingInvoices={outstandingInvoices}
+              networkExposure={networkExposure}
+              onRefresh={() => {
+                setIsRefreshing(true);
+                fetchDashboardData().finally(() => {
+                  setIsRefreshing(false);
+                });
+              }}
+            />
             <NetProfit 
               performanceData={performanceData}
               dateRange={dateRange}
@@ -327,6 +401,20 @@ export default function DashboardPage() {
           </div>
         );
   
+      case 'thirty-day-challenge':
+        return (
+          <div className="space-y-8">
+            <CreditLineManager 
+              performanceData={performanceData} 
+              invoicesData={invoicesData} 
+              creditCardData={rawData?.financialResources || []}
+              payrollData={payrollData || []}
+            />
+            <ThirtyDayChallenge performanceData={performanceData} />
+            <MediaBuyerProgress performanceData={performanceData} />
+          </div>
+        );
+  
       default:
         return null;
     }
@@ -376,8 +464,8 @@ export default function DashboardPage() {
   }
 
   return (
-    <main className="min-h-screen bg-gray-100">
-      <div className="container mx-auto px-4 py-8">
+    <main className="min-h-screen bg-gray-50">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-8">
           <h1 className="text-3xl font-bold text-gray-900">Performance Dashboard</h1>
           <div className="flex items-center gap-4">
@@ -414,22 +502,71 @@ export default function DashboardPage() {
         <div className="space-y-6">
           <div className="border-b border-gray-200">
             <nav className="-mb-px flex space-x-8 overflow-x-auto">
-              {tabs.map((tab) => (
+              {mainTabs.map((tab) => {
+                const Icon = tab.icon;
+                return (
+                  <button
+                    key={tab.id}
+                    onClick={() => setActiveTab(tab.id)}
+                    className={`
+                      whitespace-nowrap py-4 px-3 border-b-2 font-medium text-sm flex items-center
+                      ${
+                        activeTab === tab.id
+                          ? 'border-indigo-500 text-indigo-600'
+                          : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                      }
+                    `}
+                  >
+                    {Icon && <Icon className="w-4 h-4 mr-2" />}
+                    {tab.label}
+                  </button>
+                );
+              })}
+              
+              {/* More dropdown */}
+              <div className="relative flex items-center">
                 <button
-                  key={tab.id}
-                  onClick={() => setActiveTab(tab.id)}
-                  className={`
-                    whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm
-                    ${
-                      activeTab === tab.id
-                        ? 'border-indigo-500 text-indigo-600'
-                        : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
-                    }
-                  `}
+                  ref={moreButtonRef}
+                  onClick={handleMoreClick}
+                  className="whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300 flex items-center gap-1"
                 >
-                  {tab.label}
+                  More
+                  <ChevronDown className="h-4 w-4" />
                 </button>
-              ))}
+                
+                {showMoreMenu && (
+                  <div 
+                    className="fixed mt-2 w-56 rounded-md shadow-lg bg-white ring-1 ring-black ring-opacity-5 z-50"
+                    style={{
+                      top: 'var(--menu-top, 64px)',
+                      left: 'var(--menu-left, auto)',
+                      transform: 'translateX(-50%)'
+                    }}
+                  >
+                    <div className="py-1">
+                      {moreTabs.map((tab) => (
+                        <button
+                          key={tab.id}
+                          onClick={() => {
+                            setActiveTab(tab.id);
+                            setShowMoreMenu(false);
+                          }}
+                          className={`
+                            block w-full text-left px-4 py-2 text-sm
+                            ${
+                              activeTab === tab.id
+                                ? 'bg-gray-100 text-gray-900'
+                                : 'text-gray-700 hover:bg-gray-50'
+                            }
+                          `}
+                        >
+                          {tab.label}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
             </nav>
           </div>
 

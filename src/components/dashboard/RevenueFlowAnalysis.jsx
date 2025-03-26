@@ -30,6 +30,15 @@ const isCashInjection = (description) => {
   return injectionKeywords.some(keyword => desc.includes(keyword));
 };
 
+const parseAmount = (amount) => {
+  if (!amount) return 0;
+  if (typeof amount === 'number') return amount;
+  if (typeof amount === 'string') {
+    return parseFloat(amount.replace(/[$,]/g, '') || 0);
+  }
+  return 0;
+};
+
 export default function RevenueFlowAnalysis({ performanceData, networkTerms, invoicesData, plData }) {
   const INITIAL_CASH = 266291.92;
   const INITIAL_CREDIT_DEBT = 432848.44;
@@ -53,12 +62,12 @@ export default function RevenueFlowAnalysis({ performanceData, networkTerms, inv
         // Calculate monthly revenue
         const revenue = data.monthDataArray
           ?.filter(row => row['Income/Expense'] === 'Income')
-          .reduce((sum, row) => sum + parseFloat(row.AMOUNT.replace(/[$,]/g, '') || 0), 0) || 0;
+          .reduce((sum, row) => sum + parseAmount(row.AMOUNT), 0) || 0;
 
         // Calculate monthly expenses
         const expenses = data.monthDataArray
           ?.filter(row => row['Income/Expense'] === 'Expense')
-          .reduce((sum, row) => sum + parseFloat(row.AMOUNT.replace(/[$,]/g, '') || 0), 0) || 0;
+          .reduce((sum, row) => sum + parseAmount(row.AMOUNT), 0) || 0;
 
         // Calculate net for the month
         const monthlyNet = revenue - expenses;
@@ -109,11 +118,11 @@ export default function RevenueFlowAnalysis({ performanceData, networkTerms, inv
         // Calculate monthly revenue and expenses
         const revenue = data.monthDataArray
           ?.filter(row => row['Income/Expense'] === 'Income')
-          .reduce((sum, row) => sum + parseFloat(row.AMOUNT.replace(/[$,]/g, '') || 0), 0) || 0;
+          .reduce((sum, row) => sum + parseAmount(row.AMOUNT), 0) || 0;
 
         const expenses = data.monthDataArray
           ?.filter(row => row['Income/Expense'] === 'Expense')
-          .reduce((sum, row) => sum + parseFloat(row.AMOUNT.replace(/[$,]/g, '') || 0), 0) || 0;
+          .reduce((sum, row) => sum + parseAmount(row.AMOUNT), 0) || 0;
         
         // Calculate monthly net and update running total
         const monthlyNet = revenue - expenses;
