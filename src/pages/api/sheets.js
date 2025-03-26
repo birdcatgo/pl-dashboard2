@@ -7,48 +7,43 @@ async function processPLData(batchResponse) {
     const monthlyData = {};
     const summaryData = [];
 
-    // Process monthly detail sheets
-    const monthSheets = batchResponse.data.valueRanges.filter(range => {
-      return /^(June|July|August|September|October|November|December|January|February)!/.test(range.range);
-    });
+    // Process monthly detail sheets more efficiently
+    const monthSheets = batchResponse.data.valueRanges.filter(range => 
+      /^(June|July|August|September|October|November|December|January|February)!/.test(range.range)
+    );
 
-    monthSheets.forEach(monthSheet => {
+    // Process all months in parallel
+    await Promise.all(monthSheets.map(async monthSheet => {
       const monthName = monthSheet.range.split('!')[0];
       
       if (monthSheet.values && monthSheet.values.length > 1) {
+        // Map rows more efficiently with a single pass
         const monthlyRows = monthSheet.values.slice(1).map(row => ({
           DESCRIPTION: row[0]?.trim() || '',
-          AMOUNT: row[1] || '0',
+          AMOUNT: parseFloat(row[1]?.replace(/[$,]/g, '') || '0'),
           CATEGORY: row[2]?.trim() || '',
           'Income/Expense': row[3]?.trim() || ''
         }));
 
-        // Separate income and expense data
-        const incomeData = monthlyRows
-          .filter(row => row['Income/Expense'] === 'Income')
-          .sort((a, b) => parseFloat(a.AMOUNT.replace(/[$,]/g, '')) - parseFloat(b.AMOUNT.replace(/[$,]/g, '')));
-
-        const expenseData = monthlyRows
-          .filter(row => row['Income/Expense'] === 'Expense');
-
-        // Group expenses by category
-        const categories = expenseData.reduce((acc, row) => {
-          const category = row.CATEGORY || 'Uncategorized';
-          if (!acc[category]) {
-            acc[category] = [];
+        // Calculate totals in a single reduce operation
+        const { incomeData, expenseData, totalIncome, totalExpenses } = monthlyRows.reduce((acc, row) => {
+          if (row['Income/Expense']?.toLowerCase() === 'income') {
+            acc.incomeData.push(row);
+            acc.totalIncome += row.AMOUNT;
+          } else {
+            acc.expenseData.push(row);
+            acc.totalExpenses += row.AMOUNT;
           }
-          acc[category].push(row);
+          return acc;
+        }, { incomeData: [], expenseData: [], totalIncome: 0, totalExpenses: 0 });
+
+        // Group expenses by category more efficiently
+        const categories = expenseData.reduce((acc, expense) => {
+          const category = expense.CATEGORY || 'Uncategorized';
+          if (!acc[category]) acc[category] = [];
+          acc[category].push(expense);
           return acc;
         }, {});
-
-        // Calculate totals
-        const totalIncome = incomeData.reduce((sum, row) => 
-          sum + parseFloat(row.AMOUNT.replace(/[$,]/g, '') || 0), 0
-        );
-
-        const totalExpenses = expenseData.reduce((sum, row) => 
-          sum + parseFloat(row.AMOUNT.replace(/[$,]/g, '') || 0), 0
-        );
 
         monthlyData[monthName] = {
           monthDataArray: monthlyRows,
@@ -58,52 +53,44 @@ async function processPLData(batchResponse) {
           totalIncome,
           totalExpenses
         };
-      }
-    });
-
-    // Process summary data
-    const summarySheet = batchResponse.data.valueRanges.find(range => range.range.includes('Summary'));
-    if (summarySheet?.values) {
-      const summaryRows = summarySheet.values.slice(1).filter(row => row.length);
-      summaryRows.forEach(row => {
-        // Get the values directly from the correct columns
-        const income = parseFloat((row[1] || '0').replace(/[$,]/g, '')); // Income
-        const expenses = [
-          parseFloat((row[3] || '0').replace(/[$,]/g, '')),  // Payroll
-          parseFloat((row[4] || '0').replace(/[$,]/g, '')),  // Advertising
-          parseFloat((row[5] || '0').replace(/[$,]/g, '')),  // Software
-          parseFloat((row[6] || '0').replace(/[$,]/g, '')),  // Training
-          parseFloat((row[7] || '0').replace(/[$,]/g, '')),  // Once_Off
-          parseFloat((row[8] || '0').replace(/[$,]/g, '')),  // Memberships
-          parseFloat((row[9] || '0').replace(/[$,]/g, '')),  // Contractors
-          parseFloat((row[10] || '0').replace(/[$,]/g, '')), // Tax
-          parseFloat((row[11] || '0').replace(/[$,]/g, '')), // Bank_Fees
-          parseFloat((row[12] || '0').replace(/[$,]/g, '')), // Utilities
-          parseFloat((row[13] || '0').replace(/[$,]/g, '')), // Travel
-          parseFloat((row[14] || '0').replace(/[$,]/g, '')), // Capital_One
-          parseFloat((row[15] || '0').replace(/[$,]/g, '')), // Barclay
-          parseFloat((row[16] || '0').replace(/[$,]/g, '')), // Business_Loan
-          parseFloat((row[17] || '0').replace(/[$,]/g, ''))  // Unknown Expense
-        ].reduce((a, b) => !isNaN(b) ? a + b : a, 0);
-
-        // Get Net_Rev and Net% directly from the sheet
-        const netProfit = parseFloat((row[18] || '0').replace(/[$,]/g, '')); // Net_Rev column
-        const netPercent = parseFloat((row[19] || '0').replace(/[^0-9.-]/g, '')); // Net% column
 
         summaryData.push({
-          Month: row[0] || '',
-          Income: income,
-          Expenses: expenses,
-          NetProfit: netProfit,
-          'Net%': netPercent
+          Month: monthName,
+          Income: totalIncome,
+          Expenses: totalExpenses,
+          NetProfit: totalIncome - totalExpenses
         });
+      }
+    }));
+
+    // Add Tradeshift data processing with better error handling
+    let tradeshiftData;
+    try {
+      tradeshiftData = await processTradeShiftData(tradeshiftResponse);
+      console.log('Processed Tradeshift data:', {
+        hasData: !!tradeshiftData,
+        dataLength: tradeshiftData?.length,
+        sampleData: tradeshiftData?.[0]
       });
+    } catch (error) {
+      console.error('Error processing Tradeshift data:', error);
+      tradeshiftData = [];
     }
 
-    return { summary: summaryData, monthly: monthlyData };
+    const result = { summary: summaryData, monthly: monthlyData };
+    result.tradeshiftData = tradeshiftData;
+
+    console.log('API sending networkTerms:', {
+      hasTerms: !!result.networkTerms,
+      termsCount: result.networkTerms?.length,
+      sampleTerm: result.networkTerms?.[0]
+    });
+
+    return result;
+
   } catch (error) {
-    console.error('Error processing P&L data:', error);
-    return { summary: [], monthly: {} };
+    console.error('Error in processPLData:', error);
+    throw new Error('Failed to process P&L data: ' + error.message);
   }
 }
 
@@ -574,22 +561,6 @@ export default async function handler(req, res) {
         first: mainResponse?.values?.[1]?.[0],
         last: mainResponse?.values?.[mainResponse?.values?.length - 1]?.[0]
       }
-    });
-
-    // Add Tradeshift data processing with more logging
-    const tradeshiftData = await processTradeShiftData(tradeshiftResponse);
-    console.log('Processed Tradeshift data:', {
-      hasData: !!tradeshiftData,
-      dataLength: tradeshiftData?.length,
-      sampleData: tradeshiftData?.[0]
-    });
-
-    result.tradeshiftData = tradeshiftData;
-
-    console.log('API sending networkTerms:', {
-      hasTerms: !!result.networkTerms,
-      termsCount: result.networkTerms.length,
-      sampleTerm: result.networkTerms[0]
     });
 
     res.status(200).json(result);

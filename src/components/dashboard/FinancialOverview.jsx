@@ -6,6 +6,7 @@ import FinancialSnapshot from './FinancialSnapshot';
 
 const SLACK_WEBHOOK_URL = process.env.NEXT_PUBLIC_SLACK_WEBHOOK_URL;
 
+// Move parseAmount to the top of the file, after formatCurrency
 const formatCurrency = (amount) => {
   return new Intl.NumberFormat('en-US', {
     style: 'currency',
@@ -15,6 +16,15 @@ const formatCurrency = (amount) => {
   }).format(amount);
 };
 
+// Single parseAmount implementation to be used throughout the component
+const parseAmount = (value) => {
+  if (typeof value === 'number') return value;
+  if (typeof value === 'string') {
+    return parseFloat(value.replace(/[$,]/g, '') || '0');
+  }
+  return 0;
+};
+
 const ExpenseDetails = ({ expenses, onClose, isAdvertising = false }) => {
   const [selectedForCancellation, setSelectedForCancellation] = useState([]);
   const [selectedForReview, setSelectedForReview] = useState([]);
@@ -22,20 +32,52 @@ const ExpenseDetails = ({ expenses, onClose, isAdvertising = false }) => {
   const [notes, setNotes] = useState({});
   const [isSending, setIsSending] = useState(false);
 
-  // Load saved non-C2F items from localStorage
+  // Create unique identifiers for expenses
+  const getExpenseKey = (expense) => {
+    return `${expense.DESCRIPTION}_${expense.AMOUNT}`;
+  };
+
+  const isExpenseSelected = (expense, savedKeys) => {
+    return savedKeys.includes(getExpenseKey(expense));
+  };
+
+  // Load saved states from localStorage
   useEffect(() => {
     const savedNonC2F = localStorage.getItem('nonC2FExpenses');
+    const savedForReview = localStorage.getItem('expensesForReview');
+    const savedForCancellation = localStorage.getItem('expensesForCancellation');
+    const savedNotes = localStorage.getItem('expenseNotes');
+
     if (savedNonC2F) {
-      setNonC2FItems(JSON.parse(savedNonC2F));
+      const savedKeys = JSON.parse(savedNonC2F);
+      setNonC2FItems(expenses.filter(expense => isExpenseSelected(expense, savedKeys)));
     }
-  }, []);
+
+    if (savedForReview) {
+      const savedKeys = JSON.parse(savedForReview);
+      setSelectedForReview(expenses.filter(expense => isExpenseSelected(expense, savedKeys)));
+    }
+
+    if (savedForCancellation) {
+      const savedKeys = JSON.parse(savedForCancellation);
+      setSelectedForCancellation(expenses.filter(expense => isExpenseSelected(expense, savedKeys)));
+    }
+
+    if (savedNotes) setNotes(JSON.parse(savedNotes));
+  }, [expenses]);
+
+  const saveChanges = () => {
+    localStorage.setItem('nonC2FExpenses', JSON.stringify(nonC2FItems.map(getExpenseKey)));
+    localStorage.setItem('expensesForReview', JSON.stringify(selectedForReview.map(getExpenseKey)));
+    localStorage.setItem('expensesForCancellation', JSON.stringify(selectedForCancellation.map(getExpenseKey)));
+    localStorage.setItem('expenseNotes', JSON.stringify(notes));
+  };
 
   const handleToggleNonC2F = (expense) => {
     const newNonC2F = nonC2FItems.includes(expense)
       ? nonC2FItems.filter(e => e !== expense)
       : [...nonC2FItems, expense];
     setNonC2FItems(newNonC2F);
-    localStorage.setItem('nonC2FExpenses', JSON.stringify(newNonC2F));
   };
 
   const handleToggleSelection = (expense) => {
@@ -58,14 +100,6 @@ const ExpenseDetails = ({ expenses, onClose, isAdvertising = false }) => {
     const newNotes = { ...notes, [expense.DESCRIPTION]: note };
     setNotes(newNotes);
     localStorage.setItem('expenseNotes', JSON.stringify(newNotes));
-  };
-
-  const parseAmount = (amount) => {
-    if (typeof amount === 'number') return amount;
-    if (typeof amount === 'string') {
-      return parseFloat(amount.replace(/[$,]/g, '')) || 0;
-    }
-    return 0;
   };
 
   const sendToSlack = async () => {
@@ -197,131 +231,88 @@ const ExpenseDetails = ({ expenses, onClose, isAdvertising = false }) => {
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
       <div className="bg-white rounded-lg p-6 max-w-4xl w-full max-h-[80vh] overflow-y-auto">
         <div className="flex justify-between items-center mb-4">
-          <h3 className="text-lg font-medium">Expense Breakdown</h3>
-          <div className="flex items-center gap-4">
+          <h3 className="text-lg font-medium">Expense Details</h3>
+          <div className="flex items-center space-x-4">
+            <button
+              onClick={saveChanges}
+              className="px-4 py-2 bg-green-600 text-white rounded hover:bg-green-700"
+            >
+              Save Changes
+            </button>
             <button
               onClick={sendToSlack}
-              disabled={isSending}
-              className={`px-4 py-2 rounded-lg text-sm font-medium ${
-                isSending 
-                  ? 'bg-gray-300 cursor-not-allowed' 
-                  : 'bg-blue-600 hover:bg-blue-700 text-white'
-              }`}
+              disabled={isSending || (selectedForCancellation.length === 0 && selectedForReview.length === 0)}
+              className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 disabled:opacity-50"
             >
               {isSending ? 'Sending...' : 'Send to Slack'}
             </button>
-            <button onClick={onClose} className="text-gray-500 hover:text-gray-700">✕</button>
+            <button
+              onClick={() => {
+                saveChanges();
+                onClose();
+              }}
+              className="p-2 text-gray-500 hover:text-gray-700"
+              aria-label="Close"
+            >
+              ✕
+            </button>
           </div>
         </div>
-        <div className="overflow-x-auto">
-          <table className="w-full">
-            <thead>
-              <tr className="text-left border-b">
-                <th className="pb-2">Description</th>
-                <th className="pb-2 text-right">Amount</th>
-                <th className="pb-2 text-center">Non C2F</th>
-                {!isAdvertising && (
-                  <>
-                    <th className="pb-2 text-center">To Be Reviewed</th>
-                    <th className="pb-2 text-center">To Be Cancelled</th>
-                    <th className="pb-2">Notes</th>
-                  </>
-                )}
-              </tr>
-            </thead>
-            <tbody>
-              {expenses?.map((expense, index) => (
-                <tr key={index} className="border-b">
-                  <td className="py-2">{expense.DESCRIPTION}</td>
-                  <td className="py-2 text-right">
-                    {formatCurrency(parseAmount(expense.AMOUNT))}
-                  </td>
-                  <td className="py-2 text-center">
-                    <input
-                      type="checkbox"
-                      checked={nonC2FItems.includes(expense)}
-                      onChange={() => handleToggleNonC2F(expense)}
-                      className="h-4 w-4 text-yellow-600 rounded border-gray-300 focus:ring-yellow-500"
-                    />
-                  </td>
-                  {!isAdvertising && (
-                    <>
-                      <td className="py-2 text-center">
-                        <input
-                          type="checkbox"
-                          checked={selectedForReview.includes(expense)}
-                          onChange={() => handleToggleReview(expense)}
-                          className="h-4 w-4 text-blue-600 rounded border-gray-300 focus:ring-blue-500"
-                        />
-                      </td>
-                      <td className="py-2 text-center">
-                        <input
-                          type="checkbox"
-                          checked={selectedForCancellation.includes(expense)}
-                          onChange={() => handleToggleSelection(expense)}
-                          className="h-4 w-4 text-red-600 rounded border-gray-300 focus:ring-red-500"
-                        />
-                      </td>
-                      <td className="py-2">
-                        <input
-                          type="text"
-                          value={notes[expense.DESCRIPTION] || ''}
-                          onChange={(e) => handleNoteChange(expense, e.target.value)}
-                          placeholder="Add a note..."
-                          className="w-full border rounded-md px-2 py-1 text-sm"
-                        />
-                      </td>
-                    </>
-                  )}
-                </tr>
-              ))}
-            </tbody>
-            <tfoot className="bg-gray-50">
-              <tr>
-                <td className="py-2 font-medium">Total Expenses</td>
-                <td className="py-2 text-right font-medium">
-                  {formatCurrency(
-                    expenses?.reduce((sum, expense) => sum + parseAmount(expense.AMOUNT), 0) || 0
-                  )}
+
+        <table className="min-w-full divide-y divide-gray-200">
+          <thead>
+            <tr>
+              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                Expense
+              </th>
+              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                Amount
+              </th>
+              <th className="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">
+                Non C2F
+              </th>
+              <th className="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">
+                To Be Reviewed
+              </th>
+              <th className="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">
+                To Be Cancelled
+              </th>
+            </tr>
+          </thead>
+          <tbody className="bg-white divide-y divide-gray-200">
+            {expenses.map((expense, index) => (
+              <tr key={index}>
+                <td className="px-6 py-4 whitespace-nowrap">
+                  {expense.DESCRIPTION}
                 </td>
-                <td className="py-2 text-center font-medium">
-                  {nonC2FItems.length > 0 && (
-                    <span className="text-sm text-yellow-600">
-                      {formatCurrency(
-                        nonC2FItems.reduce((sum, expense) => 
-                          sum + parseAmount(expense.AMOUNT), 0
-                        )
-                      )} non-C2F
-                    </span>
-                  )}
+                <td className="px-6 py-4 whitespace-nowrap">
+                  {formatCurrency(parseAmount(expense.AMOUNT))}
                 </td>
-                {!isAdvertising && (
-                  <>
-                    <td className="py-2 text-center font-medium">
-                      {selectedForReview.length > 0 && (
-                        <span className="text-sm text-blue-600">
-                          {selectedForReview.length} to review
-                        </span>
-                      )}
-                    </td>
-                    <td className="py-2 text-center font-medium">
-                      {selectedForCancellation.length > 0 && (
-                        <span className="text-sm text-red-600">
-                          {formatCurrency(
-                            selectedForCancellation.reduce((sum, expense) => 
-                              sum + parseAmount(expense.AMOUNT), 0
-                            )
-                          )} to cancel
-                        </span>
-                      )}
-                    </td>
-                    <td></td>
-                  </>
-                )}
+                <td className="px-6 py-4 text-center">
+                  <input
+                    type="checkbox"
+                    checked={nonC2FItems.includes(expense)}
+                    onChange={() => handleToggleNonC2F(expense)}
+                  />
+                </td>
+                <td className="px-6 py-4 text-center">
+                  <input
+                    type="checkbox"
+                    checked={selectedForReview.includes(expense)}
+                    onChange={() => handleToggleReview(expense)}
+                  />
+                </td>
+                <td className="px-6 py-4 text-center">
+                  <input
+                    type="checkbox"
+                    checked={selectedForCancellation.includes(expense)}
+                    onChange={() => handleToggleSelection(expense)}
+                  />
+                </td>
               </tr>
-            </tfoot>
-          </table>
-        </div>
+            ))}
+          </tbody>
+        </table>
       </div>
     </div>
   );
@@ -345,7 +336,25 @@ const QuickAction = ({ icon, label, onClick, variant = 'default' }) => {
   );
 };
 
-const ExpenseCategory = ({ title, monthlyData, monthlyExpenses }) => {
+const ExpenseCategory = ({ title, monthlyData, plData }) => {
+  const [showExpenseDetails, setShowExpenseDetails] = useState(false);
+
+  const handleClick = () => {
+    if (title.toLowerCase().includes('subscription')) {
+      // Get the most recent month's data
+      const mostRecentMonth = Object.entries(plData.monthly)
+        .filter(([month]) => ['February', 'January', 'December'].includes(month))
+        .sort(([monthA], [monthB]) => {
+          const monthOrder = { 'February': 3, 'January': 2, 'December': 1 };
+          return monthOrder[monthB] - monthOrder[monthA];
+        })[0];
+
+      if (mostRecentMonth) {
+        setShowExpenseDetails(true);
+      }
+    }
+  };
+
   const calculateTrend = (current, previous) => {
     if (!previous || previous === 0) return 0;
     return ((current - previous) / previous * 100).toFixed(1);
@@ -365,34 +374,65 @@ const ExpenseCategory = ({ title, monthlyData, monthlyExpenses }) => {
   ].filter(Boolean);
 
   return (
-    <div className="mb-6">
-      <h3 className="text-sm font-medium text-gray-500 mb-2">{title}</h3>
-      <div className="grid grid-cols-3 gap-4">
-        {orderedData.map((data, index) => {
-          const nextMonth = orderedData[index + 1];
-          const trend = nextMonth ? calculateTrend(data.amount, nextMonth.amount) : 0;
+    <div className="mt-6">
+      <h3 className="text-sm font-medium text-gray-500 mb-2">
+        {title}
+      </h3>
+      <div 
+        className={`bg-white rounded-lg shadow ${
+          title.toLowerCase().includes('subscription') ? 'cursor-pointer hover:bg-gray-50' : ''
+        }`}
+        onClick={handleClick}
+      >
+        <div className="grid grid-cols-3 gap-4">
+          {orderedData.map((data, index) => {
+            const nextMonth = orderedData[index + 1];
+            const trend = nextMonth ? calculateTrend(data.amount, nextMonth.amount) : 0;
 
-          return (
-            <div key={index} className="bg-white rounded-lg p-4 shadow-sm">
-              <div className="text-sm text-gray-500">{data.month}</div>
-              <div className="flex items-center justify-between mt-1">
-                <div className="text-lg font-semibold">{formatCurrency(data.amount)}</div>
-                {index === 0 && nextMonth && (
-                  <div className="relative group">
-                    <div className={`text-sm ${trend > 0 ? 'text-red-600' : 'text-green-600'}`}>
-                      {trend > 0 ? '↑' : '↓'}{Math.abs(trend)}%
+            return (
+              <div key={index} className="bg-white rounded-lg p-4 shadow-sm">
+                <div className="text-sm text-gray-500">{data.month}</div>
+                <div className="flex items-center justify-between mt-1">
+                  <div className="text-lg font-semibold">{formatCurrency(data.amount)}</div>
+                  {index === 0 && nextMonth && (
+                    <div className="relative group">
+                      <div className={`text-sm ${trend > 0 ? 'text-red-600' : 'text-green-600'}`}>
+                        {trend > 0 ? '↑' : '↓'}{Math.abs(trend)}%
+                      </div>
+                      <div className="absolute bottom-full right-0 mb-2 hidden group-hover:block w-64 p-2 bg-gray-800 text-white text-xs rounded shadow-lg z-50">
+                        {getTrendExplanation(data.amount, nextMonth.amount, nextMonth.month)}
+                      </div>
                     </div>
-                    {/* Tooltip */}
-                    <div className="absolute bottom-full right-0 mb-2 hidden group-hover:block w-64 p-2 bg-gray-800 text-white text-xs rounded shadow-lg z-50">
-                      {getTrendExplanation(data.amount, nextMonth.amount, nextMonth.month)}
-                    </div>
-                  </div>
-                )}
+                  )}
+                </div>
               </div>
-            </div>
-          );
-        })}
+            );
+          })}
+        </div>
       </div>
+
+      {showExpenseDetails && (
+        <ExpenseDetails
+          expenses={Object.entries(plData.monthly)
+            .filter(([month]) => ['February', 'January', 'December'].includes(month))
+            .sort(([monthA], [monthB]) => {
+              const monthOrder = { 'February': 3, 'January': 2, 'December': 1 };
+              return monthOrder[monthB] - monthOrder[monthA];
+            })[0]?.[1]?.expenseData?.filter(expense => {
+              const category = expense.CATEGORY?.toLowerCase() || '';
+              const description = expense.DESCRIPTION?.toLowerCase() || '';
+              return category.includes('subscription') || 
+                     category.includes('software') || 
+                     category.includes('saas') || 
+                     category.includes('service') ||
+                     description.includes('subscription') ||
+                     description.includes('software') ||
+                     description.includes('license');
+            }) || []}
+          onClose={() => setShowExpenseDetails(false)}
+          isAdvertising={false}
+        />
+      )}
     </div>
   );
 };
@@ -1084,200 +1124,109 @@ const ExpenseComparisonTable = ({ monthlyData, plData }) => {
     if (!name) return '';
     return name
       .toLowerCase()
-      // Remove common separators and special characters
       .replace(/[.,\-_&\/\\|]+/g, ' ')
-      // Remove common suffixes
       .replace(/\.(com|io|ai|net|org)$/g, '')
-      // Remove common words
       .replace(/\b(inc|llc|ltd|subscription|license|platform)\b/g, '')
-      // Remove extra spaces
       .trim()
       .replace(/\s+/g, ' ');
   };
 
   // Add helper function for finding similar names
-  const findSimilarExpense = (expenses, name) => {
+  const findSimilarExpense = (expenses = [], name) => {
+    if (!expenses || !name) return null;
     const normalizedName = normalizeExpenseName(name);
-    
-    // Names that should not be combined even if similar
-    const distinctNames = {
-      'dan': ['daniel'], // These should stay separate
-      'daniel': ['dan'], // These should stay separate
-      // Add more distinct names as needed
-    };
-
-    // Check if this name should be kept distinct
-    for (const [base, variations] of Object.entries(distinctNames)) {
-      if (normalizedName.includes(base) || variations.some(v => normalizedName.includes(v))) {
-        // Only look for exact matches for these names
-        return expenses.find(e => e.name === name);
-      }
-    }
-    
-    // Common misspellings and variations (for non-distinct names)
-    const commonVariations = {
-      'anthropic': ['claude ai', 'claude'],
-      'chatgpt': ['chat gpt', 'chatgbt', 'chat gbt'],
-      'github': ['git hub', 'githubcom'],
-      'google one': ['google storage', 'google cloud storage'],
-      'google workspace': ['gsuite', 'g suite', 'google suite', 'google apps'],
-      'midjourney': ['mijourney', 'mid journey', 'midjoury'],
-      'multilogin': ['multi login', 'multi-login'],
-      'revivalofwisdom': ['revival of wisdom', 'revival wisdom', 'revival-of-wisdom'],
-      'skool': ['skoolcom', 'skool com', 'skool.com'],
-      'spyhero': ['spy hero', 'spy-hero'],
-      'zapier': ['zapiercom', 'zapier com'],
-      // Add more variations as needed
-    };
-
-    // Check for exact matches first
-    const existing = expenses.find(e => 
-      normalizeExpenseName(e.name) === normalizedName
-    );
-    if (existing) return existing;
-
-    // Check for known variations (only for non-distinct names)
-    for (const [standard, variations] of Object.entries(commonVariations)) {
-      if (normalizedName === standard || variations.includes(normalizedName)) {
-        const standardMatch = expenses.find(e => 
-          normalizeExpenseName(e.name) === standard
-        );
-        if (standardMatch) return standardMatch;
-      }
-    }
-
-    // Check for similar names using substring matching (only for non-distinct names)
-    return expenses.find(e => {
-      const existingNormalized = normalizeExpenseName(e.name);
-      // Don't combine if either name is in the distinctNames list
-      for (const [base, variations] of Object.entries(distinctNames)) {
-        if (existingNormalized.includes(base) || 
-            normalizedName.includes(base) ||
-            variations.some(v => existingNormalized.includes(v) || normalizedName.includes(v))) {
-          return false;
-        }
-      }
-      return existingNormalized.includes(normalizedName) || 
-             normalizedName.includes(existingNormalized);
-    });
+    return expenses.find(e => normalizeExpenseName(e.name) === normalizedName);
   };
 
-  const categories = {
-    'Payroll': [],
-    'Subscriptions': [],
-    'Advertising': [],
-    'Miscellaneous': []
+  // Initialize categories with empty arrays
+  const initialCategories = {
+    payroll: [],
+    advertising: [],
+    subscriptions: [],
+    other: []
   };
-  
-  // Modified expense collection with fuzzy matching
-  monthlyData.forEach(({ month }) => {
+
+  // Process expenses by category
+  const categories = monthlyData.reduce((acc, { month }) => {
     const monthName = format(month, 'MMMM');
     const monthExpenses = plData.monthly[monthName]?.expenseData || [];
-    
+
     monthExpenses.forEach(expense => {
       const category = expense.CATEGORY?.toLowerCase() || '';
-      const name = expense.DESCRIPTION;
+      const name = expense.DESCRIPTION || '';
       let targetCategory;
 
-      if (category.includes('subscription') || category.includes('software')) {
-        targetCategory = 'Subscriptions';
-      } else if (category.includes('payroll') || category.includes('salary')) {
-        targetCategory = 'Payroll';
-      } else if (category.includes('ad') || category.includes('marketing')) {
-        targetCategory = 'Advertising';
+      if (category.includes('payroll') || category.includes('salary')) {
+        targetCategory = 'payroll';
+      } else if (category.includes('advertising') || category.includes('ad spend')) {
+        targetCategory = 'advertising';
+      } else if (category.includes('subscription') || category.includes('software')) {
+        targetCategory = 'subscriptions';
       } else {
-        targetCategory = 'Miscellaneous';
+        targetCategory = 'other';
       }
 
-      const amount = parseFloat(expense.AMOUNT.replace(/[$,]/g, '')) || 0;
-      const existingExpense = findSimilarExpense(categories[targetCategory], name);
+      // Use parseAmount helper instead of direct parsing
+      const amount = parseAmount(expense.AMOUNT);
+      const existingExpense = findSimilarExpense(acc[targetCategory], name);
 
       if (existingExpense) {
         existingExpense.amounts[monthName] = (existingExpense.amounts[monthName] || 0) + amount;
-        // Keep track of variations for reference
-        if (!existingExpense.variations) existingExpense.variations = new Set();
-        existingExpense.variations.add(name);
       } else {
-        categories[targetCategory].push({
+        acc[targetCategory].push({
           name,
-          originalName: name, // Keep original name for reference
-          amounts: { [monthName]: amount },
-          variations: new Set([name])
+          normalizedName: normalizeExpenseName(name),
+          amounts: { [monthName]: amount }
         });
       }
     });
-  });
+
+    return acc;
+  }, initialCategories);
 
   return (
     <div className="mt-8 border-t pt-6">
       <h3 className="text-lg font-medium text-gray-900 mb-4">Expense Analysis by Category</h3>
       <div className="space-y-4">
-        {Object.entries(categories).map(([category, expenses]) => {
-          const categoryTotal = expenses.reduce((total, expense) => {
-            return monthlyData.reduce((sum, { month }) => {
-              const monthName = format(month, 'MMMM');
-              return sum + (expense.amounts[monthName] || 0);
-            }, total);
-          }, 0) / monthlyData.length;
+        {Object.entries(categories).map(([category, expenses]) => (
+          <div key={category} className="border rounded-lg overflow-hidden">
+            <button
+              onClick={() => setExpandedCategory(expandedCategory === category ? null : category)}
+              className="w-full px-4 py-3 bg-gray-50 hover:bg-gray-100 flex items-center justify-between"
+            >
+              <div className="flex items-center space-x-4">
+                <span className="font-medium capitalize">{category}</span>
+                <span className="text-sm text-gray-500">
+                  {expenses.length} items
+                </span>
+              </div>
+              <div className="flex items-center space-x-4">
+                <span className="text-gray-500">
+                  {expandedCategory === category ? '▼' : '▶'}
+                </span>
+              </div>
+            </button>
 
-          return (
-            <div key={category} className="border rounded-lg overflow-hidden">
-              <button
-                onClick={() => setExpandedCategory(expandedCategory === category ? null : category)}
-                className="w-full px-4 py-3 bg-gray-50 hover:bg-gray-100 flex items-center justify-between"
-              >
-                <div className="flex items-center space-x-4">
-                  <span className="font-medium">{category}</span>
-                  <span className="text-sm text-gray-500">
-                    {expenses.length} items
-                  </span>
-                </div>
-                <div className="flex items-center space-x-4">
-                  <span className="font-medium">{formatCurrency(categoryTotal)}/mo avg</span>
-                  <span className="text-gray-500">
-                    {expandedCategory === category ? '▼' : '▶'}
-                  </span>
-                </div>
-              </button>
-              
-              {expandedCategory === category && (
-                <div className="divide-y divide-gray-200">
-                  <div className="grid grid-cols-5 gap-4 px-4 py-2 bg-gray-50 text-xs font-medium text-gray-500 uppercase">
-                    <div className="col-span-2">Item</div>
-                    {monthlyData.map(({ month }) => (
-                      <div key={month} className="text-right">{format(month, 'MMM')}</div>
-                    ))}
-                  </div>
-                  {expenses
-                    .sort((a, b) => a.name.localeCompare(b.name)) // Sort alphabetically
-                    .map((expense, index) => (
-                      <div key={index} className="grid grid-cols-5 gap-4 px-4 py-2 text-sm hover:bg-gray-50">
-                        <div className="col-span-2">
-                          <div className="truncate font-medium">{expense.name}</div>
-                          {expense.variations?.size > 1 && (
-                            <div className="text-xs text-gray-500 truncate">
-                              Also as: {Array.from(expense.variations)
-                                .filter(v => v !== expense.name)
-                                .sort() // Sort variations alphabetically
-                                .join(', ')}
-                            </div>
-                          )}
-                        </div>
-                        {monthlyData.map(({ month }) => {
-                          const amount = expense.amounts[format(month, 'MMMM')] || 0;
-                          return (
-                            <div key={month} className="text-right">
-                              {formatCurrency(amount)}
-                            </div>
-                          );
-                        })}
+            {expandedCategory === category && (
+              <div className="divide-y divide-gray-200">
+                {expenses.map((expense, index) => (
+                  <div key={index} className="px-4 py-3 hover:bg-gray-50">
+                    <div className="flex justify-between items-center">
+                      <span>{expense.name}</span>
+                      <div className="space-x-4">
+                        {Object.entries(expense.amounts).map(([month, amount]) => (
+                          <span key={month} className="text-gray-600">
+                            {formatCurrency(amount)}
+                          </span>
+                        ))}
                       </div>
-                    ))}
-                </div>
-              )}
-            </div>
-          );
-        })}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        ))}
       </div>
     </div>
   );
@@ -1299,7 +1248,7 @@ const IncomeComparisonTable = ({ monthlyData, plData }) => {
     
     monthIncome.forEach(income => {
       const name = income.DESCRIPTION;
-      const amount = parseFloat(income.AMOUNT.replace(/[$,]/g, '')) || 0;
+      const amount = parseAmount(income.AMOUNT);
       const existingSource = networkRevenue.sources.find(s => s.name === name);
 
       if (existingSource) {
@@ -1861,7 +1810,7 @@ const processMonthlyData = (monthlyData) => {
     const expensesByCategory = data.expenseData?.reduce((acc, expense) => {
       const category = expense.CATEGORY?.toLowerCase() || '';
       const description = expense.DESCRIPTION?.toLowerCase() || '';
-      const amount = parseFloat(expense.AMOUNT.replace(/[$,]/g, '') || 0);
+      const amount = parseAmount(expense.AMOUNT);
 
       if (category.includes('advertising') || category.includes('ad spend')) {
         acc.adSpend += amount;
@@ -1883,10 +1832,10 @@ const processMonthlyData = (monthlyData) => {
       return acc;
     }, { adSpend: 0, payroll: 0, subscriptions: 0, otherExpenses: 0 });
 
-    // Calculate cash injections
+    // Calculate cash injections using parseAmount
     const cashInjections = data.incomeData?.reduce((sum, income) => {
       const description = income.DESCRIPTION?.toLowerCase() || '';
-      const amount = parseFloat(income.AMOUNT.replace(/[$,]/g, '') || 0);
+      const amount = parseAmount(income.AMOUNT);
       return description.includes('investment') || description.includes('injection') ? sum + amount : sum;
     }, 0);
 
@@ -1904,6 +1853,29 @@ const processMonthlyData = (monthlyData) => {
   }).filter(Boolean);
 };
 
+// Update the network revenue processing
+const processNetworkRevenue = (monthIncome) => {
+  const networkRevenue = {
+    sources: [],
+    total: 0
+  };
+
+  monthIncome.forEach(income => {
+    const name = income.DESCRIPTION;
+    const amount = parseAmount(income.AMOUNT);
+    const existingSource = networkRevenue.sources.find(s => s.name === name);
+
+    if (existingSource) {
+      existingSource.amount += amount;
+    } else {
+      networkRevenue.sources.push({ name, amount });
+    }
+    networkRevenue.total += amount;
+  });
+
+  return networkRevenue;
+};
+
 const FinancialOverview = ({ plData, cashFlowData, invoicesData, networkTerms }) => {
   console.log('Financial Overview received networkTerms:', {
     hasTerms: !!networkTerms,
@@ -1918,7 +1890,7 @@ const FinancialOverview = ({ plData, cashFlowData, invoicesData, networkTerms })
     
     return invoicesData.map(invoice => ({
       network: invoice.Network || 'Unknown',
-      amount: parseFloat(invoice.Amount || 0),
+      amount: parseAmount(invoice.Amount), // Use parseAmount helper
       dueDate: new Date(invoice.DueDate),
       status: invoice.Status || 'Pending',
       invoiceNumber: invoice.InvoiceNumber || '-'
@@ -1940,19 +1912,44 @@ const FinancialOverview = ({ plData, cashFlowData, invoicesData, networkTerms })
   const lastThreeMonths = useMemo(() => {
     if (!plData?.summary) return [];
     
-    const months = plData.summary
-      .slice(-3)
+    // Create a mapping of months to their numerical order
+    const monthOrder = {
+      'January': 1,
+      'February': 2,
+      'March': 3,
+      'April': 4,
+      'May': 5,
+      'June': 6,
+      'July': 7,
+      'August': 8,
+      'September': 9,
+      'October': 10,
+      'November': 11,
+      'December': 12
+    };
+
+    // Sort months by year (2025 before 2024) and then by month order
+    const sortedMonths = plData.summary
       .map(item => ({
         name: item.Month,
         date: new Date(`${item.Month} 1, ${
-          ['January', 'February'].includes(item.Month) ? '2025' : 
-          ['December', 'November'].includes(item.Month) ? '2024' : 
-          '2024'
-        }`)
-      }));
-    
-    console.log('Last three months:', months);
-    return months;
+          ['January', 'February'].includes(item.Month) ? '2025' : '2024'
+        }`),
+        order: monthOrder[item.Month]
+      }))
+      .sort((a, b) => {
+        // First compare years
+        const yearA = a.date.getFullYear();
+        const yearB = b.date.getFullYear();
+        if (yearA !== yearB) return yearB - yearA;
+        
+        // If same year, compare months
+        return b.order - a.order;
+      })
+      .slice(0, 3); // Get only the most recent 3 months
+
+    console.log('Last three months:', sortedMonths);
+    return sortedMonths;
   }, [plData]);
 
   const processedData = useMemo(() => {
@@ -1964,12 +1961,6 @@ const FinancialOverview = ({ plData, cashFlowData, invoicesData, networkTerms })
     return lastThreeMonths.map(({ name, date }) => {
       const monthData = plData.monthly[name];
       console.log(`Processing month ${name}:`, monthData);
-
-      const parseAmount = (amount) => {
-        if (!amount) return 0;
-        if (typeof amount === 'number') return amount;
-        return parseFloat(amount.replace(/[$,]/g, '')) || 0;
-      };
 
       // Calculate revenue first
       const monthlyRevenue = parseAmount(monthData?.totalIncome) || 0;
@@ -2121,6 +2112,7 @@ const FinancialOverview = ({ plData, cashFlowData, invoicesData, networkTerms })
                 month: d.month,
                 amount: d.subscriptions
               }))}
+              plData={plData}  // Pass plData here
             />
 
             {/* Miscellaneous */}
