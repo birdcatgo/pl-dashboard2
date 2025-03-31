@@ -12,32 +12,10 @@ import {
   Legend as RechartsLegend
 } from 'recharts';
 import MultiSelect from '../ui/multi-select';
-import { Line as ChartJSLine } from 'react-chartjs-2';
-import {
-  Chart as ChartJS,
-  CategoryScale,
-  LinearScale,
-  PointElement,
-  LineElement,
-  Title,
-  Tooltip,
-  Legend
-} from 'chart.js';
 import { TrendingUp, TrendingDown, ArrowRight, Activity } from 'lucide-react';
 import { Switch } from "@/components/ui/switch";
 import { format, parseISO, isWithinInterval } from 'date-fns';
 import { Checkbox } from '../ui/checkbox';
-
-// Register ChartJS components
-ChartJS.register(
-  CategoryScale,
-  LinearScale,
-  PointElement,
-  LineElement,
-  Title,
-  Tooltip,
-  Legend
-);
 
 // Add this helper function for row grouping
 const groupDataByMediaBuyer = (data) => {
@@ -1132,7 +1110,7 @@ const MediaBuyerPerformance = ({ performanceData, dateRange }) => {
                 <YAxis 
                   tickFormatter={formatCurrency}
                 />
-                <Tooltip 
+                <RechartsTooltip 
                   formatter={(value) => formatCurrency(value)}
                   labelFormatter={(label) => `Date: ${label}`}
                   contentStyle={{

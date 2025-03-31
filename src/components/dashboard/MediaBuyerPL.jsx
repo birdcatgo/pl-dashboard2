@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
 import { format, parseISO, startOfMonth, endOfMonth } from 'date-fns';
 import { ChevronDown, ChevronRight, HelpCircle } from 'lucide-react';
@@ -75,28 +75,45 @@ const MediaBuyerPL = ({ performanceData }) => {
     setExpandedMonths(newExpandedMonths);
   };
 
-  // Process the data to calculate daily totals with additional expenses
-  const monthlyTotals = React.useMemo(() => {
+  // Calculate monthly totals
+  const monthlyTotals = useMemo(() => {
+    if (!performanceData || !Array.isArray(performanceData)) {
+      console.log('Invalid performance data:', performanceData);
+      return [];
+    }
+
     // First, calculate daily totals
     const dailyTotals = _.chain(performanceData)
-      .groupBy('Date')
-      .map((dayData, date) => {
-        // Parse the date from MM/DD/YYYY format
-        const [month, day, year] = date.split('/').map(Number);
-        const parsedDate = new Date(year, month - 1, day);
+      .filter(entry => entry && entry.Date) // Filter out undefined or entries without Date
+      .map(entry => {
+        // Parse the date correctly
+        let parsedDate;
+        try {
+          if (entry.Date.includes('/')) {
+            const [month, day, year] = entry.Date.split('/').map(num => parseInt(num, 10));
+            parsedDate = new Date(year, month - 1, day);
+          } else {
+            parsedDate = new Date(entry.Date);
+          }
 
-        // Calculate base metrics
-        const totalRevenue = _.sumBy(dayData, 'Total Revenue');
-        const totalAdSpend = _.sumBy(dayData, 'Ad Spend');
+          if (isNaN(parsedDate.getTime())) {
+            console.error('Invalid date:', entry.Date);
+            return null;
+          }
+        } catch (error) {
+          console.error('Error parsing date:', entry.Date, error);
+          return null;
+        }
+
+        // Calculate revenue components
+        const totalRevenue = typeof entry['Total Revenue'] === 'string' 
+          ? parseFloat(entry['Total Revenue'].replace(/[$,]/g, '')) 
+          : entry['Total Revenue'] || 0;
+        const totalAdSpend = typeof entry['Ad Spend'] === 'string'
+          ? parseFloat(entry['Ad Spend'].replace(/[$,]/g, ''))
+          : entry['Ad Spend'] || 0;
+        const acaRevenue = entry.Network?.toLowerCase().includes('aca') ? totalRevenue : 0;
         const baseProfit = totalRevenue - totalAdSpend;
-
-        // Calculate ACA-ACA specific revenue for Ringba costs
-        const acaRevenue = _.sumBy(dayData.filter(row => 
-          row.Network?.toLowerCase().includes('aca') && 
-          row.Offer?.toLowerCase().includes('aca')
-        ), 'Total Revenue');
-        
-        // Calculate additional expenses
         const mediaBuyerCommission = baseProfit * 0.10; // 10% of profit
         const ringbaExpense = acaRevenue * 0.02; // 2% of ACA-ACA revenue
         const dailyExpenses = 2819.81; // Fixed daily expenses amount (Payroll and General $59,217) / 21 working days
@@ -118,45 +135,61 @@ const MediaBuyerPL = ({ performanceData }) => {
           roi
         };
       })
+      .filter(Boolean) // Remove any null entries from failed date parsing
       .value();
 
     // Then group by month
     return _.chain(dailyTotals)
-      .groupBy(day => format(day.date, 'yyyy-MM'))
-      .map((days, monthKey) => {
-        const monthStart = parseISO(monthKey + '-01'); // Add day to make it a valid date
-        const monthEnd = endOfMonth(monthStart);
-        
-        // Calculate daily expenses based on whether it's the current month
-        const isCurrentMonth = format(monthStart, 'yyyy-MM') === format(new Date(), 'yyyy-MM');
-        const daysInData = days.length;
-        const dailyExpenseAmount = isCurrentMonth ? 59217 / daysInData : 59217 / 21; // For current month, divide by actual days. For past months, divide by 21
-        const totalDailyExpenses = isCurrentMonth ? 59217 : 59217; // Current month shows actual total, past months show full amount
-        
-        const monthTotal = {
-          monthStart,
-          monthEnd,
-          totalRevenue: _.sumBy(days, 'totalRevenue'),
-          totalAdSpend: _.sumBy(days, 'totalAdSpend'),
-          baseProfit: _.sumBy(days, 'baseProfit'),
-          mediaBuyerCommission: _.sumBy(days, 'mediaBuyerCommission'),
-          ringbaExpense: _.sumBy(days, 'ringbaExpense'),
-          dailyExpenses: totalDailyExpenses, // Use the total amount
-          // For summary table (includes daily expenses)
-          finalProfitWithDaily: _.sumBy(days, 'finalProfit') - totalDailyExpenses,
-          // For breakdown table (excludes daily expenses)
-          finalProfitWithoutDaily: _.sumBy(days, 'finalProfit'),
-          // Calculate ROI using finalProfitWithDaily for summary table
-          roi: _.sumBy(days, 'totalAdSpend') ? 
-            ((_.sumBy(days, 'finalProfit') - totalDailyExpenses) / _.sumBy(days, 'totalAdSpend')) * 100 : 0,
-          days: days.map(day => ({
-            ...day,
-            dailyExpenses: dailyExpenseAmount // Update each day's daily expenses
-          }))
-        };
-
-        return monthTotal;
+      .groupBy(day => {
+        try {
+          return format(day.date, 'yyyy-MM');
+        } catch (error) {
+          console.error('Error formatting date:', day.date, error);
+          return 'unknown';
+        }
       })
+      .map((days, monthKey) => {
+        if (monthKey === 'unknown') return null;
+
+        try {
+          const monthStart = parseISO(monthKey + '-01'); // Add day to make it a valid date
+          const monthEnd = endOfMonth(monthStart);
+          
+          // Calculate daily expenses based on whether it's the current month
+          const isCurrentMonth = format(monthStart, 'yyyy-MM') === format(new Date(), 'yyyy-MM');
+          const daysInData = days.length;
+          const dailyExpenseAmount = isCurrentMonth ? 59217 / daysInData : 59217 / 21; // For current month, divide by actual days. For past months, divide by 21
+          const totalDailyExpenses = isCurrentMonth ? 59217 : 59217; // Current month shows actual total, past months show full amount
+          
+          const monthTotal = {
+            monthStart,
+            monthEnd,
+            totalRevenue: _.sumBy(days, 'totalRevenue'),
+            totalAdSpend: _.sumBy(days, 'totalAdSpend'),
+            baseProfit: _.sumBy(days, 'baseProfit'),
+            mediaBuyerCommission: _.sumBy(days, 'mediaBuyerCommission'),
+            ringbaExpense: _.sumBy(days, 'ringbaExpense'),
+            dailyExpenses: totalDailyExpenses, // Use the total amount
+            // For summary table (includes daily expenses)
+            finalProfitWithDaily: _.sumBy(days, 'finalProfit') - totalDailyExpenses,
+            // For breakdown table (excludes daily expenses)
+            finalProfitWithoutDaily: _.sumBy(days, 'finalProfit'),
+            // Calculate ROI using finalProfitWithDaily for summary table
+            roi: _.sumBy(days, 'totalAdSpend') ? 
+              ((_.sumBy(days, 'finalProfit') - totalDailyExpenses) / _.sumBy(days, 'totalAdSpend')) * 100 : 0,
+            days: days.map(day => ({
+              ...day,
+              dailyExpenses: dailyExpenseAmount // Update each day's daily expenses
+            }))
+          };
+
+          return monthTotal;
+        } catch (error) {
+          console.error('Error processing month:', monthKey, error);
+          return null;
+        }
+      })
+      .filter(Boolean) // Remove any null entries from failed month processing
       .orderBy(['monthStart'], ['desc'])
       .value();
   }, [performanceData]);

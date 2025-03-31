@@ -58,40 +58,66 @@ const TrendAnalysis = ({ data, timeRange }) => {
 
   // Calculate total margins for each day
   const dailyTotals = useMemo(() => {
+    console.log('Calculating daily totals from data:', data);
     return data.map(day => {
       const total = Object.entries(day)
-        .filter(([key]) => key.includes(' - ') && key !== 'Suited - ACA')
+        .filter(([key]) => key.includes(' - '))  // Include all network-offer combinations
         .reduce((sum, [key, value]) => {
-          // Combine Suited - ACA with ACA - ACA
-          if (key === 'ACA - ACA') {
-            return sum + value + (day['Suited - ACA'] || 0);
-          }
-          return sum + value;
+          // Skip date and displayDate fields
+          if (key === 'date' || key === 'displayDate') return sum;
+          return sum + (value || 0);
         }, 0);
+      console.log(`Day ${day.date} total:`, total);
       return { date: day.date, total };
     });
   }, [data]);
 
   // Calculate week-over-week growth
   const growth = useMemo(() => {
-    if (dailyTotals.length < timeRange * 2) return 0;
+    if (!dailyTotals.length) return 0;
     
-    const currentTotal = _.sum(dailyTotals.slice(-timeRange).map(d => d.total));
-    const previousTotal = _.sum(dailyTotals.slice(-timeRange * 2, -timeRange).map(d => d.total));
+    // Get the most recent timeRange days and previous timeRange days
+    const currentPeriod = dailyTotals.slice(-timeRange);
+    const previousPeriod = dailyTotals.slice(-timeRange * 2, -timeRange);
     
-    return calculateGrowth(currentTotal, previousTotal);
+    // Calculate totals for each period, ensuring we handle undefined/null values
+    const currentTotal = currentPeriod.reduce((sum, day) => sum + (day.total || 0), 0);
+    const previousTotal = previousPeriod.reduce((sum, day) => sum + (day.total || 0), 0);
+    
+    // Debug log the values
+    console.log('Growth calculation:', {
+      currentPeriodDays: currentPeriod.length,
+      previousPeriodDays: previousPeriod.length,
+      currentTotal,
+      previousTotal
+    });
+    
+    // Calculate growth rate
+    if (previousTotal === 0) {
+      return currentTotal > 0 ? 100 : 0;
+    }
+    
+    const growthRate = ((currentTotal - previousTotal) / Math.abs(previousTotal)) * 100;
+    return isNaN(growthRate) ? 0 : growthRate;
   }, [dailyTotals, timeRange]);
 
   // Calculate moving averages
   const movingAverages = useMemo(() => {
+    if (!dailyTotals.length) return [];
+    
     return dailyTotals.map((day, index, array) => {
       const last7Days = array.slice(Math.max(0, index - 6), index + 1);
       const last30Days = array.slice(Math.max(0, index - 29), index + 1);
+      
+      // Calculate averages, ensuring we have valid numbers
+      const sevenDayAvg = last7Days.reduce((sum, d) => sum + (d.total || 0), 0) / last7Days.length;
+      const thirtyDayAvg = last30Days.reduce((sum, d) => sum + (d.total || 0), 0) / last30Days.length;
+      
       return {
         date: day.date,
-        total: day.total,
-        '7d_avg': _.meanBy(last7Days, 'total'),
-        '30d_avg': _.meanBy(last30Days, 'total')
+        total: day.total || 0,
+        '7d_avg': isNaN(sevenDayAvg) ? 0 : sevenDayAvg,
+        '30d_avg': isNaN(thirtyDayAvg) ? 0 : thirtyDayAvg
       };
     });
   }, [dailyTotals]);
@@ -123,8 +149,24 @@ const TrendAnalysis = ({ data, timeRange }) => {
           <div className="h-16">
             <ResponsiveContainer width="100%" height="100%">
               <LineChart data={movingAverages.slice(-30)}>
-                <Line type="monotone" dataKey="7d_avg" stroke="#3B82F6" dot={false} />
-                <Line type="monotone" dataKey="30d_avg" stroke="#10B981" dot={false} />
+                <YAxis 
+                  domain={['auto', 'auto']}
+                  tickFormatter={(value) => formatCurrency(value)}
+                />
+                <Line 
+                  type="monotone" 
+                  dataKey="7d_avg" 
+                  stroke="#3B82F6" 
+                  dot={false}
+                  isAnimationActive={false}
+                />
+                <Line 
+                  type="monotone" 
+                  dataKey="30d_avg" 
+                  stroke="#10B981" 
+                  dot={false}
+                  isAnimationActive={false}
+                />
               </LineChart>
             </ResponsiveContainer>
           </div>
@@ -385,16 +427,6 @@ const OfferPerformance = ({ performanceData, dateRange, onDateChange, latestDate
 
   return (
     <div className="space-y-6">
-      {/* Date Range Selector */}
-      <div className="mb-6">
-        <EnhancedDateSelector
-          onDateChange={onDateChange}
-          selectedPeriod={dateRange.period}
-          defaultRange="last7"
-          latestDate={latestDate}
-              />
-            </div>
-
       <div className="flex flex-col space-y-4">
         <h2 className="text-2xl font-bold">Offer Performance</h2>
 

@@ -23,15 +23,51 @@ ChartJS.register(
   Legend
 );
 
-const NetProfit = ({ performanceData, dateRange }) => {
+const NetProfit = ({ performanceData, dateRange, cashFlowData }) => {
   const [monthlyTotals, setMonthlyTotals] = useState({});
 
   // Debug logs
   console.log('NetProfit component props:', { 
     performanceData: performanceData?.length, 
     dateRange,
+    cashFlowData,
+    networkTerms: cashFlowData?.networkTerms,
     sampleData: performanceData?.[0]
   });
+
+  // Calculate cash in bank and credit card debt
+  const cashInBank = cashFlowData?.financialResources?.reduce((total, resource) => {
+    // Check if the resource type is cash or savings
+    const isCash = resource.type?.toLowerCase().includes('cash') || 
+                  resource.type?.toLowerCase().includes('savings');
+    return isCash ? total + (parseFloat(resource.available) || 0) : total;
+  }, 0) || 0;
+
+  const creditCardDebt = cashFlowData?.financialResources?.reduce((total, resource) => {
+    // Check if the resource type is credit
+    const isCredit = resource.type?.toLowerCase().includes('credit');
+    if (!isCredit) return total;
+    const limit = parseFloat(resource.limit || 0);
+    const available = parseFloat(resource.available || 0);
+    return total + (limit - available);
+  }, 0) || 0;
+
+  // Calculate outstanding invoices using the new networkTerms structure
+  const outstandingInvoices = cashFlowData?.networkTerms?.reduce((total, term) => {
+    return total + (parseFloat(term.runningTotal) || 0);
+  }, 0) || 0;
+
+  // Add debug logs for financial calculations
+  console.log('Financial calculations:', {
+    cashInBank,
+    creditCardDebt,
+    outstandingInvoices,
+    totalAvailableCapital: cashInBank + outstandingInvoices - creditCardDebt,
+    networkTerms: cashFlowData?.networkTerms
+  });
+
+  // Calculate final total
+  const totalAvailableCapital = cashInBank + outstandingInvoices - creditCardDebt;
 
   useEffect(() => {
     try {
@@ -192,68 +228,79 @@ const NetProfit = ({ performanceData, dateRange }) => {
   };
 
   return (
-    <Card className="p-6">
-      <div className="space-y-6">
-        <h2 className="text-2xl font-bold">Monthly Net Profit</h2>
-        <Line data={chartData} options={chartOptions} />
-        
-        {/* Data Table */}
-        <div className="overflow-x-auto">
-          <table className="min-w-full divide-y divide-gray-200">
-            <thead className="bg-gray-50">
-              <tr>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Month
-                </th>
-                <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Revenue
-                </th>
-                <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Expenses
-                </th>
-                <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider group relative">
-                  Net Profit
-                  <div className="hidden group-hover:block absolute z-10 bg-black text-white text-xs rounded p-2 w-48 -left-16 top-8">
-                    Net Profit = Revenue - Expenses
-                    <br />
-                    Shows actual earnings after all costs
-                  </div>
-                </th>
-                <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider group relative">
-                  Profit Margin
-                  <div className="hidden group-hover:block absolute z-10 bg-black text-white text-xs rounded p-2 w-48 -left-16 top-8">
-                    Profit Margin = (Net Profit / Revenue) × 100
-                    <br />
-                    Shows percentage of revenue kept as profit
-                  </div>
-                </th>
-              </tr>
-            </thead>
-            <tbody className="bg-white divide-y divide-gray-200">
-              {Object.entries(monthlyTotals).map(([month, data]) => (
-                <tr key={month} className="hover:bg-gray-50">
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                    {month}
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-right text-gray-900">
-                    {formatCurrency(data.revenue)}
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-right text-gray-900">
-                    {formatCurrency(data.expenses)}
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-right text-gray-900">
-                    {formatCurrency(data.netProfit)}
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-right text-gray-900">
-                    {data.revenue > 0 ? ((data.netProfit / data.revenue) * 100).toFixed(1) : '0.0'}%
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
+    <div className="space-y-6">
+      {/* Financial Overview */}
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-6">
+        <Card className="p-6">
+          <h3 className="text-lg font-semibold mb-2">Cash in Bank</h3>
+          <p className="text-3xl font-bold text-green-600">{formatCurrency(cashInBank)}</p>
+          <p className="text-sm text-gray-500 mt-2">Available cash and savings accounts</p>
+        </Card>
+        <Card className="p-6">
+          <h3 className="text-lg font-semibold mb-2">Outstanding Invoices</h3>
+          <p className="text-3xl font-bold text-blue-600">{formatCurrency(outstandingInvoices)}</p>
+          <p className="text-sm text-gray-500 mt-2">Expected payments from networks</p>
+        </Card>
+        <Card className="p-6">
+          <h3 className="text-lg font-semibold mb-2">Credit Card Debt</h3>
+          <p className="text-3xl font-bold text-red-600">{formatCurrency(creditCardDebt)}</p>
+          <p className="text-sm text-gray-500 mt-2">Total credit card balances</p>
+        </Card>
+        <Card className="p-6 bg-gray-50">
+          <h3 className="text-lg font-semibold mb-2">Total Available Capital</h3>
+          <p className={`text-3xl font-bold ${totalAvailableCapital >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+            {formatCurrency(totalAvailableCapital)}
+          </p>
+          <p className="text-sm text-gray-500 mt-2">Cash + Invoices - Credit Card Debt</p>
+        </Card>
       </div>
-    </Card>
+
+      {/* Monthly Net Profit Chart */}
+      <Card className="p-6">
+        <div className="space-y-6">
+          <h2 className="text-2xl font-bold">Monthly Net Profit</h2>
+          <Line data={chartData} options={chartOptions} />
+          
+          {/* Data Table */}
+          <div className="mt-8">
+            <h3 className="text-xl font-semibold mb-4">Monthly Breakdown</h3>
+            <div className="overflow-x-auto">
+              <table className="w-full">
+                <thead>
+                  <tr className="border-b">
+                    <th className="text-left py-2">Month</th>
+                    <th className="text-right py-2">Revenue</th>
+                    <th className="text-right py-2">Expenses</th>
+                    <th className="text-right py-2">Net Profit</th>
+                    <th className="text-right py-2">Margin</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {Object.entries(monthlyTotals).map(([month, data]) => (
+                    <tr key={month} className="border-b">
+                      <td className="py-2">{month}</td>
+                      <td className="text-right py-2">{formatCurrency(data.revenue)}</td>
+                      <td className="text-right py-2">{formatCurrency(data.expenses)}</td>
+                      <td className={`text-right py-2 font-medium ${
+                        data.netProfit >= 0 ? 'text-green-600' : 'text-red-600'
+                      }`}>
+                        {formatCurrency(data.netProfit)}
+                      </td>
+                      <td className="text-right py-2">
+                        {data.revenue > 0 
+                          ? `${((data.netProfit / data.revenue) * 100).toFixed(1)}%`
+                          : '-'
+                        }
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      </Card>
+    </div>
   );
 };
 

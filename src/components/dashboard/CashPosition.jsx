@@ -79,20 +79,41 @@ const CashPosition = ({ cashFlowData, networkPaymentsData, invoicesData }) => {
   };
 
   // Get cash in bank from financial resources
+  console.log('CashPosition - Financial Resources:', cashFlowData?.financialResources);
+
   const cashInBank = cashFlowData?.financialResources?.reduce((total, resource) => {
+    console.log('Processing resource:', resource);
     const balance = parseFloat(resource.available?.toString().replace(/[$,]/g, '') || '0');
     const isCash = resource.account?.toLowerCase().includes('cash') || 
                   resource.account?.toLowerCase().includes('savings');
+    console.log('Resource details:', {
+      account: resource.account,
+      balance,
+      isCash,
+      contribution: isCash ? balance : 0
+    });
     return isCash ? total + balance : total;
   }, 0) || 0;
 
   // Calculate total credit card debt
   const totalCreditCardDebt = cashFlowData?.financialResources?.reduce((total, resource) => {
+    console.log('Processing credit card:', resource);
     if (!resource.limit || !resource.available) return total;
     const limit = parseFloat(resource.limit.toString().replace(/[$,]/g, ''));
     const available = parseFloat(resource.available.toString().replace(/[$,]/g, ''));
+    console.log('Credit card details:', {
+      account: resource.account,
+      limit,
+      available,
+      debt: limit - available
+    });
     return resource.limit > 0 ? total + (limit - available) : total;
   }, 0) || 0;
+
+  console.log('Final calculations:', {
+    cashInBank,
+    totalCreditCardDebt
+  });
 
   // Fixed monthly expenses
   const averageMonthlyExpenses = 65000;

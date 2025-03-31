@@ -204,71 +204,35 @@ export default async function handler(req, res) {
       scopes: ['https://www.googleapis.com/auth/spreadsheets.readonly'],
     });
 
-    // Debug auth object
-    console.log('Auth object created:', {
-      hasCredentials: !!auth.credentials,
-      hasScopes: !!auth.scopes,
-    });
-
     const sheets = google.sheets({ version: 'v4', auth });
-    
-    // Log the spreadsheet ID
-    console.log('Spreadsheet ID:', SHEET_ID);
 
-    // Log the ranges we're requesting
-    console.log('Requesting sheet ranges:', [
-      'Main Sheet!A:L',
-      'Financial Resources!A:D',
-      'Payroll!A:D',
-      'Media Buyer Spend!A:B',
-      'Summary!A:U',
-      'Bank Structure!A:M',
-      'Network Payment Schedule!A:H',
-      'February!A:D',
-      'January!A:D',
-      'December!A:D',
-      'November!A:D',
-      'October!A:D',
-      'September!A:D',
-      'August!A:D',
-      'July!A:D',
-      'June!A:D',
-      'Network Terms!A2:I',
-      'Invoices!A:F',
-      'Tradeshift Check!A:E',
-      'Monthly Expenses!A:D'
-    ]);
+    // Define ranges to fetch
+    const ranges = [
+      "'Main Sheet'!A:L",
+      "'Financial Resources'!A:D",
+      "'Payroll'!A:D",
+      "'Media Buyer Spend'!A:B",
+      "'Summary'!A:U",
+      "'Bank Structure'!A:M",
+      "'Network Payment Schedule'!A:H",
+      "'February'!A:D",
+      "'January'!A:D",
+      "'December'!A:D",
+      "'November'!A:D",
+      "'October'!A:D",
+      "'September'!A:D",
+      "'August'!A:D",
+      "'July'!A:D",
+      "'June'!A:D",
+      "'Network Terms'!A2:I",
+      "'Invoices'!A:F",
+      "'Tradeshift Check'!A:E",
+      "'Monthly Expenses'!A:D"
+    ];
 
     const batchResponse = await sheets.spreadsheets.values.batchGet({
       spreadsheetId: SHEET_ID,
-      ranges: [
-        'Main Sheet!A:L',
-        'Financial Resources!A:D',
-        'Payroll!A:D',
-        'Media Buyer Spend!A:B',
-        'Summary!A:U',
-        'Bank Structure!A:M',
-        'Network Payment Schedule!A:H',
-        'Invoices!A:F',
-        'February!A:D',
-        'January!A:D',
-        'December!A:D',
-        'November!A:D',
-        'October!A:D',
-        'September!A:D',
-        'August!A:D',
-        'July!A:D',
-        'June!A:D',
-        'Network Terms!A2:I',
-        'Tradeshift Check!A:E',
-        'Monthly Expenses!A:D'
-      ]
-    });
-    
-    // Log successful batch response
-    console.log('Batch response received:', {
-      success: true,
-      rangesCount: batchResponse.data.valueRanges.length
+      ranges: ranges
     });
 
     // Extract array positions for debugging
@@ -280,7 +244,6 @@ export default async function handler(req, res) {
       summaryResponse,
       bankStructureResponse,
       networkPaymentsResponse,
-      invoicesResponse,
       februaryResponse,
       januaryResponse,
       decemberResponse,
@@ -291,6 +254,7 @@ export default async function handler(req, res) {
       julyResponse,
       juneResponse,
       networkTermsResponse,
+      invoicesResponse,
       tradeshiftResponse,
       monthlyExpensesResponse
     ] = batchResponse.data.valueRanges || [];
@@ -315,13 +279,7 @@ export default async function handler(req, res) {
 
     // Process Financial Resources
     try {
-      const financialResourcesResponse = await sheets.spreadsheets.values.get({
-        spreadsheetId: SHEET_ID,
-        range: 'Financial Resources!A:D',
-        valueRenderOption: 'UNFORMATTED_VALUE'
-      });
-
-      if (!financialResourcesResponse?.data?.values) {
+      if (!financialResponse?.values) {
         console.error('No financial resources data received');
         result.rawData.financialResources = [];
         result.cashFlowData = {
@@ -331,29 +289,10 @@ export default async function handler(req, res) {
           financialResources: []
         };
       } else {
-        result.rawData.financialResources = financialResourcesResponse.data.values
-          .slice(1)
-          .filter(row => row[0] && row[0] !== 'Account Name')
-          .map(row => ({
-            account: row[0]?.trim(),
-            available: parseFloat((row[1] || '0').toString().replace(/[$,]/g, '')),
-            owing: parseFloat((row[2] || '0').toString().replace(/[$,]/g, '')),
-            limit: parseFloat((row[3] || '0').toString().replace(/[$,]/g, ''))
-          }));
-
-        const cashAccounts = ['Cash in Bank', 'Slash Account', 'Business Savings (JP MORGAN)'];
-
-        result.cashFlowData = {
-          availableCash: result.rawData.financialResources
-            .filter(r => cashAccounts.includes(r.account))
-            .reduce((sum, r) => sum + r.available, 0),
-          creditAvailable: result.rawData.financialResources
-            .filter(r => !cashAccounts.includes(r.account))
-            .reduce((sum, r) => sum + r.available, 0),
-          financialResources: result.rawData.financialResources
-        };
-
-        result.cashFlowData.totalAvailable = result.cashFlowData.availableCash + result.cashFlowData.creditAvailable;
+        // Process the data using the imported function
+        const processedData = processCashFlowData(financialResponse.values);
+        result.rawData.financialResources = processedData.financialResources;
+        result.cashFlowData = processedData;
       }
     } catch (error) {
       console.error('Error processing financial resources:', error);
@@ -424,6 +363,7 @@ export default async function handler(req, res) {
       console.log('No invoice data found in response');
       result.rawData.invoices = [];
     }
+
     // Process Payroll
     result.rawData.payroll = Array.isArray(payrollResponse?.values)
       ? payrollResponse.values.slice(1).map(row => ({
@@ -571,56 +511,60 @@ export default async function handler(req, res) {
     result.networkPaymentsData = networkPayments;
 
     // Process Network Terms with more detailed logging
-    const networkTerms = networkTermsResponse?.values?.map(row => {
-      if (!row || row.length < 9) {
-        console.log('Skipping invalid network terms row:', row);
-        return null;
-      }
+    if (networkTermsResponse?.values) {
+      result.networkTerms = networkTermsResponse.values
+        .map(row => {
+          if (!row || row.length < 9) {
+            console.log('Skipping invalid network terms row:', row);
+            return null;
+          }
 
-      const runningTotal = parseFloat((row[7] || '0').replace(/[$,]/g, ''));
-      
-      if (runningTotal <= 0) {
-        console.log('Skipping network term with zero or negative running total:', {
-          network: row[0],
-          runningTotal
-        });
-        return null;
-      }
+          const runningTotal = parseFloat((row[7] || '0').replace(/[$,]/g, ''));
+          
+          if (runningTotal <= 0) {
+            console.log('Skipping network term with zero or negative running total:', {
+              network: row[0],
+              runningTotal
+            });
+            return null;
+          }
 
-      const lastDate = mainResponse?.values
-        ?.slice(1)
-        ?.sort((a, b) => new Date(b[0]) - new Date(a[0]))?.[0]?.[0];
+          const lastDate = mainResponse?.values
+            ?.slice(1)
+            ?.sort((a, b) => new Date(b[0]) - new Date(a[0]))?.[0]?.[0];
 
-      const networkTerm = {
-        network: row[0]?.trim() || '',
-        offer: row[1]?.trim() || '',
-        payPeriod: row[2]?.trim() || '',
-        netTerms: row[3]?.trim() || '',
-        periodStart: row[4]?.trim() || '',
-        periodEnd: row[5]?.trim() || '',
-        invoiceDue: row[6]?.trim() || '',
-        runningTotal,
-        dailyCap: row[8] === 'Uncapped' ? 'Uncapped' : 
-                 row[8] === 'N/A' ? 'N/A' :
-                 row[8] === 'TBC' ? 'TBC' :
-                 parseFloat((row[8] || '0').replace(/[$,]/g, '')),
-        lastDate
-      };
+          const networkTerm = {
+            network: row[0]?.trim() || '',
+            offer: row[1]?.trim() || '',
+            payPeriod: row[2]?.trim() || '',
+            netTerms: row[3]?.trim() || '',
+            periodStart: row[4]?.trim() || '',
+            periodEnd: row[5]?.trim() || '',
+            invoiceDue: row[6]?.trim() || '',
+            runningTotal,
+            dailyCap: row[8] === 'Uncapped' ? 'Uncapped' : 
+                     row[8] === 'N/A' ? 'N/A' :
+                     row[8] === 'TBC' ? 'TBC' :
+                     parseFloat((row[8] || '0').replace(/[$,]/g, '')),
+            lastDate
+          };
 
-      console.log('Processed network term:', networkTerm);
-      return networkTerm;
-    }).filter(Boolean);
+          console.log('Processed network term:', networkTerm);
+          return networkTerm;
+        })
+        .filter(Boolean);
 
-    networkTerms?.sort((a, b) => b.runningTotal - a.runningTotal);
+      result.networkTerms.sort((a, b) => b.runningTotal - a.runningTotal);
 
-    console.log('Final Network Terms:', {
-      count: networkTerms?.length || 0,
-      sample: networkTerms?.[0],
-      totalExposure: networkTerms?.reduce((sum, term) => sum + (term.runningTotal || 0), 0) || 0,
-      allData: networkTerms
-    });
-
-    result.networkTerms = networkTerms || [];
+      console.log('Final Network Terms:', {
+        count: result.networkTerms.length,
+        sample: result.networkTerms[0],
+        totalExposure: result.networkTerms.reduce((sum, term) => sum + (term.runningTotal || 0), 0),
+        allData: result.networkTerms
+      });
+    } else {
+      result.networkTerms = [];
+    }
 
     console.log('API Response Structure:', {
       hasNetworkTerms: !!result.networkTerms,
@@ -638,9 +582,56 @@ export default async function handler(req, res) {
       }
     });
 
-    res.status(200).json(result);
+    // Process financial resources data
+    const financialResourcesRange = batchResponse.data.valueRanges.find(range => range.range.includes('Financial Resources'));
+    const cashFlowData = processCashFlowData(financialResourcesRange?.values || []);
+
+    // Process network terms data
+    const networkTermsRange = batchResponse.data.valueRanges.find(range => range.range.includes('Network Terms'));
+    let networkTermsData = null;
+    if (networkTermsRange?.values) {
+      networkTermsData = {
+        allData: networkTermsRange.values.slice(1).map(row => ({
+          network: row[0] || '',
+          terms: row[1] || '',
+          exposure: parseFloat((row[2] || '0').replace(/[$,]/g, '')),
+          runningTotal: parseFloat((row[3] || '0').replace(/[$,]/g, '')),
+          status: row[4] || '',
+          notes: row[5] || ''
+        })),
+        totalExposure: networkTermsRange.values.slice(1).reduce((total, row) => {
+          return total + parseFloat((row[3] || '0').replace(/[$,]/g, ''));
+        }, 0)
+      };
+    }
+
+    // Process performance data
+    const performanceRange = batchResponse.data.valueRanges.find(range => range.range.includes('Main Sheet'));
+    const performanceData = performanceRange?.values?.slice(1) || [];
+
+    // Add network terms to cash flow data
+    if (networkTermsData) {
+      cashFlowData.networkTerms = networkTermsData;
+    }
+
+    // Return all data
+    return res.status(200).json({
+      performanceData: performanceData || [],
+      rawData: {
+        invoices: result.rawData.invoices || [],
+        payroll: result.rawData.payroll || [],
+        mediaBuyerSpend: result.rawData.mediaBuyerSpend || [],
+        networkTerms: result.rawData.networkTerms || [],
+        monthlyExpenses: result.rawData.monthlyExpenses || []
+      },
+      cashFlowData: result.cashFlowData || {},
+      networkTerms: result.networkTerms || [],
+      tradeshiftData: result.tradeshiftData || [],
+      plData: result.plData || {},
+      success: true
+    });
   } catch (error) {
     console.error('API Error:', error);
-    res.status(500).json({ error: error.message });
+    return res.status(500).json({ error: error.message });
   }
 }

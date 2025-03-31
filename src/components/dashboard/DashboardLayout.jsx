@@ -43,18 +43,26 @@ import BreakevenCalculator from '@/components/dashboard/BreakevenCalculator';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import EODReport from './EODReport';
 
-export default function DashboardLayout({ performanceData, invoiceData, expenseData }) {
-  const [plData, setPlData] = useState(null);
-  const [lastUpdated, setLastUpdated] = useState(null);
-  const [activeTab, setActiveTab] = useState('overview-v2');
+export default function DashboardLayout({ 
+  performanceData, 
+  invoiceData, 
+  expenseData, 
+  cashFlowData,
+  networkTermsData,
+  tradeshiftData: initialTradeshiftData,
+  plData: initialPlData 
+}) {
+  const [activeTab, setActiveTab] = useState('ai-insights');
   const [dateRange, setDateRange] = useState({
-    startDate: new Date(),
-    endDate: new Date(),
+    startDate: new Date('2025-03-23'),
+    endDate: new Date('2025-03-29'),
     period: 'last7'
   });
-  const [isLoading, setIsLoading] = useState(true);
-  const [error, setError] = useState(null);
   const [isRefreshing, setIsRefreshing] = useState(false);
+  const [lastUpdated, setLastUpdated] = useState(new Date());
+  const [error, setError] = useState(null);
+  const [tradeshiftData, setTradeshiftData] = useState(initialTradeshiftData || []);
+  const [plData, setPlData] = useState(initialPlData || null);
   const [dashboardData, setDashboardData] = useState({
     overallMetrics: {},
     networkPerformance: [],
@@ -68,15 +76,73 @@ export default function DashboardLayout({ performanceData, invoiceData, expenseD
       creditLine: 3000000
     }
   });
-  const [cashManagementData, setCashManagementData] = useState(null);
-  const [networkPaymentsData, setNetworkPaymentsData] = useState([]);
-  const [mediaBuyerData, setMediaBuyerData] = useState(null);
-  const [rawData, setRawData] = useState(null);
-  const [summaryData, setSummaryData] = useState([]);
-  const [tradeshiftData, setTradeshiftData] = useState([]);
   const [showMoreMenu, setShowMoreMenu] = useState(false);
   const moreButtonRef = useRef(null);
   const [selectedView, setSelectedView] = useState('overview');
+
+  // Update state when props change
+  useEffect(() => {
+    setTradeshiftData(initialTradeshiftData || []);
+  }, [initialTradeshiftData]);
+
+  useEffect(() => {
+    setPlData(initialPlData || null);
+  }, [initialPlData]);
+
+  // Set up initial data
+  useEffect(() => {
+    if (performanceData && invoiceData && expenseData && cashFlowData) {
+      console.log('Setting up dashboard with data:', {
+        hasPerformanceData: !!performanceData,
+        performanceDataLength: performanceData?.length,
+        hasCashFlowData: !!cashFlowData,
+        hasInvoiceData: !!invoiceData,
+        hasExpenseData: !!expenseData,
+        hasTradeshiftData: !!tradeshiftData,
+        hasPlData: !!plData
+      });
+      setLastUpdated(new Date());
+      setError(null); // Clear any previous errors
+    } else {
+      setError('Missing required data. Please refresh the page.');
+    }
+  }, [performanceData, invoiceData, expenseData, cashFlowData, tradeshiftData, plData]);
+
+  // Monitor Tradeshift data changes
+  useEffect(() => {
+    console.log('Tradeshift data state updated:', tradeshiftData);
+  }, [tradeshiftData]);
+
+  const handleDateChange = (newDateRange) => {
+    console.log('Date range changed:', newDateRange);
+    
+    // Ensure we have both start and end dates
+    if (!newDateRange.startDate || !newDateRange.endDate) {
+      console.warn('Invalid date range received:', newDateRange);
+      return;
+    }
+
+    // Update the date range state
+    setDateRange(newDateRange);
+  };
+
+  const handleRefresh = () => { 
+    if (!isRefreshing) {
+      setIsRefreshing(true);
+      setError(null); // Clear any previous errors
+      window.location.reload();
+      setLastUpdated(new Date());
+    }
+  };
+
+  const handleMoreClick = () => {
+    if (moreButtonRef.current) {
+      const rect = moreButtonRef.current.getBoundingClientRect();
+      document.documentElement.style.setProperty('--menu-top', `${rect.bottom}px`);
+      document.documentElement.style.setProperty('--menu-left', `${rect.left + (rect.width / 2)}px`);
+    }
+    setShowMoreMenu(!showMoreMenu);
+  };
 
   const mainTabs = [
     { id: 'ai-insights', label: 'AI Insights', icon: Brain },
@@ -107,66 +173,6 @@ export default function DashboardLayout({ performanceData, invoiceData, expenseD
     { id: 'breakevenCalculator', label: 'Breakeven Calculator' }
   ];
 
-  // Only fetch on mount
-  useEffect(() => {
-    fetchDashboardData();
-  }, []);
-
-  const fetchDashboardData = async () => {
-    try {
-      setIsLoading(true);
-      setError(null);
-
-      const response = await fetch('/api/sheets');
-      if (!response.ok) {
-        throw new Error('Failed to fetch dashboard data');
-      }
-
-      const data = await response.json();
-      setRawData(data);
-      setPlData(data.plData);
-      setCashManagementData(data.cashManagementData);
-      setNetworkPaymentsData(data.networkPayments || []);
-      setTradeshiftData(data.tradeshiftData || []);
-      setLastUpdated(new Date());
-    } catch (err) {
-      console.error('Error fetching dashboard data:', err);
-      setError(err.message);
-    } finally {
-      setIsLoading(false);
-      setIsRefreshing(false);
-    }
-  };
-
-  const handleDateChange = (newDateRange) => {
-    console.log('Date range changed:', newDateRange);
-    
-    // Ensure we have both start and end dates
-    if (!newDateRange.startDate || !newDateRange.endDate) {
-      console.warn('Invalid date range received:', newDateRange);
-      return;
-    }
-
-    // Update the date range state
-    setDateRange(newDateRange);
-  };
-
-  const handleRefresh = () => { 
-    if (!isRefreshing) {
-      setIsRefreshing(true);
-      fetchDashboardData();
-    }
-  };
-
-  const handleMoreClick = () => {
-    if (moreButtonRef.current) {
-      const rect = moreButtonRef.current.getBoundingClientRect();
-      document.documentElement.style.setProperty('--menu-top', `${rect.bottom}px`);
-      document.documentElement.style.setProperty('--menu-left', `${rect.left + (rect.width / 2)}px`);
-    }
-    setShowMoreMenu(!showMoreMenu);
-  };
-
   const renderTabContent = () => {
     switch (activeTab) {
       case 'ai-insights':
@@ -176,6 +182,7 @@ export default function DashboardLayout({ performanceData, invoiceData, expenseD
               performanceData={performanceData}
               invoicesData={invoiceData}
               expenseData={expenseData}
+              cashFlowData={cashFlowData}
             />
           </div>
         );
@@ -195,54 +202,18 @@ export default function DashboardLayout({ performanceData, invoiceData, expenseD
         console.log('Net Profit tab data:', {
           performanceData: performanceData?.length,
           dateRange,
-          samplePerformanceData: performanceData?.[0]
+          cashFlowData,
+          networkTerms: networkTermsData,
         });
-
-        // Debug logging for financial metrics
-        console.log('Raw financial data:', {
-          invoiceData,
-          rawData: {
-            networkTerms: rawData?.networkTerms,
-            financialResources: rawData?.financialResources
-          },
-          cashManagementData
-        });
-
-        // Calculate financial metrics
-        const cashInBank = cashManagementData?.availableCash || 0;
-        const creditCardDebt = (rawData?.financialResources || [])
-          .filter(resource => resource.owing > 0)
-          .reduce((sum, card) => sum + (parseFloat(card.owing) || 0), 0);
-        const outstandingInvoices = (invoiceData || [])
-          .filter(invoice => !invoice.paid && invoice.Amount > 0)
-          .reduce((sum, invoice) => sum + (parseFloat(invoice.Amount) || 0), 0);
-        const networkExposure = (rawData?.networkTerms || [])
-          .reduce((sum, term) => sum + (parseFloat(term.runningTotal) || 0), 0);
-
-        console.log('Calculated financial metrics:', {
-          cashInBank,
-          creditCardDebt,
-          outstandingInvoices,
-          networkExposure,
-          invoiceCount: invoiceData?.length,
-          networkTermsCount: rawData?.networkTerms?.length
-        });
-
         return (
           <div className="space-y-6">
-            <FinancialOverviewBox 
-              cashInBank={cashInBank}
-              creditCardDebt={creditCardDebt}
-              outstandingInvoices={outstandingInvoices}
-              networkExposure={networkExposure}
-              onRefresh={() => {
-                setIsRefreshing(true);
-                fetchDashboardData();
-              }}
-            />
-            <NetProfit 
+            <NetProfit
               performanceData={performanceData}
               dateRange={dateRange}
+              cashFlowData={{
+                ...cashFlowData,
+                networkTerms: networkTermsData
+              }}
             />
           </div>
         );
@@ -251,9 +222,9 @@ export default function DashboardLayout({ performanceData, invoiceData, expenseD
           <div className="space-y-6">
             <EnhancedOverviewV2 
               performanceData={performanceData || []}
-              cashFlowData={cashManagementData}
+              cashFlowData={cashFlowData}
               plData={plData}
-              data={rawData}
+              networkTermsData={networkTermsData}
             />
           </div>
         );
@@ -262,11 +233,9 @@ export default function DashboardLayout({ performanceData, invoiceData, expenseD
         return (
           <div className="space-y-6">
             <ProfitDistribution
-              cashFlowData={cashManagementData}
-              bankStructure={rawData?.bankStructure}
+              cashFlowData={cashFlowData}
+              networkTermsData={networkTermsData}
               netProfit={plData?.summary?.[plData.summary.length - 1]?.NetProfit || 0}
-              creditLimits={rawData?.creditLimits}
-              otherCards={rawData?.otherCards}
             />
           </div>
         );
@@ -274,27 +243,30 @@ export default function DashboardLayout({ performanceData, invoiceData, expenseD
       case 'cash-credit':
         return (
           <CreditLine 
-            cashFlowData={{
-              financialResources: cashManagementData?.financialResources || [],
-              availableCash: cashManagementData?.availableCash || 0,
-              creditAvailable: cashManagementData?.creditAvailable || 0
-            }} 
+            data={{
+              performanceData,
+              invoicesData: invoiceData,
+              cashFlowData,
+              payrollData: expenseData
+            }}
+            loading={isRefreshing}
+            error={error}
           />
         );
   
         case 'network-caps':
           return (
             <NetworkCapsTab 
-              networkTerms={rawData?.networkTerms || []}
+              networkTerms={networkTermsData || []}
             />
           );
   
       case 'daily-spend':
         return (
           <DailySpendCalculatorTab 
-            cashManagementData={cashManagementData}
+            cashManagementData={cashFlowData}
             performanceData={performanceData}
-            offerCaps={rawData?.networkTerms || []}
+            offerCaps={networkTermsData || []}
           />
         );
         
@@ -302,12 +274,12 @@ export default function DashboardLayout({ performanceData, invoiceData, expenseD
         return (
           <CashFlowProjection 
             projectionData={{
-              currentBalance: cashManagementData?.availableCash || 0,
-              creditAvailable: cashManagementData?.creditAvailable || 0,
-              startingBalance: cashManagementData?.currentBalance || 0,
-              invoices: rawData?.invoices || [],
+              currentBalance: cashFlowData?.availableCash || 0,
+              creditAvailable: cashFlowData?.creditAvailable || 0,
+              startingBalance: cashFlowData?.currentBalance || 0,
+              invoices: invoiceData || [],
               payrollData: expenseData || [],
-              creditCards: rawData?.financialResources?.filter(r => r.owing > 0) || [],
+              creditCards: cashFlowData?.financialResources?.filter(r => r.owing > 0) || [],
               mediaBuyerData: performanceData
             }}
           />
@@ -360,7 +332,7 @@ export default function DashboardLayout({ performanceData, invoiceData, expenseD
       case 'cash-position':
         return (
           <CashPosition 
-            cashFlowData={cashManagementData}
+            cashFlowData={cashFlowData}
             networkPaymentsData={networkPaymentsData}
             invoicesData={invoiceData}
           />
@@ -371,9 +343,9 @@ export default function DashboardLayout({ performanceData, invoiceData, expenseD
           <div className="space-y-6">
             <FinancialOverview 
               plData={plData}
-              cashFlowData={cashManagementData}
+              cashFlowData={cashFlowData}
               invoicesData={invoiceData}
-              networkTerms={rawData?.networkTerms || []}
+              networkTerms={networkTermsData || []}
             />
           </div>
         );
@@ -389,7 +361,7 @@ export default function DashboardLayout({ performanceData, invoiceData, expenseD
         return (
           <RevenueFlowAnalysis 
             performanceData={performanceData}
-            networkTerms={rawData?.networkTerms}
+            networkTerms={networkTermsData}
             invoicesData={invoiceData}
             plData={plData}
           />
@@ -403,7 +375,7 @@ export default function DashboardLayout({ performanceData, invoiceData, expenseD
               tradeshiftData={tradeshiftData} 
             />
             <CreditCardLimits 
-              financialResources={rawData?.financialResources || []}
+              financialResources={cashFlowData?.financialResources || []}
             />
           </div>
         );
@@ -419,7 +391,7 @@ export default function DashboardLayout({ performanceData, invoiceData, expenseD
       case 'monthly-expenses':
         return (
           <div className="space-y-6">
-            <MonthlyExpenses expensesData={rawData?.monthlyExpenses || []} />
+            <MonthlyExpenses expensesData={expenseData || []} />
         </div>
         );
   
@@ -431,14 +403,9 @@ export default function DashboardLayout({ performanceData, invoiceData, expenseD
     }
   };
 
-  // Add useEffect to log state changes
-  useEffect(() => {
-    console.log('Tradeshift data state updated:', tradeshiftData);
-  }, [tradeshiftData]);
-
   // Add this function to get the latest date from performance data
   const getLatestDataDate = (data) => {
-    if (!data?.length) return new Date();
+    if (!data?.length) return new Date('2025-03-29'); // Return the latest known date in the dataset
     
     const dates = data
       .map(entry => {
@@ -448,7 +415,7 @@ export default function DashboardLayout({ performanceData, invoiceData, expenseD
       })
       .filter(Boolean);
     
-    return dates.length ? new Date(Math.max(...dates)) : new Date();
+    return dates.length ? new Date(Math.max(...dates)) : new Date('2025-03-29');
   };
 
   return (

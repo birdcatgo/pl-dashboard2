@@ -31,9 +31,11 @@ const EODReport = ({ performanceData }) => {
     const mediaBuyers = new Set();
 
     performanceData.forEach(entry => {
-      networks.add(entry.Network);
-      offers.add(entry.Offer);
-      mediaBuyers.add(entry['Media Buyer']);
+      if (Array.isArray(entry)) {
+        networks.add(entry[1]); // Network is at index 1
+        offers.add(entry[2]); // Offer is at index 2
+        mediaBuyers.add(entry[3]); // Media Buyer is at index 3
+      }
     });
 
     return {
@@ -59,7 +61,10 @@ const EODReport = ({ performanceData }) => {
         return acc;
       }
 
-      const entryDate = new Date(entry.Date);
+      // Parse date in MM/DD/YYYY format
+      const [month, day, year] = entry.Date.split('/');
+      const entryDate = new Date(year, month - 1, day);
+      
       if (entryDate >= year2025Start && entryDate <= year2025End) {
         const dateKey = format(entryDate, 'yyyy-MM-dd');
         const monthKey = format(entryDate, 'yyyy-MM');
@@ -84,8 +89,8 @@ const EODReport = ({ performanceData }) => {
           };
         }
         
-        const revenue = parseFloat(entry['Total Revenue'] || 0);
-        const spend = parseFloat(entry['Ad Spend'] || 0);
+        const revenue = entry['Total Revenue'] || 0;
+        const spend = entry['Ad Spend'] || 0;
         const profit = revenue - spend;
         
         // Update month totals

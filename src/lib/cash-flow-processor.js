@@ -7,12 +7,12 @@ const cashAccounts = [
   'Business Savings (JP MORGAN)'
 ];
 
-const parseAmount = (amount) => {
-  if (typeof amount === 'number') return amount;
-  if (typeof amount === 'string') {
-    return parseFloat(amount.replace(/[\$,]/g, '') || 0);
-  }
-  return 0;
+const parseAmount = (str) => {
+  if (!str) return 0;
+  if (typeof str === 'number') return str;
+  const cleaned = str.toString().replace(/[$,]/g, '');
+  const parsed = parseFloat(cleaned);
+  return isNaN(parsed) ? 0 : parsed;
 };
 
 const isCashAccount = (accountName) => {
@@ -36,18 +36,20 @@ export const processCashFlowData = (rows) => {
   // Skip header row and filter out empty rows
   const dataRows = rows.filter(row => 
     row && 
-    row.length >= 4 && 
+    row.length >= 2 && // Changed from 4 to 2 to include cash account rows
     row[0] !== 'Account Name' && 
     row[0].trim() !== ''
   );
 
-  console.log('Processing financial resources rows:', dataRows);
+  console.log('Raw rows from sheet:', rows);
+  console.log('Filtered data rows:', dataRows);
+  console.log('Looking for cash accounts:', cashAccounts);
 
   dataRows.forEach(row => {
     const accountName = row[0].trim();
     const available = parseAmount(row[1]);
-    const owing = parseAmount(row[2]);
-    const limit = parseAmount(row[3]);
+    const owing = parseAmount(row[2] || 0); // Default to 0 if column doesn't exist
+    const limit = parseAmount(row[3] || 0); // Default to 0 if column doesn't exist
 
     console.log('Processing row:', { accountName, available, owing, limit });
 

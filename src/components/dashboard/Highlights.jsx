@@ -54,118 +54,141 @@ const Highlights = ({ performanceData }) => {
   };
 
   const buyerPerformance = useMemo(() => {
-    if (!performanceData) return [];
+    if (!performanceData || !Array.isArray(performanceData)) return [];
 
-    // Find the most recent date in the data
-    const mostRecentDate = new Date(Math.max(...performanceData.map(entry => new Date(entry.Date))));
-    
-    // Calculate start date (7 days before most recent)
-    const startDate = new Date(mostRecentDate);
-    startDate.setDate(startDate.getDate() - 6); // -6 to include the most recent date (for 7 total days)
-    startDate.setHours(0, 0, 0, 0);
+    try {
+      // Find the most recent date in the data
+      const validDates = performanceData
+        .map(entry => {
+          const date = new Date(entry.Date);
+          return isNaN(date.getTime()) ? null : date;
+        })
+        .filter(date => date !== null);
 
-    // Set end date to end of the most recent day
-    const endDate = new Date(mostRecentDate);
-    endDate.setHours(23, 59, 59, 999);
+      if (validDates.length === 0) {
+        console.error('No valid dates found in performance data');
+        return [];
+      }
 
-    console.log('Date Range:', {
-      start: startDate.toISOString(),
-      end: endDate.toISOString(),
-      totalDays: Math.ceil((endDate - startDate) / (1000 * 60 * 60 * 24))
-    });
+      const mostRecentDate = new Date(Math.max(...validDates.map(date => date.getTime())));
+      
+      // Calculate start date (7 days before most recent)
+      const startDate = new Date(mostRecentDate);
+      startDate.setDate(startDate.getDate() - 6); // -6 to include the most recent date (for 7 total days)
+      startDate.setHours(0, 0, 0, 0);
 
-    // First, group by day to analyze trends
-    const dailyData = performanceData
-      .filter(entry => {
-        const entryDate = new Date(entry.Date);
-        return entryDate >= startDate && 
-               entryDate <= endDate && 
-               entry['Media Buyer'] !== 'Unknown' &&
-               entry.Network !== 'Unknown' &&
-               entry.Offer !== 'Unknown';
-      })
-      .reduce((acc, entry) => {
-        const date = new Date(entry.Date).toISOString().split('T')[0];
+      // Set end date to end of the most recent day
+      const endDate = new Date(mostRecentDate);
+      endDate.setHours(23, 59, 59, 999);
+
+      console.log('Date Range:', {
+        start: startDate.toISOString(),
+        end: endDate.toISOString(),
+        totalDays: Math.ceil((endDate - startDate) / (1000 * 60 * 60 * 24))
+      });
+
+      // First, group by day to analyze trends
+      const dailyData = performanceData
+        .filter(entry => {
+          try {
+            const entryDate = new Date(entry.Date);
+            return !isNaN(entryDate.getTime()) && 
+                   entryDate >= startDate && 
+                   entryDate <= endDate && 
+                   entry['Media Buyer'] !== 'Unknown' &&
+                   entry.Network !== 'Unknown' &&
+                   entry.Offer !== 'Unknown';
+          } catch (error) {
+            console.error('Error processing date:', entry.Date, error);
+            return false;
+          }
+        })
+        .reduce((acc, entry) => {
+          const date = new Date(entry.Date).toISOString().split('T')[0];
+          
+          // Special handling for Mike's ACA entries
+          let key;
+          if (entry['Media Buyer'] === 'Mike' && 
+              ((entry.Network === 'Suited' && entry.Offer === 'ACA') || 
+               (entry.Network === 'ACA' && entry.Offer === 'ACA'))) {
+            // Combine Mike's ACA entries
+            key = 'Mike-ACA-ACA';
+          } else {
+            key = `${entry['Media Buyer']}-${entry.Network}-${entry.Offer}`;
+          }
+          
+          if (!acc[key]) {
+            acc[key] = {};
+          }
+          
+          if (!acc[key][date]) {
+            acc[key][date] = {
+              spend: 0,
+              revenue: 0,
+              margin: 0
+            };
+          }
+
+          const spend = parseFloat(entry['Ad Spend'] || 0);
+          const revenue = parseFloat(entry['Total Revenue'] || 0);
+          
+          acc[key][date].spend += spend;
+          acc[key][date].revenue += revenue;
+          acc[key][date].margin = acc[key][date].revenue - acc[key][date].spend;
+
+          return acc;
+        }, {});
+
+      // Then aggregate and analyze trends
+      const aggregatedData = Object.entries(dailyData).reduce((acc, [key, dates]) => {
+        const [buyer, network, offer] = key.split('-');
         
-        // Special handling for Mike's ACA entries
-        let key;
-        if (entry['Media Buyer'] === 'Mike' && 
-            ((entry.Network === 'Suited' && entry.Offer === 'ACA') || 
-             (entry.Network === 'ACA' && entry.Offer === 'ACA'))) {
-          // Combine Mike's ACA entries
-          key = 'Mike-ACA-ACA';
+        const dailyMetrics = Object.values(dates);
+        const trend = analyzeTrend(dailyMetrics);
+        
+        const totals = dailyMetrics.reduce((sums, day) => ({
+          spend: sums.spend + day.spend,
+          revenue: sums.revenue + day.revenue,
+          margin: sums.revenue - sums.spend
+        }), { spend: 0, revenue: 0, margin: 0 });
+
+        // For Mike's combined ACA entry
+        if (key === 'Mike-ACA-ACA') {
+          acc[key] = {
+            buyer: 'Mike',
+            network: 'ACA',
+            offer: 'ACA',
+            ...totals,
+            trend
+          };
         } else {
-          key = `${entry['Media Buyer']}-${entry.Network}-${entry.Offer}`;
-        }
-        
-        if (!acc[key]) {
-          acc[key] = {};
-        }
-        
-        if (!acc[key][date]) {
-          acc[key][date] = {
-            spend: 0,
-            revenue: 0,
-            margin: 0
+          acc[key] = {
+            buyer,
+            network,
+            offer,
+            ...totals,
+            trend
           };
         }
-
-        const spend = parseFloat(entry['Ad Spend'] || 0);
-        const revenue = parseFloat(entry['Total Revenue'] || 0);
-        
-        acc[key][date].spend += spend;
-        acc[key][date].revenue += revenue;
-        acc[key][date].margin = acc[key][date].revenue - acc[key][date].spend;
 
         return acc;
       }, {});
 
-    // Then aggregate and analyze trends
-    const aggregatedData = Object.entries(dailyData).reduce((acc, [key, dates]) => {
-      const [buyer, network, offer] = key.split('-');
-      
-      const dailyMetrics = Object.values(dates);
-      const trend = analyzeTrend(dailyMetrics);
-      
-      const totals = dailyMetrics.reduce((sums, day) => ({
-        spend: sums.spend + day.spend,
-        revenue: sums.revenue + day.revenue,
-        margin: sums.revenue - sums.spend
-      }), { spend: 0, revenue: 0, margin: 0 });
-
-      // For Mike's combined ACA entry
-      if (key === 'Mike-ACA-ACA') {
-        acc[key] = {
-          buyer: 'Mike',
-          network: 'ACA',
-          offer: 'ACA',
-          ...totals,
-          trend
-        };
-      } else {
-        acc[key] = {
-          buyer,
-          network,
-          offer,
-          ...totals,
-          trend
-        };
-      }
-
-      return acc;
-    }, {});
-
-    // Convert to array and calculate ROIs
-    return {
-      data: Object.values(aggregatedData)
-        .map(row => ({
-          ...row,
-          roi: row.spend > 0 ? (row.margin / row.spend) * 100 : 0
-        }))
-        .sort((a, b) => b.margin - a.margin),
-      startDate,
-      endDate
-    };
+      // Convert to array and calculate ROIs
+      return {
+        data: Object.values(aggregatedData)
+          .map(row => ({
+            ...row,
+            roi: row.spend > 0 ? (row.margin / row.spend) * 100 : 0
+          }))
+          .sort((a, b) => b.margin - a.margin),
+        startDate,
+        endDate
+      };
+    } catch (error) {
+      console.error('Error calculating buyer performance:', error);
+      return [];
+    }
   }, [performanceData]);
 
   // Calculate date range text outside useMemo

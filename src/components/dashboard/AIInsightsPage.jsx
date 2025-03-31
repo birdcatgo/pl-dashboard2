@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { Card } from '../ui/card';
 import { TrendingUp, DollarSign, Search } from 'lucide-react';
 import { format, startOfMonth, endOfMonth, subDays, subMonths } from 'date-fns';
@@ -6,16 +6,26 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Sparkline } from '../ui/sparkline';
 import { Input } from '../ui/input';
 
-const AIInsightsPage = ({ performanceData, invoiceData }) => {
+const AIInsightsPage = ({ performanceData, invoiceData, expenseData, cashFlowData }) => {
   const [dateRange, setDateRange] = useState('mtd');
   const [selectedQuestion, setSelectedQuestion] = useState(null);
   const [answer, setAnswer] = useState(null);
   const [analysisDateRange, setAnalysisDateRange] = useState('mtd');
 
-  // Find the last date in the performance data
-  const lastDataDate = performanceData.length > 0 
-    ? new Date(Math.max(...performanceData.map(d => new Date(d.Date))))
-    : new Date();
+  // Calculate the last data date from performance data
+  const lastDataDate = useMemo(() => {
+    if (!performanceData?.length) return new Date();
+    
+    const dates = performanceData
+      .map(entry => {
+        if (!entry.Date) return null;
+        const [month, day, year] = entry.Date.split('/').map(num => parseInt(num, 10));
+        return new Date(year, month - 1, day);
+      })
+      .filter(Boolean);
+    
+    return dates.length ? new Date(Math.max(...dates)) : new Date();
+  }, [performanceData]);
 
   // Media Buyer Categories
   const mediaBuyerCategories = {

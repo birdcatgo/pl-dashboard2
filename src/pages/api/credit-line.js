@@ -21,19 +21,19 @@ export default async function handler(req, res) {
     const [performanceData, cashFlowData, invoicesData, payrollData] = await Promise.all([
       sheets.spreadsheets.values.get({
         spreadsheetId: process.env.GOOGLE_SHEETS_ID,
-        range: 'Performance Data!A:Z',
+        range: "'Main Sheet'!A:Z",
       }),
       sheets.spreadsheets.values.get({
         spreadsheetId: process.env.GOOGLE_SHEETS_ID,
-        range: 'Cash Flow!A:Z',
+        range: "'Financial Resources'!A:D",
       }),
       sheets.spreadsheets.values.get({
         spreadsheetId: process.env.GOOGLE_SHEETS_ID,
-        range: 'Invoices!A:Z',
+        range: "'Invoices'!A:F",
       }),
       sheets.spreadsheets.values.get({
         spreadsheetId: process.env.GOOGLE_SHEETS_ID,
-        range: 'Payroll!A:Z',
+        range: "'Payroll'!A:D",
       }),
     ]);
 
