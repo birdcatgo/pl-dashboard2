@@ -347,7 +347,7 @@ const CreditLine = ({ data, loading, error }) => {
             <tbody className="divide-y divide-gray-200">
               {/* Cash Accounts */}
               <tr className="bg-gray-50">
-                <td colSpan="5" className="px-4 py-2 text-sm font-medium text-gray-700">Cash Accounts</td>
+                <td colSpan="5" className="px-4 py-2 text-sm font-bold text-gray-700">Cash Accounts</td>
               </tr>
               {cashAccounts.map((account, index) => (
                 <tr key={index} className="hover:bg-gray-50">
@@ -361,7 +361,7 @@ const CreditLine = ({ data, loading, error }) => {
 
               {/* AMEX Cards */}
               <tr className="bg-gray-50">
-                <td colSpan="5" className="px-4 py-2 text-sm font-medium text-gray-700">AMEX Cards</td>
+                <td colSpan="5" className="px-4 py-2 text-sm font-bold text-gray-700">AMEX Cards</td>
               </tr>
               {amexCards.map((account, index) => (
                 <tr key={index} className="hover:bg-gray-50">
