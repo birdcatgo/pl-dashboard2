@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useMemo } from 'react';
+import React, { useMemo } from 'react';
 import { Card, CardHeader, CardTitle, CardContent } from '../ui/card';
 import { RefreshCw, DollarSign, CreditCard, ArrowUpRight, ArrowDownRight } from 'lucide-react';
 
@@ -18,32 +18,16 @@ const formatPercent = (value) => {
   return `${(value * 100).toFixed(1)}%`;
 };
 
-const CreditLine = () => {
-  const [data, setData] = useState(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState(null);
+const formatDate = (date) => {
+  if (!date) return '';
+  return date.toLocaleDateString('en-US', {
+    month: 'numeric',
+    day: 'numeric',
+    year: 'numeric'
+  });
+};
 
-  const fetchData = async () => {
-    try {
-      setLoading(true);
-      const response = await fetch('/api/sheets');
-      if (!response.ok) {
-        throw new Error('Failed to fetch data');
-      }
-      const result = await response.json();
-      setData(result);
-    } catch (err) {
-      setError(err.message);
-      console.error('Error fetching credit line data:', err);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  useEffect(() => {
-    fetchData();
-  }, []);
-
+const CreditLine = ({ data, loading, error }) => {
   const calculateUtilization = (owing, limit) => {
     if (limit === 0) return '-';
     return formatPercent(owing / limit);
@@ -59,22 +43,72 @@ const CreditLine = () => {
     const payrollData = data.payrollData || [];
 
     // Calculate most recent day's total ad spend
-    const lastDate = performanceData
-      .map(entry => entry.Date)
-      .sort((a, b) => {
-        const [aMonth, aDay, aYear] = a.split('/').map(Number);
-        const [bMonth, bDay, bYear] = b.split('/').map(Number);
-        // For March dates in 2025
-        const fullAYear = (aMonth <= 3) ? 2025 : 2024;
-        const fullBYear = (bMonth <= 3) ? 2025 : 2024;
-        const dateA = new Date(fullAYear, aMonth - 1, aDay);
-        const dateB = new Date(fullBYear, bMonth - 1, bDay);
-        return dateB - dateA;
-      })[0];
-    
-    const lastDaySpend = performanceData
-      .filter(entry => entry.Date === lastDate)
-      .reduce((sum, entry) => sum + parseFloat(entry['Ad Spend'] || 0), 0);
+    let lastDate = null;
+    let lastDaySpend = 0;
+
+    try {
+      // Log the incoming performance data
+      console.log('Performance data sample:', performanceData.slice(0, 3));
+      console.log('Sample date format:', performanceData[0]?.Date);
+
+      // First, find the most recent date
+      const dates = performanceData
+        .map(entry => {
+          try {
+            const [month, day, year] = entry.Date.split('/').map(Number);
+            return new Date(year, month - 1, day);
+          } catch (e) {
+            console.error('Error parsing date:', entry.Date, e);
+            return null;
+          }
+        })
+        .filter(date => date !== null)
+        .sort((a, b) => b - a);
+
+      console.log('Sorted dates:', dates.map(d => d.toISOString()));
+      
+      lastDate = dates[0];
+
+      if (lastDate) {
+        // Format the date for comparison using the same format as the input data (MM/DD/YYYY)
+        const lastDateStr = `${String(lastDate.getMonth() + 1).padStart(2, '0')}/${String(lastDate.getDate()).padStart(2, '0')}/${lastDate.getFullYear()}`;
+        console.log('Looking for entries with date:', lastDateStr);
+        
+        // Log a few entries to see their date format
+        console.log('Sample entries with dates:', performanceData.slice(0, 3).map(entry => ({
+          date: entry.Date,
+          spend: entry['Ad Spend']
+        })));
+        
+        // Calculate spend for the last date
+        const matchingEntries = performanceData.filter(entry => entry.Date === lastDateStr);
+        console.log('Matching entries:', matchingEntries);
+        
+        lastDaySpend = matchingEntries.reduce((sum, entry) => {
+          try {
+            const spend = typeof entry['Ad Spend'] === 'string' 
+              ? parseFloat(entry['Ad Spend'].replace(/[^0-9.-]+/g, ''))
+              : parseFloat(entry['Ad Spend'] || 0);
+            return sum + (isNaN(spend) ? 0 : spend);
+          } catch (e) {
+            console.error('Error parsing spend:', entry['Ad Spend'], e);
+            return sum;
+          }
+        }, 0);
+
+        console.log('Last day calculation:', {
+          lastDate: lastDate?.toISOString(),
+          lastDateStr,
+          lastDaySpend,
+          performanceDataLength: performanceData.length,
+          matchingEntriesCount: matchingEntries.length,
+          sampleData: performanceData[0],
+          filteredData: matchingEntries
+        });
+      }
+    } catch (error) {
+      console.error('Error calculating last day spend:', error);
+    }
 
     // Calculate total invoices owed (money coming in)
     const thirtyDaysFromNow = new Date();
@@ -273,7 +307,7 @@ const CreditLine = () => {
                 <DollarSign className="h-4 w-4 text-orange-500" />
               </div>
               <p className="text-2xl font-bold text-orange-600">{formatCurrency(financialMetrics.yesterdaySpend)}</p>
-              <p className="text-xs text-gray-500 mt-1">Total spend for {financialMetrics.lastDate}</p>
+              <p className="text-xs text-gray-500 mt-1">Total spend for {formatDate(financialMetrics.lastDate)}</p>
             </div>
             <div className="p-4 bg-white rounded-lg border shadow-sm hover:shadow-md transition-shadow">
               <div className="flex items-center justify-between mb-2">
