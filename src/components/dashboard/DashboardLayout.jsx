@@ -478,7 +478,7 @@ export default function DashboardLayout({
 
           {/* Navigation Tabs */}
           <div className="border-t border-gray-700/50">
-            <nav className="flex space-x-8 overflow-x-auto">
+            <nav className="flex space-x-8 overflow-x-auto scrollbar-hide">
               {mainTabs.map((tab) => {
                 const Icon = tab.icon;
                 return (
@@ -549,8 +549,8 @@ export default function DashboardLayout({
         </div>
       </div>
 
-      {/* Main Content with Top Padding for Fixed Header */}
-      <div className="pt-32">
+      {/* Main Content with Dynamic Top Padding */}
+      <div className="pt-[120px]">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           {error && (
             <div className="bg-red-50 border-l-4 border-[#E74C3C] p-4 mb-6 rounded-md shadow-sm">
