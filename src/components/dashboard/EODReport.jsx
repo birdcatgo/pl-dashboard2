@@ -7,6 +7,7 @@ import { Input } from '../ui/input';
 
 const EODReport = ({ performanceData }) => {
   const [expandedDays, setExpandedDays] = useState(new Set());
+  const [expandedMonths, setExpandedMonths] = useState(new Set());
   const [networkFilter, setNetworkFilter] = useState('all');
   const [offerFilter, setOfferFilter] = useState('all');
   const [mediaBuyerFilter, setMediaBuyerFilter] = useState('all');
@@ -178,26 +179,64 @@ const EODReport = ({ performanceData }) => {
     }
   };
 
+  const toggleMonthExpansion = (monthKey) => {
+    setExpandedMonths(prev => {
+      const newExpanded = new Set(prev);
+      if (newExpanded.has(monthKey)) {
+        newExpanded.delete(monthKey);
+      } else {
+        newExpanded.add(monthKey);
+      }
+      return newExpanded;
+    });
+  };
+
+  const toggleAllMonths = () => {
+    if (expandedMonths.size === yearData.length) {
+      setExpandedMonths(new Set());
+    } else {
+      setExpandedMonths(new Set(yearData.map(month => month.monthKey)));
+    }
+  };
+
   return (
     <div className="space-y-6">
       <div className="flex justify-between items-center">
         <h2 className="text-lg font-semibold">2025 EOD Report</h2>
-        <button
-          onClick={toggleAllDays}
-          className="flex items-center gap-2 px-3 py-1 text-sm bg-gray-100 rounded-md hover:bg-gray-200"
-        >
-          {expandedDays.size === yearData.reduce((acc, month) => acc + month.days.length, 0) ? (
-            <>
-              <ChevronUpSquare className="h-4 w-4" />
-              Collapse All
-            </>
-          ) : (
-            <>
-              <ChevronDownSquare className="h-4 w-4" />
-              Expand All
-            </>
-          )}
-        </button>
+        <div className="flex gap-2">
+          <button
+            onClick={toggleAllMonths}
+            className="flex items-center gap-2 px-3 py-1 text-sm bg-gray-100 rounded-md hover:bg-gray-200"
+          >
+            {expandedMonths.size === yearData.length ? (
+              <>
+                <ChevronUpSquare className="h-4 w-4" />
+                Collapse All Months
+              </>
+            ) : (
+              <>
+                <ChevronDownSquare className="h-4 w-4" />
+                Expand All Months
+              </>
+            )}
+          </button>
+          <button
+            onClick={toggleAllDays}
+            className="flex items-center gap-2 px-3 py-1 text-sm bg-gray-100 rounded-md hover:bg-gray-200"
+          >
+            {expandedDays.size === yearData.reduce((acc, month) => acc + month.days.length, 0) ? (
+              <>
+                <ChevronUpSquare className="h-4 w-4" />
+                Collapse All Days
+              </>
+            ) : (
+              <>
+                <ChevronDownSquare className="h-4 w-4" />
+                Expand All Days
+              </>
+            )}
+          </button>
+        </div>
       </div>
 
       {/* YTD Metrics Overview */}
@@ -293,122 +332,145 @@ const EODReport = ({ performanceData }) => {
           <div key={month.monthKey} className="space-y-4">
             <Card className="p-4">
               <div className="space-y-4">
-                <h3 className="text-xl font-semibold text-gray-800">{month.monthName}</h3>
-                
-                {/* Monthly Metrics - Smaller than YTD */}
-                <div className="grid grid-cols-3 gap-4">
-                  <div className="bg-gray-50 rounded-lg p-3">
-                    <div className="flex items-center justify-between">
-                      <div>
-                        <p className="text-xs text-gray-500">MTD Revenue</p>
-                        <p className="text-lg font-semibold">{formatCurrency(month.totalRevenue)}</p>
-                      </div>
-                      <DollarSign className="h-5 w-5 text-green-500" />
-                    </div>
+                {/* Month Header - Made Clickable */}
+                <div 
+                  className="flex items-center justify-between cursor-pointer hover:bg-gray-50 p-2 rounded-lg"
+                  onClick={() => toggleMonthExpansion(month.monthKey)}
+                >
+                  <div className="flex items-center gap-2">
+                    {expandedMonths.has(month.monthKey) ? 
+                      <ChevronDown className="h-5 w-5" /> : 
+                      <ChevronRight className="h-5 w-5" />
+                    }
+                    <h3 className="text-xl font-semibold text-gray-800">{month.monthName}</h3>
                   </div>
-                  <div className="bg-gray-50 rounded-lg p-3">
-                    <div className="flex items-center justify-between">
-                      <div>
-                        <p className="text-xs text-gray-500">MTD Spend</p>
-                        <p className="text-lg font-semibold">{formatCurrency(month.totalSpend)}</p>
-                      </div>
-                      <Target className="h-5 w-5 text-blue-500" />
-                    </div>
-                  </div>
-                  <div className="bg-gray-50 rounded-lg p-3">
-                    <div className="flex items-center justify-between">
-                      <div>
-                        <p className="text-xs text-gray-500">MTD Profit</p>
-                        <p className={`text-lg font-semibold ${month.totalProfit >= 0 ? 'text-green-600' : 'text-red-600'}`}>
-                          {formatCurrency(month.totalProfit)}
-                        </p>
-                      </div>
-                      <TrendingUp className={`h-5 w-5 ${month.totalProfit >= 0 ? 'text-green-500' : 'text-red-500'}`} />
-                    </div>
+                  <div className="flex items-center gap-4 text-sm text-gray-600">
+                    <span>Revenue: {formatCurrency(month.totalRevenue)}</span>
+                    <span>Spend: {formatCurrency(month.totalSpend)}</span>
+                    <span className={month.totalProfit >= 0 ? 'text-green-600' : 'text-red-600'}>
+                      Profit: {formatCurrency(month.totalProfit)}
+                    </span>
                   </div>
                 </div>
 
-                {/* Daily table */}
-                <div className="overflow-x-auto">
-                  <table className="w-full">
-                    <thead>
-                      <tr className="border-b">
-                        <th className="text-left py-2 w-8"></th>
-                        <th className="text-left py-2">Date</th>
-                        <th className="text-left py-2"></th>
-                        <th className="text-left py-2"></th>
-                        <th className="text-left py-2"></th>
-                        <th className="text-right py-2">Revenue</th>
-                        <th className="text-right py-2">Spend</th>
-                        <th className="text-right py-2">Profit</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {month.days.map((day) => (
-                        <React.Fragment key={day.dateKey}>
-                          {/* Parent row (daily total) */}
-                          <tr 
-                            className={`border-b cursor-pointer hover:bg-gray-50 ${
-                              day.totalProfit >= 0 ? 'bg-green-50' : 'bg-red-50'
-                            }`}
-                            onClick={() => toggleDayExpansion(day.dateKey)}
-                          >
-                            <td className="py-2">
-                              {expandedDays.has(day.dateKey) ? 
-                                <ChevronDown className="h-4 w-4" /> : 
-                                <ChevronRight className="h-4 w-4" />
-                              }
-                            </td>
-                            <td className="py-2 font-medium">{format(day.date, 'MMM d, yyyy')}</td>
-                            <td></td>
-                            <td></td>
-                            <td></td>
-                            <td className="text-right py-2">{formatCurrency(day.totalRevenue)}</td>
-                            <td className="text-right py-2">{formatCurrency(day.totalSpend)}</td>
-                            <td className={`text-right py-2 font-medium ${day.totalProfit >= 0 ? 'text-green-600' : 'text-red-600'}`}>
-                              {formatCurrency(day.totalProfit)}
-                            </td>
+                {expandedMonths.has(month.monthKey) && (
+                  <>
+                    {/* Monthly Metrics - Smaller than YTD */}
+                    <div className="grid grid-cols-3 gap-4">
+                      <div className="bg-gray-50 rounded-lg p-3">
+                        <div className="flex items-center justify-between">
+                          <div>
+                            <p className="text-xs text-gray-500">MTD Revenue</p>
+                            <p className="text-lg font-semibold">{formatCurrency(month.totalRevenue)}</p>
+                          </div>
+                          <DollarSign className="h-5 w-5 text-green-500" />
+                        </div>
+                      </div>
+                      <div className="bg-gray-50 rounded-lg p-3">
+                        <div className="flex items-center justify-between">
+                          <div>
+                            <p className="text-xs text-gray-500">MTD Spend</p>
+                            <p className="text-lg font-semibold">{formatCurrency(month.totalSpend)}</p>
+                          </div>
+                          <Target className="h-5 w-5 text-blue-500" />
+                        </div>
+                      </div>
+                      <div className="bg-gray-50 rounded-lg p-3">
+                        <div className="flex items-center justify-between">
+                          <div>
+                            <p className="text-xs text-gray-500">MTD Profit</p>
+                            <p className={`text-lg font-semibold ${month.totalProfit >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                              {formatCurrency(month.totalProfit)}
+                            </p>
+                          </div>
+                          <TrendingUp className={`h-5 w-5 ${month.totalProfit >= 0 ? 'text-green-500' : 'text-red-500'}`} />
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Daily table */}
+                    <div className="overflow-x-auto">
+                      <table className="w-full">
+                        <thead>
+                          <tr className="border-b">
+                            <th className="text-left py-2 w-8"></th>
+                            <th className="text-left py-2">Date</th>
+                            <th className="text-left py-2"></th>
+                            <th className="text-left py-2"></th>
+                            <th className="text-left py-2"></th>
+                            <th className="text-right py-2">Revenue</th>
+                            <th className="text-right py-2">Spend</th>
+                            <th className="text-right py-2">Profit</th>
                           </tr>
-                          
-                          {/* Column headers for details when expanded */}
-                          {expandedDays.has(day.dateKey) && (
-                            <tr className="bg-gray-50 text-sm">
-                              <td></td>
-                              <td></td>
-                              <td className="py-1 font-bold">Network</td>
-                              <td className="py-1 font-bold">Offer</td>
-                              <td className="py-1 font-bold">Media Buyer</td>
-                              <td></td>
-                              <td></td>
-                              <td></td>
-                            </tr>
-                          )}
-                          
-                          {/* Child rows (details) */}
-                          {expandedDays.has(day.dateKey) && day.details.map((detail, idx) => (
-                            <tr 
-                              key={`${day.dateKey}-${idx}`} 
-                              className={`border-b text-sm ${
-                                detail.profit >= 0 ? 'bg-green-50/50' : 'bg-red-50/50'
-                              }`}
-                            >
-                              <td></td>
-                              <td></td>
-                              <td className="py-1">{detail.network}</td>
-                              <td className="py-1">{detail.offer}</td>
-                              <td className="py-1">{detail.mediaBuyer}</td>
-                              <td className="text-right py-1">{formatCurrency(detail.revenue)}</td>
-                              <td className="text-right py-1">{formatCurrency(detail.spend)}</td>
-                              <td className={`text-right py-1 ${detail.profit >= 0 ? 'text-green-600' : 'text-red-600'}`}>
-                                {formatCurrency(detail.profit)}
-                              </td>
-                            </tr>
+                        </thead>
+                        <tbody>
+                          {month.days.map((day) => (
+                            <React.Fragment key={day.dateKey}>
+                              {/* Parent row (daily total) */}
+                              <tr 
+                                className={`border-b cursor-pointer hover:bg-gray-50 ${
+                                  day.totalProfit >= 0 ? 'bg-green-50' : 'bg-red-50'
+                                }`}
+                                onClick={() => toggleDayExpansion(day.dateKey)}
+                              >
+                                <td className="py-2">
+                                  {expandedDays.has(day.dateKey) ? 
+                                    <ChevronDown className="h-4 w-4" /> : 
+                                    <ChevronRight className="h-4 w-4" />
+                                  }
+                                </td>
+                                <td className="py-2 font-medium">{format(day.date, 'MMM d, yyyy')}</td>
+                                <td></td>
+                                <td></td>
+                                <td></td>
+                                <td className="text-right py-2">{formatCurrency(day.totalRevenue)}</td>
+                                <td className="text-right py-2">{formatCurrency(day.totalSpend)}</td>
+                                <td className={`text-right py-2 font-medium ${day.totalProfit >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                                  {formatCurrency(day.totalProfit)}
+                                </td>
+                              </tr>
+                              
+                              {/* Column headers for details when expanded */}
+                              {expandedDays.has(day.dateKey) && (
+                                <tr className="bg-gray-50 text-sm">
+                                  <td></td>
+                                  <td></td>
+                                  <td className="py-1 font-bold">Network</td>
+                                  <td className="py-1 font-bold">Offer</td>
+                                  <td className="py-1 font-bold">Media Buyer</td>
+                                  <td></td>
+                                  <td></td>
+                                  <td></td>
+                                </tr>
+                              )}
+                              
+                              {/* Child rows (details) */}
+                              {expandedDays.has(day.dateKey) && day.details.map((detail, idx) => (
+                                <tr 
+                                  key={`${day.dateKey}-${idx}`} 
+                                  className={`border-b text-sm ${
+                                    detail.profit >= 0 ? 'bg-green-50/50' : 'bg-red-50/50'
+                                  }`}
+                                >
+                                  <td></td>
+                                  <td></td>
+                                  <td className="py-1">{detail.network}</td>
+                                  <td className="py-1">{detail.offer}</td>
+                                  <td className="py-1">{detail.mediaBuyer}</td>
+                                  <td className="text-right py-1">{formatCurrency(detail.revenue)}</td>
+                                  <td className="text-right py-1">{formatCurrency(detail.spend)}</td>
+                                  <td className={`text-right py-1 ${detail.profit >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                                    {formatCurrency(detail.profit)}
+                                  </td>
+                                </tr>
+                              ))}
+                            </React.Fragment>
                           ))}
-                        </React.Fragment>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
+                        </tbody>
+                      </table>
+                    </div>
+                  </>
+                )}
               </div>
             </Card>
           </div>
