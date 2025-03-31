@@ -14,8 +14,9 @@ import {
 import MultiSelect from '../ui/multi-select';
 import { TrendingUp, TrendingDown, ArrowRight, Activity } from 'lucide-react';
 import { Switch } from "@/components/ui/switch";
-import { format, parseISO, isWithinInterval } from 'date-fns';
+import { format, parseISO, isWithinInterval, subDays, startOfYear } from 'date-fns';
 import { Checkbox } from '../ui/checkbox';
+import TimePeriodSelector from '../ui/time-period-selector';
 
 // Add this helper function for row grouping
 const groupDataByMediaBuyer = (data) => {
@@ -216,12 +217,47 @@ const TrendGraph = ({ data, color = 'blue' }) => {
   );
 };
 
+// Add this helper function for row grouping
+const getDateRangeText = (period) => {
+  const today = new Date();
+  let startDate;
+  let endDate = today;
+
+  switch (period) {
+    case '7d':
+      startDate = subDays(today, 7);
+      break;
+    case '30d':
+      startDate = subDays(today, 30);
+      break;
+    case '90d':
+      startDate = subDays(today, 90);
+      break;
+    case '180d':
+      startDate = subDays(today, 180);
+      break;
+    case '365d':
+      startDate = subDays(today, 365);
+      break;
+    case 'ytd':
+      startDate = startOfYear(today);
+      break;
+    case 'all':
+      return 'all time';
+    default:
+      startDate = subDays(today, 30);
+  }
+
+  return `${format(startDate, 'MMM d')} to ${format(endDate, 'MMM d, yyyy')}`;
+};
+
 const MediaBuyerPerformance = ({ performanceData, dateRange }) => {
   const [selectedBuyers, setSelectedBuyers] = useState(['all']);
   const [selectedNetworks, setSelectedNetworks] = useState(['all']);
   const [expandedBuyers, setExpandedBuyers] = useState(new Set());
   const [isCumulative, setIsCumulative] = useState(false);
   const [selectedOffers, setSelectedOffers] = useState(new Set());
+  const [selectedPeriod, setSelectedPeriod] = useState('30d');
 
   // First filter data by date range - Optimize the date comparison
   const filteredByDate = useMemo(() => {
@@ -684,6 +720,16 @@ const MediaBuyerPerformance = ({ performanceData, dateRange }) => {
 
   return (
     <div className="space-y-6">
+      <div className="flex items-center justify-between">
+        <div>
+          <h2 className="text-2xl font-bold">Media Buyer Performance</h2>
+          <p className="text-sm text-gray-500 mt-1">
+            Showing data from {getDateRangeText(selectedPeriod)}
+          </p>
+        </div>
+        <TimePeriodSelector selectedPeriod={selectedPeriod} onPeriodChange={setSelectedPeriod} />
+      </div>
+
       {/* Performance Metrics - Moved up */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         <Card className="bg-blue-50/50">

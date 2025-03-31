@@ -19,9 +19,43 @@ import { ChevronDown, ChevronRight, TrendingUp, Award, AlertTriangle, Info, Sear
 import _ from 'lodash';
 import { Checkbox } from '../ui/checkbox';
 import EnhancedDateSelector from './EnhancedDateSelector';
-import { startOfDay, endOfDay } from 'date-fns';
+import { startOfDay, endOfDay, subDays, startOfYear, format } from 'date-fns';
+import TimePeriodSelector from '../ui/time-period-selector';
 
 // Helper functions
+const getDateRangeText = (period) => {
+  const today = new Date();
+  let startDate;
+  let endDate = today;
+
+  switch (period) {
+    case '7d':
+      startDate = subDays(today, 7);
+      break;
+    case '30d':
+      startDate = subDays(today, 30);
+      break;
+    case '90d':
+      startDate = subDays(today, 90);
+      break;
+    case '180d':
+      startDate = subDays(today, 180);
+      break;
+    case '365d':
+      startDate = subDays(today, 365);
+      break;
+    case 'ytd':
+      startDate = startOfYear(today);
+      break;
+    case 'all':
+      return 'all time';
+    default:
+      startDate = subDays(today, 30);
+  }
+
+  return `${format(startDate, 'MMM d')} to ${format(endDate, 'MMM d, yyyy')}`;
+};
+
 const formatCurrency = (value) => {
   return new Intl.NumberFormat('en-US', {
     style: 'currency',
@@ -387,6 +421,7 @@ const OfferPerformance = ({ performanceData, dateRange, onDateChange, latestDate
   const [selectedGraphOffers, setSelectedGraphOffers] = useState(new Set());
   const [showDetails, setShowDetails] = useState({});
   const [searchTerm, setSearchTerm] = useState('');
+  const [selectedPeriod, setSelectedPeriod] = useState('30d');
   
   // Get unique networks and offers for filters
   const { networks, offers } = useMemo(() => {
@@ -529,7 +564,15 @@ const OfferPerformance = ({ performanceData, dateRange, onDateChange, latestDate
   return (
     <div className="space-y-6">
       <div className="flex flex-col space-y-4">
-        <h2 className="text-2xl font-bold">Offer Performance</h2>
+        <div className="flex items-center justify-between">
+          <div>
+            <h2 className="text-2xl font-bold">Offer Performance</h2>
+            <p className="text-sm text-gray-500 mt-1">
+              Showing data from {getDateRangeText(selectedPeriod)}
+            </p>
+          </div>
+          <TimePeriodSelector selectedPeriod={selectedPeriod} onPeriodChange={setSelectedPeriod} />
+        </div>
 
         {/* Performance Metrics */}
         <PerformanceMetrics metrics={metrics} />

@@ -233,7 +233,6 @@ const Highlights = ({ performanceData }) => {
   // Add state for filters only (removed viewMode)
   const [selectedBuyer, setSelectedBuyer] = React.useState(null);
   const [selectedOffer, setSelectedOffer] = React.useState(null);
-  const [selectedPeriod, setSelectedPeriod] = React.useState('30d');
 
   // Define media buyers to exclude
   const excludedMediaBuyers = [
@@ -679,10 +678,9 @@ const Highlights = ({ performanceData }) => {
             <div>
               <h3 className="text-lg font-semibold text-gray-900">Offer Breakdown by Date</h3>
               <p className="text-sm text-gray-500 mt-1">
-                Showing data from {getDateRangeText(selectedPeriod)}
+                Last 30 days performance
               </p>
             </div>
-            <TimePeriodSelector selectedPeriod={selectedPeriod} onPeriodChange={setSelectedPeriod} />
           </div>
         </div>
         <div className="p-6">
