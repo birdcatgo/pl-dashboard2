@@ -438,9 +438,9 @@ export default function DashboardLayout({
   };
 
   return (
-    <main className="min-h-screen bg-[#F9FAFB]">
+    <div className="flex flex-col min-h-screen bg-[#F9FAFB]">
       {/* Fixed Header */}
-      <div className="fixed top-0 left-0 right-0 bg-[#1C1F2B] shadow-lg z-50">
+      <header className="sticky top-0 left-0 right-0 bg-[#1C1F2B] shadow-lg z-50">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           {/* Header Content */}
           <div className="flex items-center justify-between h-16">
@@ -547,11 +547,11 @@ export default function DashboardLayout({
             </nav>
           </div>
         </div>
-      </div>
+      </header>
 
-      {/* Main Content with Dynamic Top Padding */}
-      <div className="pt-[120px]">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+      {/* Main Content */}
+      <main className="flex-1">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
           {error && (
             <div className="bg-red-50 border-l-4 border-[#E74C3C] p-4 mb-6 rounded-md shadow-sm">
               <div className="flex">
@@ -584,7 +584,7 @@ export default function DashboardLayout({
             </div>
           </div>
         </div>
-      </div>
-    </main>
+      </main>
+    </div>
   );
 };
