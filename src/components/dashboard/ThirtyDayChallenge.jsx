@@ -1,23 +1,5 @@
-import React, { useState, useEffect } from 'react';
-import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
-import { ChevronDown, ChevronUp } from 'lucide-react';
-
-const TEAM_MEETINGS = [
-  '2025-03-28',
-  '2025-04-04',
-  '2025-04-11',
-  '2025-04-15',
-  '2025-04-21',
-];
-
-const MEDIA_BUYERS = [
-  { name: 'Ishaan', startDate: null },
-  { name: 'Edwin', startDate: null },
-  { name: 'Nick N', startDate: null },
-  { name: 'Mike C', startDate: null },
-  { name: 'Gagan', startDate: null },
-  { name: 'Omar', startDate: null },
-];
+import React, { useState } from 'react';
+import { Card } from '../ui/card';
 
 const formatCurrency = (value) => {
   return new Intl.NumberFormat('en-US', {
@@ -28,296 +10,337 @@ const formatCurrency = (value) => {
   }).format(value);
 };
 
-const formatDate = (dateString) => {
-  if (!dateString) return '-';
-  return new Date(dateString).toLocaleDateString('en-US', {
-    month: 'short',
-    day: 'numeric',
-    year: 'numeric'
-  });
+const getStatus = (buyer) => {
+  if (buyer.spend === 0) return '';
+  
+  const daysSinceStart = Math.floor((new Date() - new Date(buyer.startDate)) / (1000 * 60 * 60 * 24));
+  
+  if (daysSinceStart <= 3) {
+    return 'Testing Phase - Focus on finding winning campaigns';
+  } else if (buyer.margin < 0) {
+    return 'Recovery Phase - Optimize or pivot to better performing offers';
+  } else if (buyer.roi > 20) {
+    return 'Advanced Scaling - Maximize profitable campaigns';
+  } else {
+    return 'Growth Phase - Optimize and scale profitable campaigns';
+  }
 };
 
-const calculateRoi = (revenue, spend) => {
-  if (spend === 0) return 0;
-  return (revenue / spend) * 100 - 100;
+const getPerformanceColors = (margin, spend) => {
+  // Extreme cases with brighter colors
+  if (margin >= 1000) return { row: 'bg-green-100', text: 'text-green-700 font-semibold' }; // Very profitable
+  if (margin <= -500) return { row: 'bg-red-100', text: 'text-red-700 font-semibold' }; // Very unprofitable
+  
+  // Standard cases
+  if (margin >= 250) return { row: 'bg-green-50', text: 'text-green-600' };
+  if (margin < 0) return { row: 'bg-red-50', text: 'text-red-600' };
+  if (Math.abs(margin) < spend * 0.05) return { row: 'bg-yellow-50', text: 'text-yellow-600' };
+  return { row: '', text: 'text-gray-900' };
+};
+
+const TrendGraph = ({ data, color = 'blue' }) => {
+  if (!data || data.length === 0) return null;
+
+  const width = 150; // Increased width for better visibility
+  const height = 30;
+  const padding = 2;
+
+  // Normalize data to fit within graph height
+  const values = data.map(d => d.margin);
+  const max = Math.max(...values);
+  const min = Math.min(...values);
+  const range = max - min;
+
+  // If all values are the same, create a flat line
+  if (range === 0) {
+    const y = height / 2;
+    return (
+      <svg width={width} height={height} className="inline-block">
+        <line
+          x1={padding}
+          y1={y}
+          x2={width - padding}
+          y2={y}
+          stroke={color}
+          strokeWidth="2"
+        />
+      </svg>
+    );
+  }
+
+  // Create points for the line
+  const points = values.map((value, i) => {
+    const x = padding + (i * (width - 2 * padding)) / (values.length - 1);
+    const y = height - padding - ((value - min) * (height - 2 * padding)) / range;
+    return `${x},${y}`;
+  });
+
+  return (
+    <svg width={width} height={height} className="inline-block">
+      <path
+        d={`M ${points.join(' L ')}`}
+        fill="none"
+        stroke={color}
+        strokeWidth="2"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+    </svg>
+  );
 };
 
 const ThirtyDayChallenge = ({ performanceData = [] }) => {
-  const [buyerData, setBuyerData] = useState(
-    MEDIA_BUYERS.map(buyer => ({
-      ...buyer,
-      spendCheckpoints: {
-        $500: false,
-        $1000: false,
-      },
-      dailyStats: [],
-      meetingAttendance: TEAM_MEETINGS.reduce((acc, date) => ({
-        ...acc,
-        [date]: false
-      }), {}),
-      notes: '',
-      isExpanded: false
-    }))
-  );
+  const [expandedBuyers, setExpandedBuyers] = useState(new Set());
 
-  // Process performance data when it changes
-  useEffect(() => {
-    if (!performanceData?.length) return;
+  const toggleBuyerExpansion = (buyerName) => {
+    const newExpanded = new Set(expandedBuyers);
+    if (newExpanded.has(buyerName)) {
+      newExpanded.delete(buyerName);
+    } else {
+      newExpanded.add(buyerName);
+    }
+    setExpandedBuyers(newExpanded);
+  };
 
-    const processedData = [...buyerData];
-    
-    // Group data by media buyer
-    const buyerStats = {};
-    performanceData.forEach(entry => {
-      const buyerName = entry['Media Buyer'];
-      if (!buyerStats[buyerName]) {
-        buyerStats[buyerName] = {
-          dates: [],
-          stats: []
-        };
-      }
-      
-      const spend = parseFloat(entry['Ad Spend']) || 0;
-      const revenue = parseFloat(entry['Total Revenue']) || 0;
-      const profit = parseFloat(entry.Margin) || 0;
-      
-      buyerStats[buyerName].dates.push(entry.Date);
-      buyerStats[buyerName].stats.push({
-        date: entry.Date,
-        spend,
-        profit,
-        revenue,
-        offer: entry.Offer || '',
-        network: entry.Network || '',
-        adAccount: entry['Ad Account'] || '',
-        roi: calculateRoi(revenue, spend)
-      });
+  // Process data for 30-day challenge
+  const thirtyDayChallengeData = performanceData.reduce((acc, entry) => {
+    const buyer = entry['Media Buyer'];
+    // Filter out inactive media buyers and unknown
+    if (!buyer || 
+        buyer.toLowerCase() === 'unknown' || 
+        ['Dave', 'Asheesh', 'Alex'].includes(buyer)) return acc;
+
+    let buyerData = acc.find(b => b.name === buyer);
+    if (!buyerData) {
+      buyerData = {
+        name: buyer,
+        startDate: entry.Date,
+        spend: 0,
+        revenue: 0,
+        margin: 0,
+        roi: 0,
+        lastDate: entry.Date,
+        dailyData: []
+      };
+      acc.push(buyerData);
+    }
+
+    // Update last date if this entry is more recent
+    if (new Date(entry.Date) > new Date(buyerData.lastDate)) {
+      buyerData.lastDate = entry.Date;
+    }
+
+    const spend = parseFloat(entry['Ad Spend'] || 0);
+    const revenue = parseFloat(entry['Total Revenue'] || 0);
+    const margin = revenue - spend;
+
+    buyerData.spend += spend;
+    buyerData.revenue += revenue;
+    buyerData.margin += margin;
+    buyerData.roi = buyerData.spend > 0 ? (buyerData.margin / buyerData.spend) * 100 : 0;
+
+    // Add daily data
+    buyerData.dailyData.push({
+      date: entry.Date,
+      spend,
+      revenue,
+      margin,
+      roi: spend > 0 ? (margin / spend) * 100 : 0
     });
 
-    // Update each buyer's data
-    processedData.forEach((buyer, idx) => {
-      const stats = buyerStats[buyer.name];
-      if (stats) {
-        // Sort dates to find the first date
-        const sortedDates = [...new Set(stats.dates)].sort();
-        processedData[idx].startDate = sortedDates[0];
-        
-        // Group stats by date to combine multiple entries per day
-        const dailyStats = stats.stats.reduce((acc, stat) => {
-          const date = stat.date;
-          if (!acc[date]) {
-            acc[date] = {
-              date,
-              spend: 0,
-              profit: 0,
-              revenue: 0,
-              offers: new Set(),
-              networks: new Set()
-            };
-          }
-          acc[date].spend += stat.spend;
-          acc[date].profit += stat.profit;
-          acc[date].revenue += stat.revenue;
-          acc[date].offers.add(stat.offer);
-          acc[date].networks.add(stat.network);
-          return acc;
-        }, {});
+    return acc;
+  }, []);
 
-        // Convert back to array and calculate ROI
-        processedData[idx].dailyStats = Object.values(dailyStats)
-          .map(day => ({
-            ...day,
-            offers: Array.from(day.offers).filter(Boolean),
-            networks: Array.from(day.networks).filter(Boolean),
-            roi: calculateRoi(day.revenue, day.spend)
-          }))
-          .sort((a, b) => new Date(b.date) - new Date(a.date));
+  // Calculate the date range (last 30 days)
+  const today = new Date();
+  const thirtyDaysAgo = new Date();
+  thirtyDaysAgo.setDate(today.getDate() - 30);
 
-        // Check spend checkpoints and calculate status
-        const totalSpend = processedData[idx].dailyStats.reduce((sum, day) => sum + day.spend, 0);
-        const latestStats = processedData[idx].dailyStats[0] || { spend: 0, roi: 0 };
-        
-        processedData[idx].spendCheckpoints = {
-          $500: totalSpend >= 500,
-          $1000: totalSpend >= 1000,
-        };
+  // Process each buyer's data
+  const filteredData = thirtyDayChallengeData
+    .map(buyer => {
+      // Filter daily data to only include the last 30 days
+      const filteredDailyData = buyer.dailyData.filter(day => 
+        new Date(day.date) >= thirtyDaysAgo
+      );
 
-        // Determine buyer's status based on progress
-        let status;
-        if (!processedData[idx].startDate) {
-          status = "Not Started - Ready to begin running traffic";
-        } else if (totalSpend < 500) {
-          status = "Testing Phase - Focus on finding winning campaigns";
-        } else if (totalSpend >= 500 && totalSpend < 1000) {
-          if (latestStats.roi > 0) {
-            status = "Scaling Phase - Increase spend on profitable campaigns";
-          } else {
-            status = "Optimization Phase - Improve ROI before scaling further";
-          }
-        } else {
-          if (latestStats.roi > 0) {
-            status = "Advanced Scaling - Maximize profitable campaigns";
-          } else {
-            status = "Recovery Phase - Optimize or pivot to better performing offers";
-          }
-        }
-        
-        processedData[idx].status = status;
-      }
-    });
+      // Recalculate totals based on filtered daily data
+      const totals = filteredDailyData.reduce((acc, day) => ({
+        spend: acc.spend + day.spend,
+        revenue: acc.revenue + day.revenue,
+        margin: acc.margin + day.margin
+      }), { spend: 0, revenue: 0, margin: 0 });
 
-    setBuyerData(processedData);
-  }, [performanceData]);
+      return {
+        ...buyer,
+        spend: totals.spend,
+        revenue: totals.revenue,
+        margin: totals.margin,
+        roi: totals.spend > 0 ? (totals.margin / totals.spend) * 100 : 0,
+        dailyData: filteredDailyData
+      };
+    })
+    // Filter out buyers with $0 spend
+    .filter(buyer => buyer.spend > 0);
 
-  const getStatusColor = (stats) => {
-    if (!stats || stats.length === 0) return '';
-    
-    // Check for $250+ profit day
-    if (stats[0]?.profit >= 250) return 'bg-green-100';
-    
-    // Check for $250+ loss day
-    if (stats[0]?.profit <= -250) return 'bg-red-100';
-    
-    // Check for 3+ days of continuous losses
-    const lastThreeDays = stats.slice(0, 3);
-    if (lastThreeDays.length === 3 && 
-        lastThreeDays.every(day => day.profit < 0)) {
-      return 'bg-orange-100';
-    }
-    
-    // Breakeven (within ±5%)
-    if (Math.abs(stats[0]?.profit) < stats[0]?.spend * 0.05) {
-      return 'bg-yellow-100';
-    }
-    
-    return '';
-  };
-
-  const getDaysSinceStart = (startDate) => {
-    if (!startDate) return 0;
-    const start = new Date(startDate);
-    const today = new Date();
-    return Math.floor((today - start) / (1000 * 60 * 60 * 24));
-  };
-
-  const toggleExpand = (idx) => {
-    const newData = [...buyerData];
-    newData[idx].isExpanded = !newData[idx].isExpanded;
-    setBuyerData(newData);
-  };
-
-  const getRoiStatusColor = (roi) => {
-    if (roi > 0) return 'text-green-600';
-    if (roi === 0) return 'text-gray-600';
-    return 'text-red-600';
-  };
-
-  const formatRoi = (roi) => {
-    return `${roi.toFixed(1)}%`;
-  };
+  // Sort by most recent start date
+  filteredData.sort((a, b) => new Date(b.startDate) - new Date(a.startDate));
 
   return (
-    <Card>
-      <CardHeader>
-        <CardTitle>30 Day Challenge - Media Buyer Progress</CardTitle>
-      </CardHeader>
-      <CardContent>
+    <Card className="w-full">
+      <div className="p-4">
+        <div className="flex justify-between items-center mb-4">
+          <h2 className="text-lg font-semibold">30 Day Challenge - Media Buyer Progress</h2>
+          <div className="text-sm text-gray-500">
+            Showing data from {thirtyDaysAgo.toLocaleDateString()} to {today.toLocaleDateString()}
+          </div>
+        </div>
         <div className="overflow-x-auto">
-          <table className="w-full border-collapse">
-            <thead>
-              <tr className="border-b border-gray-200 bg-gray-50">
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Media Buyer</th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Days Since Start</th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Start Date</th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Status</th>
-                <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase">Total Spend</th>
-                <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase">Total Revenue</th>
-                <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase">Total Profit</th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Details</th>
+          <table className="min-w-full divide-y divide-gray-200">
+            <thead className="bg-gray-50">
+              <tr>
+                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  Media Buyer
+                </th>
+                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  Days Since Start
+                </th>
+                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  Status
+                </th>
+                <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  Ad Spend Total
+                </th>
+                <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  Revenue Total
+                </th>
+                <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  Profit Total
+                </th>
+                <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  ROI
+                </th>
+                <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider bg-blue-50" title="10% of Margin">
+                  MB Comm
+                </th>
+                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  Trend
+                </th>
+                <th className="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  Details
+                </th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-gray-200">
-              {buyerData.map((buyer, idx) => (
-                <React.Fragment key={buyer.name}>
-                  <tr className={`${getStatusColor(buyer.dailyStats)} hover:bg-gray-50`}>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{buyer.name}</td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                      <div className="flex items-center gap-2">
-                        <span>{getDaysSinceStart(buyer.startDate)}</span>
-                        {buyer.startDate && <span className="text-xs text-gray-500">({buyer.startDate})</span>}
-                      </div>
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                      <div className="flex items-center gap-2">
-                        <span>{formatDate(buyer.startDate)}</span>
-                        {buyer.startDate && <span className="text-xs text-gray-500">({buyer.startDate})</span>}
-                      </div>
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{buyer.status}</td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 text-right">
-                      {formatCurrency(buyer.dailyStats.reduce((sum, day) => sum + day.spend, 0))}
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 text-right">
-                      {formatCurrency(buyer.dailyStats.reduce((sum, day) => sum + day.revenue, 0))}
-                    </td>
-                    <td className={`px-6 py-4 whitespace-nowrap text-sm font-medium text-right ${
-                      buyer.dailyStats.reduce((sum, day) => sum + day.profit, 0) >= 0 
-                        ? 'text-green-600' 
-                        : 'text-red-600'
-                    }`}>
-                      {formatCurrency(buyer.dailyStats.reduce((sum, day) => sum + day.profit, 0))}
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                      <button
-                        onClick={() => toggleExpand(idx)}
-                        className="text-blue-600 hover:text-blue-800"
+            <tbody className="bg-white divide-y divide-gray-200">
+              {filteredData
+                .filter(buyer => buyer.name !== 'Unknown')
+                .map((buyer) => {
+                  const roi = buyer.spend > 0 ? (buyer.margin / buyer.spend) * 100 : 0;
+                  const daysSinceStart = Math.floor((new Date() - new Date(buyer.startDate)) / (1000 * 60 * 60 * 24));
+                  const status = getStatus(buyer);
+                  const commission = buyer.margin > 0 ? buyer.margin * 0.10 : 0;
+                  const colors = getPerformanceColors(buyer.margin, buyer.spend);
+                  
+                  return (
+                    <React.Fragment key={buyer.name}>
+                      <tr 
+                        className={`hover:bg-gray-50 ${colors.row} cursor-pointer`}
+                        onClick={() => toggleBuyerExpansion(buyer.name)}
                       >
-                        {buyer.isExpanded ? <ChevronUp className="h-5 w-5" /> : <ChevronDown className="h-5 w-5" />}
-                      </button>
-                    </td>
-                  </tr>
-                  {buyer.isExpanded && buyer.dailyStats.length > 0 && (
-                    <tr>
-                      <td colSpan="12" className="px-6 py-4 bg-gray-50">
-                        <div className="overflow-x-auto">
-                          <table className="min-w-full divide-y divide-gray-200">
-                            <thead>
-                              <tr className="bg-gray-100">
-                                <th className="px-4 py-2 text-left text-xs font-medium text-gray-500">Date</th>
-                                <th className="px-4 py-2 text-left text-xs font-medium text-gray-500">Spend</th>
-                                <th className="px-4 py-2 text-left text-xs font-medium text-gray-500">Revenue</th>
-                                <th className="px-4 py-2 text-left text-xs font-medium text-gray-500">Profit</th>
-                                <th className="px-4 py-2 text-left text-xs font-medium text-gray-500">ROI</th>
-                                <th className="px-4 py-2 text-left text-xs font-medium text-gray-500">Offers</th>
-                                <th className="px-4 py-2 text-left text-xs font-medium text-gray-500">Networks</th>
-                              </tr>
-                            </thead>
-                            <tbody className="divide-y divide-gray-200">
-                              {buyer.dailyStats.map((day, dayIdx) => (
-                                <tr key={day.date} className="hover:bg-gray-100">
-                                  <td className="px-4 py-2 text-sm">{formatDate(day.date)}</td>
-                                  <td className="px-4 py-2 text-sm">{formatCurrency(day.spend)}</td>
-                                  <td className="px-4 py-2 text-sm">{formatCurrency(day.revenue)}</td>
-                                  <td className="px-4 py-2 text-sm">{formatCurrency(day.profit)}</td>
-                                  <td className={`px-4 py-2 text-sm font-medium ${getRoiStatusColor(day.roi)}`}>
-                                    {formatRoi(day.roi)}
-                                  </td>
-                                  <td className="px-4 py-2 text-sm">{day.offers.join(', ') || '-'}</td>
-                                  <td className="px-4 py-2 text-sm">{day.networks.join(', ') || '-'}</td>
-                                </tr>
-                              ))}
-                            </tbody>
-                          </table>
-                        </div>
-                      </td>
-                    </tr>
-                  )}
-                </React.Fragment>
-              ))}
+                        <td className="px-4 py-4 whitespace-nowrap text-sm font-medium text-gray-900 flex items-center">
+                          <span className="mr-2">
+                            {expandedBuyers.has(buyer.name) ? '▼' : '▶'}
+                          </span>
+                          {buyer.name}
+                        </td>
+                        <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-500">
+                          {daysSinceStart}
+                        </td>
+                        <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-500">
+                          {status}
+                        </td>
+                        <td className="px-4 py-4 whitespace-nowrap text-sm text-right text-gray-900">
+                          {formatCurrency(buyer.spend)}
+                        </td>
+                        <td className="px-4 py-4 whitespace-nowrap text-sm text-right text-gray-900">
+                          {formatCurrency(buyer.revenue)}
+                        </td>
+                        <td className={`px-4 py-4 whitespace-nowrap text-sm text-right ${colors.text}`}>
+                          {formatCurrency(buyer.margin)}
+                        </td>
+                        <td className={`px-4 py-4 whitespace-nowrap text-sm text-right ${colors.text}`}>
+                          {roi.toFixed(1)}%
+                        </td>
+                        <td className="px-4 py-4 whitespace-nowrap text-sm text-right bg-blue-50">
+                          {formatCurrency(commission)}
+                        </td>
+                        <td className="px-4 py-4 whitespace-nowrap text-sm">
+                          <TrendGraph 
+                            data={buyer.dailyData} 
+                            color={colors.text.includes('green') ? '#059669' : 
+                                   colors.text.includes('red') ? '#dc2626' : 
+                                   colors.text.includes('yellow') ? '#ca8a04' : 
+                                   '#1f2937'}
+                          />
+                        </td>
+                        <td className="px-4 py-4 whitespace-nowrap text-sm text-center">
+                          <button 
+                            className="text-blue-600 hover:text-blue-800"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              toggleBuyerExpansion(buyer.name);
+                            }}
+                          >
+                            {expandedBuyers.has(buyer.name) ? 'Hide' : 'Show'} Details
+                          </button>
+                        </td>
+                      </tr>
+                      {expandedBuyers.has(buyer.name) && (
+                        <tr>
+                          <td colSpan="9" className="px-4 py-4 bg-gray-50">
+                            <div className="overflow-x-auto">
+                              <table className="min-w-full divide-y divide-gray-200">
+                                <thead>
+                                  <tr className="bg-gray-100">
+                                    <th className="px-4 py-2 text-left text-xs font-medium text-gray-500">Date</th>
+                                    <th className="px-4 py-2 text-right text-xs font-medium text-gray-500">Ad Spend</th>
+                                    <th className="px-4 py-2 text-right text-xs font-medium text-gray-500">Revenue</th>
+                                    <th className="px-4 py-2 text-right text-xs font-medium text-gray-500">Profit</th>
+                                    <th className="px-4 py-2 text-right text-xs font-medium text-gray-500">ROI</th>
+                                  </tr>
+                                </thead>
+                                <tbody className="divide-y divide-gray-200">
+                                  {buyer.dailyData
+                                    .sort((a, b) => new Date(b.date) - new Date(a.date))
+                                    .map((day, index) => {
+                                      const dayColors = getPerformanceColors(day.margin, day.spend);
+                                      return (
+                                        <tr key={day.date} className="hover:bg-gray-100">
+                                          <td className="px-4 py-2 text-sm">{new Date(day.date).toLocaleDateString()}</td>
+                                          <td className="px-4 py-2 text-sm text-right">{formatCurrency(day.spend)}</td>
+                                          <td className="px-4 py-2 text-sm text-right">{formatCurrency(day.revenue)}</td>
+                                          <td className={`px-4 py-2 text-sm text-right ${dayColors.text}`}>
+                                            {formatCurrency(day.margin)}
+                                          </td>
+                                          <td className={`px-4 py-2 text-sm text-right ${dayColors.text}`}>
+                                            {day.roi.toFixed(1)}%
+                                          </td>
+                                        </tr>
+                                      );
+                                    })}
+                                </tbody>
+                              </table>
+                            </div>
+                          </td>
+                        </tr>
+                      )}
+                    </React.Fragment>
+                  );
+                })}
             </tbody>
           </table>
         </div>
-      </CardContent>
+      </div>
     </Card>
   );
 };

@@ -1,5 +1,5 @@
 import React, { useMemo, useState, useEffect } from 'react';
-import { Card } from '../ui/card';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import PerformanceMetrics from './PerformanceMetrics';
 import {
   BarChart,
@@ -18,6 +18,8 @@ import MultiSelect from '../ui/multi-select';
 import { ChevronDown, ChevronRight, TrendingUp, Award, AlertTriangle, Info, Search, Send } from 'lucide-react';
 import _ from 'lodash';
 import { Checkbox } from '../ui/checkbox';
+import EnhancedDateSelector from './EnhancedDateSelector';
+import { startOfDay, endOfDay } from 'date-fns';
 
 // Helper functions
 const formatCurrency = (value) => {
@@ -250,485 +252,12 @@ const TopPerformers = ({ data, period = 30, performanceData }) => {
   );
 };
 
-// Add new AIInsights component
-const AIInsights = ({ performanceData }) => {
-  const [query, setQuery] = useState('');
-  const [loading, setLoading] = useState(false);
-  const [insight, setInsight] = useState(null);
-  const [error, setError] = useState(null);
-
-  const parseTimeFrame = (question) => {
-    const questionLower = question.toLowerCase();
-    let days = 30; // default time frame
-
-    if (questionLower.includes('last 7 days') || questionLower.includes('past 7 days') || questionLower.includes('7 days')) {
-      days = 7;
-    } else if (questionLower.includes('last 14 days') || questionLower.includes('past 14 days') || questionLower.includes('2 weeks')) {
-      days = 14;
-    } else if (questionLower.includes('last 30 days') || questionLower.includes('past 30 days') || questionLower.includes('month')) {
-      days = 30;
-    }
-
-    const endDate = new Date();
-    const startDate = new Date();
-    startDate.setDate(startDate.getDate() - days);
-    
-    return { startDate, endDate, days };
-  };
-
-  const filterDataByTimeFrame = (data, timeFrame) => {
-    return data.filter(entry => {
-      const entryDate = new Date(entry.Date);
-      return entryDate >= timeFrame.startDate && entryDate <= timeFrame.endDate;
-    });
-  };
-
-  const analyzeData = (question) => {
-    setLoading(true);
-    setError(null);
-    
-    try {
-      const questionLower = question.toLowerCase();
-      const timeFrame = parseTimeFrame(question);
-      const filteredData = filterDataByTimeFrame(performanceData, timeFrame);
-      
-      if (filteredData.length === 0) {
-        setError('No data available for the specified time period.');
-        setLoading(false);
-        return;
-      }
-
-      // Media buyer analysis
-      if (questionLower.includes('media buyer') || questionLower.includes('buyer')) {
-        // Group data by media buyer
-        const buyerStats = filteredData.reduce((acc, entry) => {
-          const buyer = entry['Media Buyer'] || 'Unknown';
-          if (!acc[buyer]) {
-            acc[buyer] = {
-              revenue: 0,
-              spend: 0,
-              margin: 0,
-              offers: new Set(),
-              dailyMargins: {}
-            };
-          }
-          
-          const date = new Date(entry.Date).toISOString().split('T')[0];
-          acc[buyer].revenue += parseFloat(entry['Total Revenue'] || 0);
-          acc[buyer].spend += parseFloat(entry['Ad Spend'] || 0);
-          acc[buyer].margin += parseFloat(entry.Margin || 0);
-          acc[buyer].offers.add(`${entry.Network} - ${entry.Offer}`);
-          
-          // Track daily performance
-          if (!acc[buyer].dailyMargins[date]) {
-            acc[buyer].dailyMargins[date] = 0;
-          }
-          acc[buyer].dailyMargins[date] += parseFloat(entry.Margin || 0);
-          
-          return acc;
-        }, {});
-
-        // Calculate additional metrics and sort by margin
-        const buyerAnalysis = Object.entries(buyerStats)
-          .map(([buyer, stats]) => {
-            // Calculate daily trend
-            const dailyMargins = Object.entries(stats.dailyMargins)
-              .sort(([a], [b]) => new Date(a) - new Date(b))
-              .map(([date, margin]) => ({ date, margin }));
-
-            // Calculate growth (comparing first half to second half of period)
-            const midPoint = Math.floor(dailyMargins.length / 2);
-            const firstHalf = _.sum(dailyMargins.slice(0, midPoint).map(d => d.margin));
-            const secondHalf = _.sum(dailyMargins.slice(midPoint).map(d => d.margin));
-            const growth = firstHalf !== 0 ? ((secondHalf - firstHalf) / Math.abs(firstHalf)) * 100 : 0;
-
-            return {
-              buyer,
-              revenue: stats.revenue,
-              spend: stats.spend,
-              margin: stats.margin,
-              roi: (stats.margin / stats.spend) * 100,
-              offerCount: stats.offers.size,
-              growth,
-              trend: dailyMargins
-            };
-          })
-          .sort((a, b) => b.margin - a.margin);
-
-        setInsight({
-          type: 'buyer',
-          data: {
-            buyers: buyerAnalysis,
-            topBuyer: buyerAnalysis[0],
-            timeFrame
-          }
-        });
-      }
-      // Offer performance analysis
-      else if (questionLower.includes('offer') || questionLower.includes('perform')) {
-        // Group data by offer
-        const offerStats = filteredData.reduce((acc, entry) => {
-          const offerKey = `${entry.Network} - ${entry.Offer}`;
-          if (!acc[offerKey]) {
-            acc[offerKey] = {
-              revenue: 0,
-              spend: 0,
-              margin: 0,
-              dailyMargins: {},
-              buyers: new Set()
-            };
-          }
-          
-          const date = new Date(entry.Date).toISOString().split('T')[0];
-          acc[offerKey].revenue += parseFloat(entry['Total Revenue'] || 0);
-          acc[offerKey].spend += parseFloat(entry['Ad Spend'] || 0);
-          acc[offerKey].margin += parseFloat(entry.Margin || 0);
-          acc[offerKey].buyers.add(entry['Media Buyer']);
-          
-          if (!acc[offerKey].dailyMargins[date]) {
-            acc[offerKey].dailyMargins[date] = 0;
-          }
-          acc[offerKey].dailyMargins[date] += parseFloat(entry.Margin || 0);
-          
-          return acc;
-        }, {});
-
-        // Calculate metrics and sort by margin
-        const offerAnalysis = Object.entries(offerStats)
-          .map(([offer, stats]) => {
-            const dailyMargins = Object.entries(stats.dailyMargins)
-              .sort(([a], [b]) => new Date(a) - new Date(b))
-              .map(([date, margin]) => ({ date, margin }));
-            
-            // Calculate growth (comparing first half to second half of period)
-            const midPoint = Math.floor(dailyMargins.length / 2);
-            const firstHalf = _.sum(dailyMargins.slice(0, midPoint).map(d => d.margin));
-            const secondHalf = _.sum(dailyMargins.slice(midPoint).map(d => d.margin));
-            const growth = firstHalf !== 0 ? ((secondHalf - firstHalf) / Math.abs(firstHalf)) * 100 : 0;
-
-            return {
-              offer,
-              revenue: stats.revenue,
-              spend: stats.spend,
-              margin: stats.margin,
-              roi: (stats.margin / stats.spend) * 100,
-              buyerCount: stats.buyers.size,
-              growth,
-              trend: dailyMargins
-            };
-          })
-          .sort((a, b) => b.margin - a.margin);
-
-        setInsight({
-          type: 'offers',
-          data: {
-            offers: offerAnalysis,
-            topOffer: offerAnalysis[0],
-            timeFrame
-          }
-        });
-      }
-      // Network analysis
-      else if (questionLower.includes('network')) {
-        // Group data by network
-        const networkStats = filteredData.reduce((acc, entry) => {
-          const network = entry.Network;
-          if (!acc[network]) {
-            acc[network] = {
-              revenue: 0,
-              spend: 0,
-              margin: 0,
-              offers: new Set(),
-              dailyMargins: {}
-            };
-          }
-          
-          const date = new Date(entry.Date).toISOString().split('T')[0];
-          acc[network].revenue += parseFloat(entry['Total Revenue'] || 0);
-          acc[network].spend += parseFloat(entry['Ad Spend'] || 0);
-          acc[network].margin += parseFloat(entry.Margin || 0);
-          acc[network].offers.add(entry.Offer);
-          
-          if (!acc[network].dailyMargins[date]) {
-            acc[network].dailyMargins[date] = 0;
-          }
-          acc[network].dailyMargins[date] += parseFloat(entry.Margin || 0);
-          
-          return acc;
-        }, {});
-
-        const networkAnalysis = Object.entries(networkStats)
-          .map(([network, stats]) => {
-            const dailyMargins = Object.entries(stats.dailyMargins)
-              .sort(([a], [b]) => new Date(a) - new Date(b))
-              .map(([date, margin]) => ({ date, margin }));
-            
-            // Calculate growth (comparing first half to second half of period)
-            const midPoint = Math.floor(dailyMargins.length / 2);
-            const firstHalf = _.sum(dailyMargins.slice(0, midPoint).map(d => d.margin));
-            const secondHalf = _.sum(dailyMargins.slice(midPoint).map(d => d.margin));
-            const growth = firstHalf !== 0 ? ((secondHalf - firstHalf) / Math.abs(firstHalf)) * 100 : 0;
-
-            return {
-              network,
-              revenue: stats.revenue,
-              spend: stats.spend,
-              margin: stats.margin,
-              roi: (stats.margin / stats.spend) * 100,
-              offerCount: stats.offers.size,
-              growth,
-              trend: dailyMargins
-            };
-          })
-          .sort((a, b) => b.margin - a.margin);
-
-        setInsight({
-          type: 'network',
-          data: {
-            networks: networkAnalysis,
-            topNetwork: networkAnalysis[0],
-            timeFrame
-          }
-        });
-      }
-      else {
-        setError('I can help you analyze: \n• Media buyer performance (e.g., "Show top media buyers in last 7 days")\n• Offer performance (e.g., "Best performing offers this month")\n• Network performance (e.g., "Top networks in past 14 days")\nTry asking about one of these topics!');
-      }
-    } catch (err) {
-      console.error('Analysis error:', err);
-      setError('Sorry, I had trouble analyzing that data. Please try a different question.');
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  return (
-    <Card className="p-6">
-      <div className="flex items-center mb-4">
-        <Search className="w-5 h-5 mr-2 text-blue-600" />
-        <h3 className="text-xl font-semibold">AI Insights</h3>
-        <div className="ml-2 group relative inline-block">
-          <Info className="w-4 h-4 text-gray-400 cursor-help" />
-          <div className="hidden group-hover:block absolute left-0 top-6 w-96 p-2 bg-gray-800 text-white text-sm rounded-lg z-10">
-            Ask questions about your performance data! Try:
-            • "Who are the top media buyers in the last 7 days?"
-            • "Show best performing offers this month"
-            • "Which networks had highest ROI in past 14 days?"
-            • "How are my offers trending this week?"
-          </div>
-        </div>
-      </div>
-      
-      <div className="flex gap-2 mb-4">
-        <input
-          type="text"
-          className="flex-1 px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-          placeholder="Ask about performance over any time period..."
-          value={query}
-          onChange={(e) => setQuery(e.target.value)}
-          onKeyPress={(e) => e.key === 'Enter' && query && analyzeData(query)}
-        />
-        <button
-          className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50"
-          onClick={() => query && analyzeData(query)}
-          disabled={!query || loading}
-        >
-          {loading ? 'Analyzing...' : <Send className="w-4 h-4" />}
-        </button>
-      </div>
-
-      {error && (
-        <div className="p-4 bg-red-50 text-red-700 rounded-lg whitespace-pre-line">
-          {error}
-        </div>
-      )}
-
-      {insight && (
-        <div className="mt-4">
-          {insight.type === 'buyer' && (
-            <div>
-              <div className="mb-4">
-                <div className="text-sm text-gray-500 mb-2">
-                  Analysis for the {insight.data.timeFrame.days === 7 ? 'last 7 days' : 
-                    insight.data.timeFrame.days === 14 ? 'last 14 days' : 'last 30 days'}
-                </div>
-                <span className="font-bold text-xl text-green-600">
-                  {insight.data.topBuyer.buyer}
-                </span> is the top performer with:
-                <div className="mt-2 grid grid-cols-2 md:grid-cols-4 gap-4">
-                  <div className="bg-gray-50 p-3 rounded-lg">
-                    <div className="text-sm text-gray-500">Margin</div>
-                    <div className="font-bold text-green-600">{formatCurrency(insight.data.topBuyer.margin)}</div>
-                  </div>
-                  <div className="bg-gray-50 p-3 rounded-lg">
-                    <div className="text-sm text-gray-500">ROI</div>
-                    <div className="font-bold">{insight.data.topBuyer.roi.toFixed(1)}%</div>
-                  </div>
-                  <div className="bg-gray-50 p-3 rounded-lg">
-                    <div className="text-sm text-gray-500">Growth</div>
-                    <div className={`font-bold ${insight.data.topBuyer.growth >= 0 ? 'text-green-600' : 'text-red-600'}`}>
-                      {insight.data.topBuyer.growth.toFixed(1)}%
-                    </div>
-                  </div>
-                  <div className="bg-gray-50 p-3 rounded-lg">
-                    <div className="text-sm text-gray-500">Offers</div>
-                    <div className="font-bold">{insight.data.topBuyer.offerCount}</div>
-                  </div>
-                </div>
-              </div>
-              <div className="space-y-2">
-                <div className="font-medium mb-2">All Media Buyers:</div>
-                {insight.data.buyers.map((buyer) => (
-                  <div key={buyer.buyer} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
-                    <div>
-                      <div className="font-medium">{buyer.buyer}</div>
-                      <div className="text-sm text-gray-500">
-                        ROI: {buyer.roi.toFixed(1)}% • Growth: {buyer.growth.toFixed(1)}%
-                      </div>
-                    </div>
-                    <div className="text-right">
-                      <div className={buyer.margin >= 0 ? 'text-green-600' : 'text-red-600'}>
-                        {formatCurrency(buyer.margin)}
-                      </div>
-                      <div className="text-sm text-gray-500">
-                        Revenue: {formatCurrency(buyer.revenue)}
-                      </div>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
-          
-          {insight.type === 'offers' && (
-            <div>
-              <div className="mb-4">
-                <div className="text-sm text-gray-500 mb-2">
-                  Analysis for the {insight.data.timeFrame.days === 7 ? 'last 7 days' : 
-                    insight.data.timeFrame.days === 14 ? 'last 14 days' : 'last 30 days'}
-                </div>
-                <span className="font-bold text-xl text-green-600">
-                  {insight.data.topOffer.offer}
-                </span> is the top performing offer with:
-                <div className="mt-2 grid grid-cols-2 md:grid-cols-4 gap-4">
-                  <div className="bg-gray-50 p-3 rounded-lg">
-                    <div className="text-sm text-gray-500">Margin</div>
-                    <div className="font-bold text-green-600">{formatCurrency(insight.data.topOffer.margin)}</div>
-                  </div>
-                  <div className="bg-gray-50 p-3 rounded-lg">
-                    <div className="text-sm text-gray-500">ROI</div>
-                    <div className="font-bold">{insight.data.topOffer.roi.toFixed(1)}%</div>
-                  </div>
-                  <div className="bg-gray-50 p-3 rounded-lg">
-                    <div className="text-sm text-gray-500">Growth</div>
-                    <div className={`font-bold ${insight.data.topOffer.growth >= 0 ? 'text-green-600' : 'text-red-600'}`}>
-                      {insight.data.topOffer.growth.toFixed(1)}%
-                    </div>
-                  </div>
-                  <div className="bg-gray-50 p-3 rounded-lg">
-                    <div className="text-sm text-gray-500">Buyers</div>
-                    <div className="font-bold">{insight.data.topOffer.buyerCount}</div>
-                  </div>
-                </div>
-              </div>
-              <div className="space-y-4">
-                <div className="font-medium mb-2">Top 5 Offers:</div>
-                {insight.data.offers.slice(0, 5).map((offer) => (
-                  <div key={offer.offer} className="p-3 bg-gray-50 rounded-lg">
-                    <div className="flex justify-between items-center mb-2">
-                      <div>
-                        <div className="font-medium">{offer.offer}</div>
-                        <div className="text-sm text-gray-500">
-                          ROI: {offer.roi.toFixed(1)}% • Growth: {offer.growth.toFixed(1)}%
-                        </div>
-                      </div>
-                      <div className="text-right">
-                        <div className={offer.margin >= 0 ? 'text-green-600' : 'text-red-600'}>
-                          {formatCurrency(offer.margin)}
-                        </div>
-                        <div className="text-sm text-gray-500">
-                          Revenue: {formatCurrency(offer.revenue)}
-                        </div>
-                      </div>
-                    </div>
-                    <div className="h-16">
-                      <ResponsiveContainer width="100%" height="100%">
-                        <LineChart data={offer.trend}>
-                          <Line type="monotone" dataKey="margin" stroke="#3B82F6" dot={false} />
-                        </LineChart>
-                      </ResponsiveContainer>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
-
-          {insight.type === 'network' && (
-            <div>
-              <div className="mb-4">
-                <div className="text-sm text-gray-500 mb-2">
-                  Analysis for the {insight.data.timeFrame.days === 7 ? 'last 7 days' : 
-                    insight.data.timeFrame.days === 14 ? 'last 14 days' : 'last 30 days'}
-                </div>
-                <span className="font-bold text-xl text-green-600">
-                  {insight.data.topNetwork.network}
-                </span> is the top performing network with:
-                <div className="mt-2 grid grid-cols-2 md:grid-cols-4 gap-4">
-                  <div className="bg-gray-50 p-3 rounded-lg">
-                    <div className="text-sm text-gray-500">Margin</div>
-                    <div className="font-bold text-green-600">{formatCurrency(insight.data.topNetwork.margin)}</div>
-                  </div>
-                  <div className="bg-gray-50 p-3 rounded-lg">
-                    <div className="text-sm text-gray-500">ROI</div>
-                    <div className="font-bold">{insight.data.topNetwork.roi.toFixed(1)}%</div>
-                  </div>
-                  <div className="bg-gray-50 p-3 rounded-lg">
-                    <div className="text-sm text-gray-500">Growth</div>
-                    <div className={`font-bold ${insight.data.topNetwork.growth >= 0 ? 'text-green-600' : 'text-red-600'}`}>
-                      {insight.data.topNetwork.growth.toFixed(1)}%
-                    </div>
-                  </div>
-                  <div className="bg-gray-50 p-3 rounded-lg">
-                    <div className="text-sm text-gray-500">Offers</div>
-                    <div className="font-bold">{insight.data.topNetwork.offerCount}</div>
-                  </div>
-                </div>
-              </div>
-              <div className="space-y-2">
-                <div className="font-medium mb-2">All Networks:</div>
-                {insight.data.networks.map((network) => (
-                  <div key={network.network} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
-                    <div>
-                      <div className="font-medium">{network.network}</div>
-                      <div className="text-sm text-gray-500">
-                        ROI: {network.roi.toFixed(1)}% • Growth: {network.growth.toFixed(1)}%
-                      </div>
-                    </div>
-                    <div className="text-right">
-                      <div className={network.margin >= 0 ? 'text-green-600' : 'text-red-600'}>
-                        {formatCurrency(network.margin)}
-                      </div>
-                      <div className="text-sm text-gray-500">
-                        Revenue: {formatCurrency(network.revenue)}
-                      </div>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
-        </div>
-      )}
-    </Card>
-  );
-};
-
-const OfferPerformance = ({ performanceData, dateRange }) => {
-  // Filter states
+const OfferPerformance = ({ performanceData, dateRange, onDateChange, latestDate }) => {
   const [selectedNetworks, setSelectedNetworks] = useState(['all']);
   const [selectedOffers, setSelectedOffers] = useState(['all']);
   const [selectedGraphOffers, setSelectedGraphOffers] = useState(new Set());
+  const [showDetails, setShowDetails] = useState({});
+  const [searchTerm, setSearchTerm] = useState('');
   
   // Get unique networks and offers for filters
   const { networks, offers } = useMemo(() => {
@@ -746,13 +275,14 @@ const OfferPerformance = ({ performanceData, dateRange }) => {
     };
   }, [performanceData]);
 
-  // Filter data based on selections and dateRange
+  // Filter data based on date range
   const filteredData = useMemo(() => {
-    if (!performanceData) return [];
+    if (!performanceData || !dateRange) return [];
     
     return performanceData.filter(entry => {
-      const entryDate = new Date(entry.Date);
-      const matchesDate = entryDate >= dateRange.startDate && entryDate <= dateRange.endDate;
+      const [month, day, year] = entry.Date.split('/').map(num => parseInt(num, 10));
+      const entryDate = new Date(year, month - 1, day);
+      const matchesDate = entryDate >= startOfDay(dateRange.startDate) && entryDate <= endOfDay(dateRange.endDate);
       const matchesNetwork = selectedNetworks.includes('all') || selectedNetworks.includes(entry.Network);
       const matchesOffer = selectedOffers.includes('all') || selectedOffers.includes(entry.Offer);
       
@@ -764,12 +294,17 @@ const OfferPerformance = ({ performanceData, dateRange }) => {
   const metrics = useMemo(() => {
     if (!filteredData.length) return {};
 
-    return filteredData.reduce((acc, entry) => ({
-      totalRevenue: (acc.totalRevenue || 0) + parseFloat(entry['Total Revenue'] || 0),
-      totalSpend: (acc.totalSpend || 0) + parseFloat(entry['Ad Spend'] || 0),
-      totalMargin: (acc.totalMargin || 0) + parseFloat(entry.Margin || 0),
-      roi: ((acc.totalMargin || 0) / (acc.totalSpend || 1)) * 100
-    }), {});
+    const totalRevenue = filteredData.reduce((sum, entry) => sum + parseFloat(entry['Total Revenue'] || 0), 0);
+    const totalSpend = filteredData.reduce((sum, entry) => sum + parseFloat(entry['Ad Spend'] || 0), 0);
+    const totalMargin = totalRevenue - totalSpend;
+    const roi = totalSpend > 0 ? (totalMargin / totalSpend) * 100 : 0;
+
+    return {
+      totalRevenue,
+      totalSpend,
+      totalMargin,
+      roi
+    };
   }, [filteredData]);
 
   // Process data for chart
@@ -850,35 +385,18 @@ const OfferPerformance = ({ performanceData, dateRange }) => {
 
   return (
     <div className="space-y-6">
+      {/* Date Range Selector */}
+      <div className="mb-6">
+        <EnhancedDateSelector
+          onDateChange={onDateChange}
+          selectedPeriod={dateRange.period}
+          defaultRange="last7"
+          latestDate={latestDate}
+              />
+            </div>
+
       <div className="flex flex-col space-y-4">
         <h2 className="text-2xl font-bold">Offer Performance</h2>
-        
-        {/* Add AIInsights at the top */}
-        <AIInsights performanceData={performanceData} />
-        
-        {/* Filters */}
-        <Card className="p-4">
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Networks</label>
-              <MultiSelect
-                options={networks}
-                selected={selectedNetworks}
-                onChange={setSelectedNetworks}
-                placeholder="Select Networks"
-              />
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Offers</label>
-              <MultiSelect
-                options={offers}
-                selected={selectedOffers}
-                onChange={setSelectedOffers}
-                placeholder="Select Offers"
-              />
-            </div>
-          </div>
-        </Card>
 
         {/* Performance Metrics */}
         <PerformanceMetrics metrics={metrics} />
@@ -996,6 +514,29 @@ const OfferPerformance = ({ performanceData, dateRange }) => {
         {/* Detailed Table */}
         <Card className="p-6">
           <h3 className="text-xl font-semibold mb-4">Detailed Offer Performance</h3>
+          
+          {/* Filters */}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Networks</label>
+              <MultiSelect
+                options={networks}
+                selected={selectedNetworks}
+                onChange={setSelectedNetworks}
+                placeholder="Select Networks"
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Offers</label>
+              <MultiSelect
+                options={offers}
+                selected={selectedOffers}
+                onChange={setSelectedOffers}
+                placeholder="Select Offers"
+              />
+            </div>
+          </div>
+
           <div className="overflow-x-auto">
             <table className="min-w-full divide-y divide-gray-200">
               <thead className="bg-gray-50">

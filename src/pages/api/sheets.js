@@ -235,7 +235,8 @@ export default async function handler(req, res) {
       'June!A:D',
       'Network Terms!A2:I',
       'Invoices!A:F',
-      'Tradeshift Check!A:E'
+      'Tradeshift Check!A:E',
+      'Monthly Expenses!A:D'
     ]);
 
     const batchResponse = await sheets.spreadsheets.values.batchGet({
@@ -259,7 +260,8 @@ export default async function handler(req, res) {
         'July!A:D',
         'June!A:D',
         'Network Terms!A2:I',
-        'Tradeshift Check!A:E'
+        'Tradeshift Check!A:E',
+        'Monthly Expenses!A:D'
       ]
     });
     
@@ -289,7 +291,8 @@ export default async function handler(req, res) {
       julyResponse,
       juneResponse,
       networkTermsResponse,
-      tradeshiftResponse
+      tradeshiftResponse,
+      monthlyExpensesResponse
     ] = batchResponse.data.valueRanges || [];
 
     // Initialize result object with empty arrays
@@ -303,7 +306,8 @@ export default async function handler(req, res) {
         invoices: [],
         payroll: [],
         mediaBuyerSpend: [],
-        networkTerms: []
+        networkTerms: [],
+        monthlyExpenses: []
       },
       networkTerms: [],
       tradeshiftData: []
@@ -436,6 +440,52 @@ export default async function handler(req, res) {
     // Process P&L Data
     result.plData = await processPLData(batchResponse);
 
+    // Process Monthly Expenses data
+    if (monthlyExpensesResponse?.values && monthlyExpensesResponse.values.length > 1) {
+      console.log('Raw Monthly Expenses data:', {
+        headers: monthlyExpensesResponse.values[0],
+        firstRow: monthlyExpensesResponse.values[1],
+        totalRows: monthlyExpensesResponse.values.length
+      });
+
+      result.rawData.monthlyExpenses = monthlyExpensesResponse.values
+        .slice(1) // Skip header row
+        .map(row => ({
+          Category: row[0]?.trim() || '',
+          Description: row[1]?.trim() || '',
+          Amount: parseFloat((row[2] || '0').replace(/[$,]/g, '')),
+          Month: row[3]?.trim() || ''
+        }))
+        .filter(row => row.Category && row.Amount > 0);
+
+      console.log('Processed Monthly Expenses:', {
+        count: result.rawData.monthlyExpenses.length,
+        sample: result.rawData.monthlyExpenses[0],
+        totalAmount: result.rawData.monthlyExpenses.reduce((sum, exp) => sum + exp.Amount, 0),
+        allExpenses: result.rawData.monthlyExpenses
+      });
+    } else {
+      console.log('No Monthly Expenses data found in response');
+      result.rawData.monthlyExpenses = [];
+    }
+
+    // Calculate daily expenses from monthly expenses
+    const dailyExpenses = {};
+    if (result.rawData.monthlyExpenses?.length > 0) {
+      // Hard code daily expenses amount
+      const dailyAmount = 1946.85;
+      
+      // Set the daily amount for each category
+      result.rawData.monthlyExpenses.forEach(expense => {
+        dailyExpenses[expense.Category] = dailyAmount;
+      });
+
+      console.log('Daily expenses calculated:', {
+        dailyAmount,
+        categories: Object.keys(dailyExpenses)
+      });
+    }
+
     // Process performance data
     if (mainResponse?.values) {
       const headers = mainResponse.values[0];
@@ -459,16 +509,41 @@ export default async function handler(req, res) {
             console.log('Short row:', { length: row.length, data: row });
           }
 
+          // Calculate total daily expenses for this row
+          const totalDailyExpenses = Object.values(dailyExpenses).reduce((sum, amount) => sum + amount, 0);
+
+          // Calculate base profit (Revenue - Ad Spend)
+          const revenue = parseFloat((row[7] || '0').replace(/[$,]/g, '')) || 0;
+          const adSpend = parseFloat((row[4] || '0').replace(/[$,]/g, '')) || 0;
+          const baseProfit = revenue - adSpend;
+
+          // Calculate MB Commission (10% of base profit)
+          const mbCommission = baseProfit * 0.1;
+
+          // Calculate Ringba Cost (from row[8])
+          const ringbaCost = parseFloat((row[8] || '0').replace(/[$,]/g, '')) || 0;
+
+          // Calculate Final Profit (Base Profit - MB Commission - Ringba Cost - Daily Expenses)
+          const finalProfit = baseProfit - mbCommission - ringbaCost - totalDailyExpenses;
+
+          // Calculate ROI
+          const roi = adSpend > 0 ? (finalProfit / adSpend) * 100 : 0;
+
           return {
             Date: row[0] || '',
             Network: row[1] || '',
             Offer: row[2] || '',
             'Media Buyer': row[3] || '',
-            'Ad Spend': parseFloat((row[4] || '0').replace(/[$,]/g, '')) || 0,
+            'Ad Spend': adSpend,
             'Ad Revenue': parseFloat((row[5] || '0').replace(/[$,]/g, '')) || 0,
             'Comment Revenue': parseFloat((row[6] || '0').replace(/[$,]/g, '')) || 0,
-            'Total Revenue': parseFloat((row[7] || '0').replace(/[$,]/g, '')) || 0,
-            Margin: parseFloat((row[8] || '0').replace(/[$,]/g, '')) || 0,
+            'Total Revenue': revenue,
+            'Base Profit': baseProfit,
+            'MB Commission': mbCommission,
+            'Ringba Cost': ringbaCost,
+            'Daily Expenses': totalDailyExpenses,
+            'Final Profit': finalProfit,
+            'ROI': roi,
             'Expected Payment': row[9] || '',
             'Running Balance': parseFloat((row[10] || '0').replace(/[$,]/g, '')) || 0,
             'Ad Account': row[11] || ''

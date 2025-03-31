@@ -36,6 +36,12 @@ const parseAmount = (amount) => {
 };
 
 const SummaryTable = ({ summaryData }) => {
+  // Helper function to get the year for a month
+  const getYearForMonth = (month) => {
+    // January and February are in 2025, all other months are in 2024
+    return ['January', 'February'].includes(month) ? 2025 : 2024;
+  };
+
   return (
     <Card>
       <CardHeader>
@@ -56,7 +62,9 @@ const SummaryTable = ({ summaryData }) => {
             <tbody className="bg-white divide-y divide-gray-200">
               {summaryData.map((row, index) => (
                 <tr key={index} className="hover:bg-gray-50">
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{row.Month}</td>
+                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                    {`${row.Month} ${getYearForMonth(row.Month)}`}
+                  </td>
                   <td className="px-6 py-4 whitespace-nowrap text-sm text-right text-green-600">{formatCurrency(row.Income)}</td>
                   <td className="px-6 py-4 whitespace-nowrap text-sm text-right text-red-600">{formatCurrency(row.Expenses)}</td>
                   <td className="px-6 py-4 whitespace-nowrap text-sm text-right font-medium text-gray-900">{formatCurrency(row.NetProfit)}</td>
@@ -77,6 +85,7 @@ const MonthlyDetails = ({ monthData, month }) => {
   if (!monthData) return null;
 
   const { incomeData, categories, totalIncome, totalExpenses } = monthData;
+  const year = ['January', 'February'].includes(month) ? 2025 : 2024;
 
   return (
     <div className="grid grid-cols-2 gap-6">
@@ -84,7 +93,7 @@ const MonthlyDetails = ({ monthData, month }) => {
       <Card>
         <CardHeader className="border-b">
           <div className="flex justify-between items-center">
-            <CardTitle>Income - {month}</CardTitle>
+            <CardTitle>Income - {month} {year}</CardTitle>
             <span className="text-xl font-bold text-green-600">
               {formatCurrency(totalIncome)}
             </span>
@@ -111,7 +120,7 @@ const MonthlyDetails = ({ monthData, month }) => {
       <Card>
         <CardHeader className="border-b">
           <div className="flex justify-between items-center">
-            <CardTitle>Expenses - {month}</CardTitle>
+            <CardTitle>Expenses - {month} {year}</CardTitle>
             <span className="text-xl font-bold text-red-600">
               {formatCurrency(totalExpenses)}
             </span>
@@ -168,7 +177,180 @@ const MonthlyDetails = ({ monthData, month }) => {
   );
 };
 
+const ExpenseCategoriesTrend = ({ monthlyData }) => {
+  const getYearForMonth = (month) => {
+    return ['January', 'February'].includes(month) ? 2025 : 2024;
+  };
+
+  // Define category groupings
+  const categoryGroups = {
+    'Advertising': ['Advertising', 'Ad Spend', 'Marketing'],
+    'Payroll': ['Payroll', 'Salary', 'Commissions', 'Contractors', 'Bonuses'],
+    'General Expenses': ['Software', 'Subscriptions', 'Tools', 'Training', 'Travel', 'Office', 'Utilities', 'Bank Fees', 'Legal', 'Accounting', 'Insurance', 'Memberships']
+  };
+
+  // Helper function to determine which group a category belongs to
+  const getCategoryGroup = (category) => {
+    const normalizedCategory = category.toLowerCase();
+    for (const [group, categories] of Object.entries(categoryGroups)) {
+      if (categories.some(c => normalizedCategory.includes(c.toLowerCase()))) {
+        return group;
+      }
+    }
+    return 'General Expenses'; // Default group for uncategorized items
+  };
+
+  // Get all unique categories across all months
+  const allCategories = Object.values(monthlyData).reduce((categories, monthData) => {
+    Object.keys(monthData.categories || {}).forEach(category => {
+      if (!categories.includes(category)) {
+        categories.push(category);
+      }
+    });
+    return categories;
+  }, []).sort();
+
+  // Get all months in chronological order and take only the most recent 6
+  const monthOrder = ['June', 'July', 'August', 'September', 'October', 'November', 'December', 'January', 'February'];
+  const months = Object.keys(monthlyData)
+    .sort((a, b) => monthOrder.indexOf(b) - monthOrder.indexOf(a))
+    .slice(0, 6)
+    .reverse();
+
+  // Calculate totals for each category by month and group them
+  const groupedCategories = allCategories.reduce((groups, category) => {
+    const group = getCategoryGroup(category);
+    if (!groups[group]) {
+      groups[group] = [];
+    }
+
+    const monthlyTotals = months.map(month => {
+      const categoryItems = monthlyData[month]?.categories[category] || [];
+      return categoryItems.reduce((sum, item) => sum + parseAmount(item.AMOUNT), 0);
+    });
+
+    groups[group].push({
+      category,
+      totals: monthlyTotals,
+      average: monthlyTotals.reduce((sum, total) => sum + total, 0) / monthlyTotals.length
+    });
+
+    return groups;
+  }, {});
+
+  // Calculate group totals
+  const groupTotals = Object.entries(groupedCategories).reduce((totals, [group, categories]) => {
+    totals[group] = months.map((_, monthIndex) => {
+      return categories.reduce((sum, category) => sum + category.totals[monthIndex], 0);
+    });
+    return totals;
+  }, {});
+
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle>Expense Categories Trend (Last 6 Months)</CardTitle>
+      </CardHeader>
+      <CardContent>
+        <div className="overflow-x-auto">
+          <table className="min-w-full divide-y divide-gray-200">
+            <thead className="bg-gray-50">
+              <tr>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider w-48">Category</th>
+                {months.map(month => (
+                  <th key={month} className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider w-36">
+                    {month} {getYearForMonth(month)}
+                  </th>
+                ))}
+                <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider bg-gray-100 w-36">
+                  Average
+                </th>
+              </tr>
+            </thead>
+            <tbody className="bg-white divide-y divide-gray-200">
+              {Object.entries(groupedCategories).map(([group, categories]) => (
+                <React.Fragment key={group}>
+                  {/* Group Header */}
+                  <tr className="bg-gray-100 font-semibold">
+                    <td className="px-6 py-3 text-left text-sm text-gray-900">
+                      {group}
+                    </td>
+                    {groupTotals[group].map((total, index) => (
+                      <td key={index} className="px-6 py-3 text-right text-sm text-gray-900">
+                        {formatCurrency(total)}
+                      </td>
+                    ))}
+                    <td className="px-6 py-3 text-right text-sm bg-gray-200">
+                      {formatCurrency(groupTotals[group].reduce((sum, total) => sum + total, 0) / months.length)}
+                    </td>
+                  </tr>
+                  {/* Category Rows */}
+                  {categories.map(({ category, totals, average }) => (
+                    <tr key={category} className="hover:bg-gray-50">
+                      <td className="pl-10 py-2 whitespace-nowrap text-sm text-gray-600">
+                        {category}
+                      </td>
+                      {totals.map((total, index) => (
+                        <td key={index} className="px-6 py-2 whitespace-nowrap text-sm text-right text-gray-600">
+                          {formatCurrency(total)}
+                        </td>
+                      ))}
+                      <td className="px-6 py-2 whitespace-nowrap text-sm text-right text-gray-600 bg-gray-50">
+                        {formatCurrency(average)}
+                      </td>
+                    </tr>
+                  ))}
+                </React.Fragment>
+              ))}
+              {/* Grand Total Row */}
+              <tr className="bg-gray-900 text-white font-semibold">
+                <td className="px-6 py-3 whitespace-nowrap text-sm">
+                  Total Expenses
+                </td>
+                {months.map(month => {
+                  const monthTotal = monthlyData[month]?.totalExpenses || 0;
+                  return (
+                    <td key={month} className="px-6 py-3 whitespace-nowrap text-sm text-right">
+                      {formatCurrency(monthTotal)}
+                    </td>
+                  );
+                })}
+                <td className="px-6 py-3 whitespace-nowrap text-sm text-right bg-gray-800">
+                  {formatCurrency(
+                    months.reduce((sum, month) => sum + (monthlyData[month]?.totalExpenses || 0), 0) / months.length
+                  )}
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </CardContent>
+    </Card>
+  );
+};
+
 const PLWrapper = ({ plData, monthlyData, selectedMonth, onMonthChange }) => {
+  // Define month weights for proper chronological ordering
+  const getMonthWeight = (month) => {
+    const monthOrder = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
+    const monthIndex = monthOrder.indexOf(month);
+    // For 2025 months (January and February), add 12 to their index
+    const yearOffset = ['January', 'February'].includes(month) ? 12 : 0;
+    return monthIndex + yearOffset;
+  };
+
+  // Get the latest month from the available months
+  const latestMonth = Object.keys(monthlyData).sort((a, b) => {
+    return getMonthWeight(b) - getMonthWeight(a);
+  })[0];
+
+  // Set the initial selected month to the latest month if none is selected
+  React.useEffect(() => {
+    if (!selectedMonth && latestMonth) {
+      onMonthChange(latestMonth);
+    }
+  }, [selectedMonth, latestMonth, onMonthChange]);
+
   return (
     <div className="space-y-6">
       {/* Summary Table */}
@@ -179,15 +361,24 @@ const PLWrapper = ({ plData, monthlyData, selectedMonth, onMonthChange }) => {
         <div className="flex items-center justify-between">
           <h2 className="text-lg font-medium">Monthly Details</h2>
           <Select value={selectedMonth} onValueChange={onMonthChange}>
-            <SelectTrigger className="w-48">
+            <SelectTrigger className="w-48 bg-white border border-gray-300 shadow-sm">
               <SelectValue placeholder="Select month" />
             </SelectTrigger>
-            <SelectContent>
-              {Object.keys(monthlyData).map(month => (
-                <SelectItem key={month} value={month}>
-                  {month}
-                </SelectItem>
-              ))}
+            <SelectContent className="bg-white border border-gray-200 shadow-md">
+              {Object.keys(monthlyData)
+                .sort((a, b) => getMonthWeight(b) - getMonthWeight(a))
+                .map(month => {
+                  const year = ['January', 'February'].includes(month) ? '2025' : '2024';
+                  return (
+                    <SelectItem 
+                      key={month} 
+                      value={month}
+                      className="hover:bg-blue-50 bg-white"
+                    >
+                      {month} {year}
+                    </SelectItem>
+                  );
+                })}
             </SelectContent>
           </Select>
         </div>
@@ -200,6 +391,9 @@ const PLWrapper = ({ plData, monthlyData, selectedMonth, onMonthChange }) => {
           month={selectedMonth}
         />
       )}
+
+      {/* Expense Categories Trend */}
+      <ExpenseCategoriesTrend monthlyData={monthlyData} />
     </div>
   );
 };

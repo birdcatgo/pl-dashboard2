@@ -1,1498 +1,2088 @@
-import React, { useState, useCallback } from 'react';
-import { Card, CardHeader, CardTitle, CardContent } from '../ui/card';
+import React, { useState, useMemo } from 'react';
+import { Card } from '../ui/card';
+import { TrendingUp, DollarSign, Search } from 'lucide-react';
+import { format, startOfMonth, endOfMonth, subDays, subMonths } from 'date-fns';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Sparkline } from '../ui/sparkline';
 import { Input } from '../ui/input';
-import { Button } from '../ui/button';
-import { Brain, Search, TrendingUp, DollarSign, FileText, AlertCircle } from 'lucide-react';
-import {
-  LineChart,
-  Line,
-  XAxis,
-  YAxis,
-  CartesianGrid,
-  Tooltip,
-  ResponsiveContainer
-} from 'recharts';
-import _ from 'lodash';
 
-// Helper function for currency formatting
+const AIInsightsPage = ({ performanceData, invoiceData }) => {
+  const [dateRange, setDateRange] = useState('mtd');
+  const [selectedQuestion, setSelectedQuestion] = useState(null);
+  const [answer, setAnswer] = useState(null);
+  const [analysisDateRange, setAnalysisDateRange] = useState('mtd');
+
+  // Find the last date in the performance data
+  const lastDataDate = performanceData.length > 0 
+    ? new Date(Math.max(...performanceData.map(d => new Date(d.Date))))
+    : new Date();
+
+  // Media Buyer Categories
+  const mediaBuyerCategories = {
+    new: ['Ishaan', 'Edwin', 'Gagan', 'Nick N', 'Jose/Matt'],
+    active: ['Aakash', 'Mike', 'Zel'],
+    unknown: ['Unknown'],
+    inactive: ['Dave', 'Asheesh', 'Isha']
+  };
+
+  // Helper function to get media buyer category
+  const getMediaBuyerCategory = (buyer) => {
+    if (mediaBuyerCategories.new.includes(buyer)) return 'New';
+    if (mediaBuyerCategories.active.includes(buyer)) return 'Active';
+    if (mediaBuyerCategories.unknown.includes(buyer)) return 'Unknown';
+    if (mediaBuyerCategories.inactive.includes(buyer)) return 'Inactive';
+    return 'Unknown';
+  };
+
+  // Helper function to group data by media buyer category
+  const groupDataByCategory = (data) => {
+    return data.reduce((acc, entry) => {
+      if (!acc[entry.category]) {
+        acc[entry.category] = [];
+      }
+      acc[entry.category].push(entry);
+      return acc;
+    }, {});
+  };
+
+  // Calculate date ranges based on selection and last data date
+  const dateRanges = useMemo(() => {
+    const ranges = {
+      lastMonth: {
+        start: startOfMonth(subDays(lastDataDate, lastDataDate.getDate())),
+        end: endOfMonth(subDays(lastDataDate, lastDataDate.getDate())),
+        label: 'Last Month'
+      },
+      mtd: {
+        start: startOfMonth(lastDataDate),
+        end: lastDataDate,
+        label: 'Month to Date'
+      },
+      last7: {
+        start: subDays(lastDataDate, 6),
+        end: lastDataDate,
+        label: 'Last 7 Days'
+      },
+      last30: {
+        start: subDays(lastDataDate, 29),
+        end: lastDataDate,
+        label: 'Last 30 Days'
+      },
+      allTime: {
+        start: new Date(Math.min(...performanceData.map(entry => new Date(entry.Date)))),
+        end: lastDataDate,
+        label: 'All Time'
+      }
+    };
+    return ranges[dateRange];
+  }, [dateRange, lastDataDate, performanceData]);
+
+  // Calculate analysis date range
+  const analysisDateRanges = useMemo(() => {
+    const ranges = {
+      lastMonth: {
+        start: startOfMonth(subDays(lastDataDate, lastDataDate.getDate())),
+        end: endOfMonth(subDays(lastDataDate, lastDataDate.getDate())),
+        label: 'Last Month'
+      },
+      mtd: {
+        start: startOfMonth(lastDataDate),
+        end: lastDataDate,
+        label: 'Month to Date'
+      },
+      last7: {
+        start: subDays(lastDataDate, 6),
+        end: lastDataDate,
+        label: 'Last 7 Days'
+      },
+      last30: {
+        start: subDays(lastDataDate, 29),
+        end: lastDataDate,
+        label: 'Last 30 Days'
+      },
+      allTime: {
+        start: new Date(Math.min(...performanceData.map(entry => new Date(entry.Date)))),
+        end: lastDataDate,
+        label: 'All Time'
+      }
+    };
+    return ranges[analysisDateRange];
+  }, [analysisDateRange, lastDataDate, performanceData]);
+
+  // Filter data based on selected date range
+  const getFilteredData = (data, dateRange) => {
+    if (!data || data.length === 0) return [];
+    
+    const { start, end } = dateRange;
+    return data.filter(entry => {
+      const entryDate = new Date(entry.Date);
+      return entryDate >= start && entryDate <= end;
+    });
+  };
+
+  const getDateRange = (range) => {
+    const today = new Date();
+    const lastDataDate = new Date(Math.max(...performanceData.map(d => new Date(d.Date))));
+    
+    switch (range) {
+      case '7d':
+        return {
+          start: subDays(lastDataDate, 6),
+          end: lastDataDate
+        };
+      case '30d':
+        return {
+          start: subDays(lastDataDate, 29),
+          end: lastDataDate
+        };
+      case 'mtd':
+        return {
+          start: startOfMonth(lastDataDate),
+          end: lastDataDate
+        };
+      case 'lastMonth':
+        return {
+          start: startOfMonth(subMonths(lastDataDate, 1)),
+          end: endOfMonth(subMonths(lastDataDate, 1))
+        };
+      case 'all':
+        return {
+          start: new Date(0),
+          end: lastDataDate
+        };
+      default:
+        return {
+          start: subDays(lastDataDate, 6),
+          end: lastDataDate
+        };
+    }
+  };
+
+  // Calculate performance metrics for the selected date range
+  const metrics = useMemo(() => {
+    if (!performanceData?.length) return {
+      spend: 0,
+      revenue: 0,
+      profit: 0,
+      roi: 0
+    };
+
+    const filteredData = getFilteredData(performanceData, dateRanges);
+
+    const totals = filteredData.reduce((acc, entry) => {
+      acc.spend += parseFloat(entry['Ad Spend'] || 0);
+      acc.revenue += parseFloat(entry['Total Revenue'] || 0);
+      return acc;
+    }, { spend: 0, revenue: 0 });
+
+    return {
+      spend: totals.spend,
+      revenue: totals.revenue,
+      profit: totals.revenue - totals.spend,
+      roi: totals.spend > 0 ? ((totals.revenue - totals.spend) / totals.spend) * 100 : 0
+    };
+  }, [performanceData, dateRanges]);
+
+  // Calculate media buyer performance data
+  const mediaBuyerData = useMemo(() => {
+    if (!performanceData?.length) return [];
+
+    const filteredData = getFilteredData(performanceData, dateRanges);
+
+    // Group data by category and buyer
+    const groupedData = filteredData.reduce((acc, entry) => {
+      const buyer = entry['Media Buyer'];
+      const category = getMediaBuyerCategory(buyer);
+      const key = `${category}-${buyer}-${entry.Network}-${entry.Offer}`;
+      
+      if (!acc[key]) {
+        acc[key] = {
+          category,
+          mediaBuyer: buyer,
+          network: entry.Network,
+          offer: entry.Offer,
+          profit: 0,
+          dailyProfits: {}
+        };
+      }
+      
+      const profit = parseFloat(entry['Total Revenue'] || 0) - parseFloat(entry['Ad Spend'] || 0);
+      acc[key].profit += profit;
+      acc[key].dailyProfits[entry.Date] = (acc[key].dailyProfits[entry.Date] || 0) + profit;
+      return acc;
+    }, {});
+
+    // Convert to array and sort by category and profit
+    return Object.values(groupedData)
+      .sort((a, b) => {
+        // First sort by category order
+        const categoryOrder = ['New', 'Active', 'Unknown', 'Inactive'];
+        const categoryCompare = categoryOrder.indexOf(a.category) - categoryOrder.indexOf(b.category);
+        if (categoryCompare !== 0) return categoryCompare;
+        // Then sort by profit within category
+        return b.profit - a.profit;
+      });
+  }, [performanceData, dateRanges]);
+
 const formatCurrency = (value) => {
-  if (!value || isNaN(value)) return '-';
   return new Intl.NumberFormat('en-US', {
     style: 'currency',
     currency: 'USD',
     minimumFractionDigits: 0,
-    maximumFractionDigits: 0,
+      maximumFractionDigits: 0
   }).format(value);
 };
 
-const calculateGrowthRate = (currentValue, previousValue) => {
-  if (!previousValue || previousValue === 0) return 0;
-  return ((currentValue - previousValue) / previousValue) * 100;
-};
-
-const renderMetricCard = ({ label, value, type, trend = null, explanation = null }) => {
-  const getValueColor = () => {
-    if (type === 'currency') return 'text-gray-900';
-    if (type === 'percentage') {
-      if (label.toLowerCase().includes('volatility')) {
-        return value > 50 ? 'text-orange-600' : 'text-green-600';
-      }
-      return value > 0 ? 'text-green-600' : value < 0 ? 'text-red-600' : 'text-gray-600';
-    }
-    return 'text-gray-900';
+  // Group questions by category
+  const questionCategories = {
+    topPerformers: [
+      { id: 'top-offers-week', text: 'Show Top Offers From Last Week', color: 'text-green-500' },
+      { id: 'best-buyers-month', text: 'Show Best Media Buyers This Month', color: 'text-green-500' },
+      { id: 'top-offers-30', text: 'Show Top Performing Offers Last 30 Days', color: 'text-green-500' },
+      { id: 'highest-roi-mtd', text: 'Show Highest ROI Offers MTD', color: 'text-green-500' },
+      { id: 'best-buyers-margin', text: 'Show Best Media Buyers By Margin', color: 'text-green-500' },
+      { id: 'buyers-30-challenge', text: 'Show Media Buyers 30 Day Challenge', color: 'text-green-500' }
+    ],
+    underperforming: [
+      { id: 'struggling-buyers', text: 'Show Struggling Media Buyers', color: 'text-red-500' },
+      { id: 'worst-offers-week', text: 'Show Worst Performing Offers This Week', color: 'text-red-500' },
+      { id: 'low-roi-offers', text: 'Show Offers Below 15% ROI', color: 'text-red-500' },
+      { id: 'negative-margin', text: 'Show Negative Margin Offers', color: 'text-red-500' },
+      { id: 'cumulative-losses', text: 'Show All Media Buyers Cumulative Losses', color: 'text-red-500' }
+    ]
   };
 
-  const formatValue = () => {
-    if (type === 'currency') return formatCurrency(value);
-    if (type === 'percentage') return `${value.toFixed(1)}%`;
-    return value;
+  // Filter questions based on search query
+  const getFilteredQuestions = (questions) => {
+    return questions;
   };
+
+  const generateAnswer = (questionId) => {
+    const dateRange = getDateRange(analysisDateRange);
+    const filteredData = getFilteredData(performanceData, dateRange);
+
+    switch (questionId) {
+      case 'top-offers-week': {
+        const lastWeek = subDays(lastDataDate, 7);
+        const offerData = performanceData
+          .filter(entry => new Date(entry.Date) >= lastWeek)
+          .reduce((acc, entry) => {
+            const key = entry.Offer;
+            if (!acc[key]) {
+              acc[key] = { offer: key, profit: 0, revenue: 0, spend: 0 };
+            }
+            acc[key].spend += parseFloat(entry['Ad Spend'] || 0);
+            acc[key].revenue += parseFloat(entry['Total Revenue'] || 0);
+            acc[key].profit = acc[key].revenue - acc[key].spend;
+            return acc;
+          }, {});
+
+        const topOffers = Object.values(offerData)
+          .sort((a, b) => b.profit - a.profit)
+          .slice(0, 5);
 
   return (
-    <div className="space-y-1">
-      <p className="text-sm text-gray-500">{label}</p>
-      <p className={`text-lg font-semibold ${getValueColor()}`}>
-        {formatValue()}
-      </p>
-      {explanation && (
-        <p className="text-xs text-gray-500 mt-1">{explanation}</p>
-      )}
-      {trend && (
-        <div className={`flex items-center text-sm ${trend >= 0 ? 'text-green-600' : 'text-red-600'}`}>
-          {trend >= 0 ? <TrendingUp className="w-4 h-4 mr-1" /> : <TrendingDown className="w-4 h-4 mr-1" />}
-          {trend.toFixed(1)}% vs previous period
+          <div className="space-y-4">
+            <div className="flex justify-end">
+              <p className="text-sm text-gray-500">
+                {format(lastWeek, 'MMM d')} - {format(lastDataDate, 'MMM d, yyyy')}
+              </p>
         </div>
-      )}
+            <table className="w-full">
+              <thead>
+                <tr className="border-b">
+                  <th className="text-left py-2">Offer</th>
+                  <th className="text-right py-2">Revenue</th>
+                  <th className="text-right py-2">Profit</th>
+                  <th className="text-right py-2">ROI</th>
+                </tr>
+              </thead>
+              <tbody>
+                {topOffers.map((offer, index) => (
+                  <tr key={index} className="border-b">
+                    <td className="py-2">{offer.offer}</td>
+                    <td className="text-right py-2">{formatCurrency(offer.revenue)}</td>
+                    <td className="text-right py-2">{formatCurrency(offer.profit)}</td>
+                    <td className="text-right py-2">
+                      {((offer.profit / offer.spend) * 100).toFixed(1)}%
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
     </div>
   );
-};
+      }
 
-const renderPerformanceSection = (metrics, timeFrame, query) => {
-  const focusMetric = metrics.focusMetric;
-  const comparison = metrics.comparison;
-  const sortBy = metrics.sortBy;
-  const riskFactor = metrics.riskFactor;
-  
-  let sectionTitle = 'Performance Analysis';
-  let description = `Analysis for the last ${timeFrame} days.`;
-  
-  if (focusMetric === 'top') {
-    sectionTitle = `Top Offers by ${sortBy || 'Performance'}`;
-    description = `Best performing offers based on ${sortBy?.toLowerCase() || 'overall metrics'}.`;
-  } else if (focusMetric === 'mediaBuyers') {
-    if (metrics.filter === '30day') {
-      sectionTitle = 'Media Buyers - 30 Day Challenge';
-      description = 'New media buyers performance in their first 30 days.';
-    } else {
-      sectionTitle = metrics.filter === 'top' ? 'Top Media Buyers' : 'Struggling Media Buyers';
-      description = metrics.filter === 'top' ? 
-        'Media buyers with best performance metrics.' :
-        'Media buyers needing attention based on performance metrics.';
-    }
-  } else if (focusMetric === 'underperforming') {
-    sectionTitle = 'Risk Analysis';
-    description = riskFactor === 'volatility' ? 'Offers with high volatility risk' :
-                 riskFactor === 'critical' ? 'Offers requiring immediate attention' :
-                 'Underperforming offers needing optimization';
-  } else if (focusMetric === 'profit') {
-    sectionTitle = 'Profit Trend Analysis';
-    description = 'Net profit analysis showing growth and trends.';
-  } else if (focusMetric === 'opportunities') {
-    sectionTitle = 'Scaling Opportunities';
-    description = 'Top performing offers with growth potential.';
-  } else if (focusMetric === 'risk') {
-    sectionTitle = 'Risk Assessment';
-    description = 'Offers with concerning metrics that need monitoring.';
-  }
+      case 'struggling-buyers': {
+        const lastWeek = subDays(lastDataDate, 7);
+        const buyerData = performanceData
+          .filter(entry => new Date(entry.Date) >= lastWeek)
+          .reduce((acc, entry) => {
+            const key = entry['Media Buyer'];
+            if (!acc[key]) {
+              acc[key] = { buyer: key, profit: 0, revenue: 0, spend: 0, consecutiveLosses: 0 };
+            }
+            acc[key].spend += parseFloat(entry['Ad Spend'] || 0);
+            acc[key].revenue += parseFloat(entry['Total Revenue'] || 0);
+            acc[key].profit = acc[key].revenue - acc[key].spend;
+            return acc;
+          }, {});
 
-  if (comparison === 'month') {
-    description += ' Comparing to previous month.';
-  } else if (comparison === 'year') {
-    description += ' Comparing to previous year.';
-  }
+        const strugglingBuyers = Object.values(buyerData)
+          .filter(buyer => buyer.profit < 0 || buyer.consecutiveLosses >= 3)
+          .sort((a, b) => a.profit - b.profit);
 
-  const sortedMetrics = [...metrics.metrics].sort((a, b) => {
-    if (query.includes('worst') || query.includes('lowest')) {
-      return a.roi - b.roi;
-    }
-    return b.roi - a.roi;
-  });
+        return (
+          <div className="space-y-4">
+            <div className="flex justify-end">
+              <p className="text-sm text-gray-500">
+                {format(lastWeek, 'MMM d')} - {format(lastDataDate, 'MMM d, yyyy')}
+              </p>
+            </div>
+            <table className="w-full">
+              <thead>
+                <tr className="border-b">
+                  <th className="text-left py-2">Media Buyer</th>
+                  <th className="text-right py-2">Spend</th>
+                  <th className="text-right py-2">Profit</th>
+                  <th className="text-right py-2">ROI</th>
+                </tr>
+              </thead>
+              <tbody>
+                {strugglingBuyers.map((buyer, index) => (
+                  <tr key={index} className="border-b">
+                    <td className="py-2">{buyer.buyer}</td>
+                    <td className="text-right py-2">{formatCurrency(buyer.spend)}</td>
+                    <td className="text-right py-2 text-red-600">{formatCurrency(buyer.profit)}</td>
+                    <td className="text-right py-2 text-red-600">
+                      {((buyer.profit / buyer.spend) * 100).toFixed(1)}%
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        );
+      }
 
-  const isShowingWorst = query.toLowerCase().includes('worst') || query.toLowerCase().includes('lowest');
-  const title = isShowingWorst ? 'Lowest Performing Offers' : 'Top Performing Offers';
+      case 'network-risk': {
+        const networkData = performanceData
+          .reduce((acc, entry) => {
+            const key = entry.Network;
+            if (!acc[key]) {
+              acc[key] = { network: key, spend: 0, revenue: 0, profit: 0 };
+            }
+            acc[key].spend += parseFloat(entry['Ad Spend'] || 0);
+            acc[key].revenue += parseFloat(entry['Total Revenue'] || 0);
+            acc[key].profit = acc[key].revenue - acc[key].spend;
+            return acc;
+          }, {});
+
+        const networks = Object.values(networkData)
+          .sort((a, b) => b.spend - a.spend);
+
+        return (
+          <div className="space-y-4">
+            <div className="flex justify-between items-center">
+              <h3 className="font-medium">Network Exposure Analysis</h3>
+              <p className="text-sm text-gray-500">
+                All Time Data
+              </p>
+            </div>
+            <table className="w-full">
+              <thead>
+                <tr className="border-b">
+                  <th className="text-left py-2">Network</th>
+                  <th className="text-right py-2">Spend</th>
+                  <th className="text-right py-2">Revenue</th>
+                  <th className="text-right py-2">Risk Level</th>
+                </tr>
+              </thead>
+              <tbody>
+                {networks.map((network, index) => {
+                  const riskLevel = network.spend > 50000 ? 'High' : network.spend > 25000 ? 'Medium' : 'Low';
+                  const riskColor = riskLevel === 'High' ? 'text-red-600' : riskLevel === 'Medium' ? 'text-yellow-600' : 'text-green-600';
+                  
+                  return (
+                    <tr key={index} className="border-b">
+                      <td className="py-2">{network.network}</td>
+                      <td className="text-right py-2">{formatCurrency(network.spend)}</td>
+                      <td className="text-right py-2">{formatCurrency(network.revenue)}</td>
+                      <td className={`text-right py-2 font-medium ${riskColor}`}>
+                        {riskLevel}
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        );
+      }
+
+      case 'best-buyers-month': {
+        const startOfThisMonth = startOfMonth(lastDataDate);
+        const buyerData = performanceData
+          .filter(entry => new Date(entry.Date) >= startOfThisMonth)
+          .reduce((acc, entry) => {
+            const key = entry['Media Buyer'];
+            if (!acc[key]) {
+              acc[key] = { buyer: key, profit: 0, revenue: 0, spend: 0 };
+            }
+            acc[key].spend += parseFloat(entry['Ad Spend'] || 0);
+            acc[key].revenue += parseFloat(entry['Total Revenue'] || 0);
+            acc[key].profit = acc[key].revenue - acc[key].spend;
+            return acc;
+          }, {});
+
+        // Group buyers by category
+        const categorizedBuyers = Object.values(buyerData).reduce((acc, buyer) => {
+          const category = getMediaBuyerCategory(buyer.buyer);
+          if (category === 'New' || category === 'Active') {
+            if (!acc[category]) {
+              acc[category] = [];
+            }
+            acc[category].push(buyer);
+          }
+          return acc;
+        }, {});
+
+        // Sort buyers within each category by profit
+        Object.keys(categorizedBuyers).forEach(category => {
+          categorizedBuyers[category].sort((a, b) => b.profit - a.profit);
+        });
 
   return (
-    <Card>
-      <CardHeader>
-        <CardTitle className="flex items-center">
-          <TrendingUp className="w-5 h-5 mr-2" />
-          {sectionTitle}
-        </CardTitle>
-        <p className="text-sm text-gray-500 mt-1">
-          {description} Metrics include revenue, spend, margin, ROI, and volatility.
-        </p>
-      </CardHeader>
-      <CardContent>
-        <div className="overflow-x-auto">
+          <div className="space-y-4">
+            <div className="flex justify-end">
+              <p className="text-sm text-gray-500">
+                {format(startOfThisMonth, 'MMM d')} - {format(lastDataDate, 'MMM d, yyyy')}
+              </p>
+            </div>
+            <div className="grid grid-cols-2 gap-4">
+              <div>
           <table className="w-full">
             <thead>
               <tr className="border-b">
-                <th className="text-left py-3 px-4">Offer</th>
-                <th className="text-right py-3 px-4">Revenue</th>
-                <th className="text-right py-3 px-4">Spend</th>
-                <th className="text-right py-3 px-4">Margin</th>
-                <th className="text-right py-3 px-4">ROI</th>
-                <th className="text-right py-3 px-4">
-                  <div className="flex items-center justify-end gap-1">
-                    Volatility
-                    <div className="group relative">
-                      <span className="text-xs text-gray-500 cursor-help">(Daily Variation)</span>
-                      <div className="hidden group-hover:block absolute right-0 top-full mt-1 w-48 p-2 bg-gray-800 text-white text-xs rounded shadow-lg z-10">
-                        <p>Measures daily performance stability:</p>
-                        <ul className="mt-1 space-y-1">
-                          <li>• {'<'}30%: Stable</li>
-                          <li>• 30-50%: Watch</li>
-                          <li>• {'>'}50%: High Risk</li>
-                        </ul>
-                      </div>
-                    </div>
-                  </div>
-                </th>
+                      <th className="text-left py-2">New Media Buyers</th>
+                      <th className="text-right py-2">Profit</th>
               </tr>
             </thead>
             <tbody>
-              {sortedMetrics.map((metric, index) => (
-                <tr 
-                  key={metric.offer}
-                  className={`
-                    border-b last:border-0
-                    ${index === 0 ? 'bg-blue-50' : index % 2 === 0 ? 'bg-gray-50' : ''}
-                  `}
-                >
-                  <td className="py-3 px-4">
-                    <div className="font-medium">{metric.offer}</div>
-                  </td>
-                  <td className="text-right py-3 px-4 font-medium">
-                    {formatCurrency(metric.revenue)}
-                  </td>
-                  <td className="text-right py-3 px-4 font-medium">
-                    {formatCurrency(metric.spend)}
-                  </td>
-                  <td className="text-right py-3 px-4">
-                    <span className={metric.margin >= 0 ? 'text-green-600' : 'text-red-600'}>
-                      {formatCurrency(metric.margin)}
-                    </span>
-                  </td>
-                  <td className="text-right py-3 px-4">
-                    <span className={`
-                      px-2 py-1 rounded-full text-sm font-medium
-                      ${metric.roi > 30 ? 'bg-green-100 text-green-800' : 
-                        metric.roi > 15 ? 'bg-blue-100 text-blue-800' : 
-                        'bg-orange-100 text-orange-800'}
-                    `}>
-                      {metric.roi.toFixed(1)}%
-                    </span>
-                  </td>
-                  <td className="text-right py-3 px-4">
-                    <span className={`
-                      font-medium
-                      ${metric.volatility > 50 ? 'text-red-600' :
-                        metric.volatility > 30 ? 'text-orange-600' :
-                        'text-green-600'}
-                    `}>
-                      {metric.volatility.toFixed(1)}%
-                    </span>
+                    {(categorizedBuyers['New'] || []).map((buyer, index) => (
+                      <tr key={buyer.buyer} className="border-b">
+                        <td className="py-2">{buyer.buyer}</td>
+                        <td className={`text-right py-2 ${buyer.profit >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                          {formatCurrency(buyer.profit)}
                   </td>
                 </tr>
               ))}
             </tbody>
           </table>
         </div>
-
-        <div className="mt-4 p-4 bg-gray-50 rounded-lg border border-gray-200">
-          <h4 className="font-medium mb-2">Understanding the Metrics:</h4>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
             <div>
-              <p className="font-medium">ROI Colors:</p>
-              <ul className="mt-1 space-y-1">
-                <li className="flex items-center gap-2">
-                  <span className="w-3 h-3 rounded-full bg-green-100"></span>
-                  Excellent ({'>'}30%)
-                </li>
-                <li className="flex items-center gap-2">
-                  <span className="w-3 h-3 rounded-full bg-blue-100"></span>
-                  Good (15-30%)
-                </li>
-                <li className="flex items-center gap-2">
-                  <span className="w-3 h-3 rounded-full bg-orange-100"></span>
-                  Moderate ({'<'}15%)
-                </li>
-              </ul>
+                <table className="w-full">
+                  <thead>
+                    <tr className="border-b">
+                      <th className="text-left py-2">Active Media Buyers</th>
+                      <th className="text-right py-2">Profit</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {(categorizedBuyers['Active'] || []).map((buyer, index) => (
+                      <tr key={buyer.buyer} className="border-b">
+                        <td className="py-2">{buyer.buyer}</td>
+                        <td className={`text-right py-2 ${buyer.profit >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                          {formatCurrency(buyer.profit)}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
             </div>
-            <div>
-              <p className="font-medium">Volatility Indicators:</p>
-              <ul className="mt-1 space-y-1">
-                <li className="flex items-center gap-2">
-                  <span className="text-green-600">●</span>
-                  Stable ({'<'}30%)
-                </li>
-                <li className="flex items-center gap-2">
-                  <span className="text-orange-600">●</span>
-                  Moderate (30-50%)
-                </li>
-                <li className="flex items-center gap-2">
-                  <span className="text-red-600">●</span>
-                  High ({'>'}50%)
-                </li>
-              </ul>
             </div>
           </div>
-        </div>
-      </CardContent>
-    </Card>
-  );
-};
+        );
+      }
 
-const analyzeNetworkExposure = (data, days) => {
-  if (!data || !Array.isArray(data)) {
-    throw new Error('No performance data available');
-  }
+      case 'worst-offers-week': {
+        const lastWeek = subDays(lastDataDate, 7);
+        const offerData = performanceData
+          .filter(entry => new Date(entry.Date) >= lastWeek)
+          .reduce((acc, entry) => {
+            const key = entry.Offer;
+            if (!acc[key]) {
+              acc[key] = { offer: key, profit: 0, revenue: 0, spend: 0 };
+            }
+            acc[key].spend += parseFloat(entry['Ad Spend'] || 0);
+            acc[key].revenue += parseFloat(entry['Total Revenue'] || 0);
+            acc[key].profit = acc[key].revenue - acc[key].spend;
+            return acc;
+          }, {});
 
-  const now = new Date();
-  const startDate = new Date(now);
-  startDate.setDate(startDate.getDate() - days);
+        const worstOffers = Object.values(offerData)
+          .sort((a, b) => a.profit - b.profit)
+          .slice(0, 5);
 
-  const filteredData = data.filter(d => {
-    const date = d.Date ? new Date(d.Date) : new Date(d.date);
-    return date >= startDate && date <= now;
-  });
+        return (
+          <div className="space-y-4">
+            <div className="flex justify-end">
+              <p className="text-sm text-gray-500">
+                {format(lastWeek, 'MMM d')} - {format(lastDataDate, 'MMM d, yyyy')}
+              </p>
+            </div>
+            <table className="w-full">
+              <thead>
+                <tr className="border-b">
+                  <th className="text-left py-2">Offer</th>
+                  <th className="text-right py-2">Spend</th>
+                  <th className="text-right py-2">Loss</th>
+                  <th className="text-right py-2">ROI</th>
+                </tr>
+              </thead>
+              <tbody>
+                {worstOffers.map((offer, index) => (
+                  <tr key={index} className="border-b">
+                    <td className="py-2">{offer.offer}</td>
+                    <td className="text-right py-2">{formatCurrency(offer.spend)}</td>
+                    <td className="text-right py-2 text-red-600">{formatCurrency(offer.profit)}</td>
+                    <td className="text-right py-2 text-red-600">
+                      {((offer.profit / offer.spend) * 100).toFixed(1)}%
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        );
+      }
 
-  if (filteredData.length === 0) {
-    throw new Error(`No data found for the last ${days} days`);
-  }
+      case 'low-roi-offers': {
+        const offerData = performanceData
+          .reduce((acc, entry) => {
+            const key = entry.Offer;
+            if (!acc[key]) {
+              acc[key] = { offer: key, profit: 0, revenue: 0, spend: 0 };
+            }
+            acc[key].spend += parseFloat(entry['Ad Spend'] || 0);
+            acc[key].revenue += parseFloat(entry['Total Revenue'] || 0);
+            acc[key].profit = acc[key].revenue - acc[key].spend;
+            return acc;
+          }, {});
 
-  // Group by network
-  const networkData = _.groupBy(filteredData, d => {
-    const networkOffer = d.networkOffer || d['Network Offer'] || d['Network-Offer'];
-    if (networkOffer) return networkOffer.split(' - ')[0];
-    return d.Network || d.network || 'Unknown';
-  });
+        const lowRoiOffers = Object.values(offerData)
+          .filter(offer => offer.spend > 0 && ((offer.profit / offer.spend) * 100) < 15)
+          .sort((a, b) => (a.profit / a.spend) - (b.profit / b.spend));
 
-  const totalRevenue = _.sumBy(filteredData, d => 
-    parseFloat(d.revenue || d.Revenue || d['Total Revenue'] || 0)
-  );
+        return (
+          <div className="space-y-4">
+            <div className="flex justify-end">
+              <p className="text-sm text-gray-500">
+                All Time Data
+              </p>
+            </div>
+            <table className="w-full">
+              <thead>
+                <tr className="border-b">
+                  <th className="text-left py-2">Offer</th>
+                  <th className="text-right py-2">Spend</th>
+                  <th className="text-right py-2">Profit</th>
+                  <th className="text-right py-2">ROI</th>
+                </tr>
+              </thead>
+              <tbody>
+                {lowRoiOffers.map((offer, index) => (
+                  <tr key={index} className="border-b">
+                    <td className="py-2">{offer.offer}</td>
+                    <td className="text-right py-2">{formatCurrency(offer.spend)}</td>
+                    <td className="text-right py-2">{formatCurrency(offer.profit)}</td>
+                    <td className="text-right py-2 text-yellow-600">
+                      {((offer.profit / offer.spend) * 100).toFixed(1)}%
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        );
+      }
 
-  const networkMetrics = Object.entries(networkData).map(([network, data]) => {
-    const revenue = _.sumBy(data, d => 
-      parseFloat(d.revenue || d.Revenue || d['Total Revenue'] || 0)
-    );
-    const spend = _.sumBy(data, d => 
-      parseFloat(d.spend || d.Spend || d['Ad Spend'] || 0)
-    );
-    const margin = revenue - spend;
-    
-    // Calculate daily volatility
-    const dailyRevenue = _.groupBy(data, d => {
-      const date = d.Date ? new Date(d.Date) : new Date(d.date);
-      return date.toISOString().split('T')[0];
-    });
-    
-    const dailyTotals = Object.values(dailyRevenue).map(day => 
-      _.sumBy(day, d => parseFloat(d.revenue || d.Revenue || d['Total Revenue'] || 0))
-    );
-    
-    const mean = _.mean(dailyTotals);
-    const volatility = mean ? (Math.sqrt(_.sum(dailyTotals.map(t => Math.pow(t - mean, 2))) / dailyTotals.length) / Math.abs(mean)) * 100 : 0;
+      case 'cumulative-losses': {
+        const buyerData = performanceData
+          .reduce((acc, entry) => {
+            const key = entry['Media Buyer'];
+            if (!acc[key]) {
+              acc[key] = { 
+                buyer: key, 
+                profit: 0, 
+                revenue: 0, 
+                spend: 0,
+                lossStreak: 0,
+                maxLossStreak: 0
+              };
+            }
+            const profit = parseFloat(entry['Total Revenue'] || 0) - parseFloat(entry['Ad Spend'] || 0);
+            acc[key].spend += parseFloat(entry['Ad Spend'] || 0);
+            acc[key].revenue += parseFloat(entry['Total Revenue'] || 0);
+            acc[key].profit += profit;
+            
+            if (profit < 0) {
+              acc[key].lossStreak++;
+              acc[key].maxLossStreak = Math.max(acc[key].maxLossStreak, acc[key].lossStreak);
+            } else {
+              acc[key].lossStreak = 0;
+            }
+            
+            return acc;
+          }, {});
 
-    return {
-      network,
-      revenue,
-      spend,
-      margin,
-      percentageOfRevenue: (revenue / totalRevenue) * 100,
-      volatility,
-      offerCount: new Set(data.map(d => {
-        const networkOffer = d.networkOffer || d['Network Offer'] || d['Network-Offer'];
-        if (networkOffer) return networkOffer.split(' - ')[1];
-        return d.Offer || d.offer || 'Unknown';
-      })).size
-    };
-  });
+        const buyersWithLosses = Object.values(buyerData)
+          .filter(buyer => buyer.profit < 0)
+          .sort((a, b) => a.profit - b.profit);
 
-  // Sort by revenue percentage descending
+        return (
+          <div className="space-y-4">
+            <div className="flex justify-end">
+              <p className="text-sm text-gray-500">
+                All Time Data
+              </p>
+            </div>
+            <table className="w-full">
+              <thead>
+                <tr className="border-b">
+                  <th className="text-left py-2">Media Buyer</th>
+                  <th className="text-right py-2">Total Spend</th>
+                  <th className="text-right py-2">Total Revenue</th>
+                  <th className="text-right py-2">Cumulative Loss</th>
+                  <th className="text-right py-2">Max Loss Streak</th>
+                </tr>
+              </thead>
+              <tbody>
+                {buyersWithLosses.map((buyer, index) => (
+                  <tr key={index} className="border-b">
+                    <td className="py-2">{buyer.buyer}</td>
+                    <td className="text-right py-2">{formatCurrency(buyer.spend)}</td>
+                    <td className="text-right py-2">{formatCurrency(buyer.revenue)}</td>
+                    <td className="text-right py-2 text-red-600">
+                      {formatCurrency(buyer.profit)}
+                    </td>
+                    <td className="text-right py-2 text-red-600">
+                      {buyer.maxLossStreak} days
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        );
+      }
+
+      case 'network-revenue': {
+        const networkData = performanceData
+          .reduce((acc, entry) => {
+            const key = entry.Network;
+            if (!acc[key]) {
+              acc[key] = { 
+                network: key, 
+                revenue: 0, 
+                profit: 0, 
+                offers: new Set(),
+                dailyRevenue: {}
+              };
+            }
+            acc[key].revenue += parseFloat(entry['Total Revenue'] || 0);
+            acc[key].profit += parseFloat(entry['Total Revenue'] || 0) - parseFloat(entry['Ad Spend'] || 0);
+            acc[key].offers.add(entry.Offer);
+            
+            if (!acc[key].dailyRevenue[entry.Date]) {
+              acc[key].dailyRevenue[entry.Date] = 0;
+            }
+            acc[key].dailyRevenue[entry.Date] += parseFloat(entry['Total Revenue'] || 0);
+            
+            return acc;
+          }, {});
+
+        const networks = Object.values(networkData)
+          .map(network => ({
+            ...network,
+            offerCount: network.offers.size,
+            avgDailyRevenue: Object.values(network.dailyRevenue).reduce((a, b) => a + b, 0) / 
+                           Object.keys(network.dailyRevenue).length
+          }))
+          .sort((a, b) => b.revenue - a.revenue);
+
+        return (
+          <div className="space-y-4">
+            <h2 className="text-xl font-semibold mb-4">Show Network Revenue Breakdown</h2>
+            <div className="flex justify-between items-center">
+              <h3 className="font-medium">Network Revenue Analysis</h3>
+              <p className="text-sm text-gray-500">
+                All Time Data
+              </p>
+            </div>
+            <table className="w-full">
+              <thead>
+                <tr className="border-b">
+                  <th className="text-left py-2">Network</th>
+                  <th className="text-right py-2">Total Revenue</th>
+                  <th className="text-right py-2">Profit</th>
+                  <th className="text-right py-2">Active Offers</th>
+                  <th className="text-right py-2">Avg Daily Revenue</th>
+                </tr>
+              </thead>
+              <tbody>
+                {networks.map((network, index) => (
+                  <tr key={index} className="border-b">
+                    <td className="py-2">{network.network}</td>
+                    <td className="text-right py-2">{formatCurrency(network.revenue)}</td>
+                    <td className={`text-right py-2 ${network.profit >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                      {formatCurrency(network.profit)}
+                    </td>
+                    <td className="text-right py-2">{network.offerCount}</td>
+                    <td className="text-right py-2">{formatCurrency(network.avgDailyRevenue)}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        );
+      }
+
+      case 'network-caps': {
+        const networkDailySpend = performanceData
+          .reduce((acc, entry) => {
+            const network = entry.Network;
+            const date = entry.Date;
+            if (!acc[network]) {
+              acc[network] = { network, dailySpend: {}, avgSpend: 0, maxSpend: 0 };
+            }
+            if (!acc[network].dailySpend[date]) {
+              acc[network].dailySpend[date] = 0;
+            }
+            acc[network].dailySpend[date] += parseFloat(entry['Ad Spend'] || 0);
+            return acc;
+          }, {});
+
+        // Calculate average and max daily spend
+        Object.values(networkDailySpend).forEach(network => {
+          const spends = Object.values(network.dailySpend);
+          network.avgSpend = spends.reduce((a, b) => a + b, 0) / spends.length;
+          network.maxSpend = Math.max(...spends);
+          network.daysNearCap = spends.filter(spend => spend >= network.avgSpend * 0.9).length;
+        });
+
+        const networksNearCap = Object.values(networkDailySpend)
+          .filter(network => network.daysNearCap > 0)
+          .sort((a, b) => b.maxSpend - a.maxSpend);
+
+        return (
+          <div className="space-y-4">
+            <h2 className="text-xl font-semibold mb-4">Show Network Hitting Caps</h2>
+            <div className="flex justify-between items-center">
+              <h3 className="font-medium">Networks Approaching Daily Caps</h3>
+              <p className="text-sm text-gray-500">
+                All Time Data
+              </p>
+            </div>
+            <table className="w-full">
+              <thead>
+                <tr className="border-b">
+                  <th className="text-left py-2">Network</th>
+                  <th className="text-right py-2">Avg Daily Spend</th>
+                  <th className="text-right py-2">Max Daily Spend</th>
+                  <th className="text-right py-2">Days Near Cap</th>
+                </tr>
+              </thead>
+              <tbody>
+                {networksNearCap.map((network, index) => (
+                  <tr key={index} className="border-b">
+                    <td className="py-2">{network.network}</td>
+                    <td className="text-right py-2">{formatCurrency(network.avgSpend)}</td>
+                    <td className="text-right py-2">{formatCurrency(network.maxSpend)}</td>
+                    <td className="text-right py-2 text-yellow-600">
+                      {network.daysNearCap} days
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        );
+      }
+
+      case 'network-trend': {
+        const networkTrends = performanceData
+          .reduce((acc, entry) => {
+            const network = entry.Network;
+            const date = entry.Date;
+            if (!acc[network]) {
+              acc[network] = { 
+                network, 
+                dailyData: {},
+                totalRevenue: 0,
+                totalSpend: 0
+              };
+            }
+            if (!acc[network].dailyData[date]) {
+              acc[network].dailyData[date] = {
+                revenue: 0,
+                spend: 0,
+                profit: 0
+              };
+            }
+            const revenue = parseFloat(entry['Total Revenue'] || 0);
+            const spend = parseFloat(entry['Ad Spend'] || 0);
+            acc[network].dailyData[date].revenue += revenue;
+            acc[network].dailyData[date].spend += spend;
+            acc[network].dailyData[date].profit += revenue - spend;
+            acc[network].totalRevenue += revenue;
+            acc[network].totalSpend += spend;
+            return acc;
+          }, {});
+
+        const networkPerformance = Object.values(networkTrends)
+          .map(network => {
+            const dailyData = Object.values(network.dailyData);
+            const dates = Object.keys(network.dailyData).sort();
+            const trend = dailyData.length >= 2 ? 
+              (dailyData[dailyData.length - 1].profit - dailyData[0].profit) / dailyData.length : 0;
   return {
-    metrics: networkMetrics.sort((a, b) => b.percentageOfRevenue - a.percentageOfRevenue),
-    timeFrame: days,
-    totalRevenue
-  };
-};
-
-const analyzeMediaBuyers = (data, days, is30DayChallenge = false) => {
-  if (!data || !Array.isArray(data)) {
-    throw new Error('No performance data available');
-  }
-
-  const now = new Date();
-  const startDate = new Date(now);
-  startDate.setDate(startDate.getDate() - days);
-
-  // For 30-day challenge, we want to identify new buyers in the last 60 days
-  const lookbackDate = new Date(now);
-  lookbackDate.setDate(lookbackDate.getDate() - (is30DayChallenge ? 60 : days));
-
-  const filteredData = data.filter(d => {
-    const date = d.Date ? new Date(d.Date) : new Date(d.date);
-    return date >= (is30DayChallenge ? lookbackDate : startDate) && date <= now;
-  });
-
-  if (filteredData.length === 0) {
-    throw new Error(`No data found for the specified time period`);
-  }
-
-  // Group by media buyer
-  const groupedData = _.groupBy(filteredData, d => {
-    return d.mediaBuyer || d['Media Buyer'] || d.buyer || 'Unknown';
-  });
-
-  // For 30-day challenge, identify new buyers
-  const buyerFirstDates = {};
-  if (is30DayChallenge) {
-    Object.entries(groupedData).forEach(([buyer, data]) => {
-      const dates = data.map(d => new Date(d.Date || d.date));
-      buyerFirstDates[buyer] = new Date(Math.min(...dates));
-    });
-  }
-
-  const buyerMetrics = Object.entries(groupedData).map(([buyer, data]) => {
-    // For 30-day challenge, only include data from first 30 days
-    let relevantData = data;
-    if (is30DayChallenge) {
-      const firstDate = buyerFirstDates[buyer];
-      const thirtyDayEnd = new Date(firstDate);
-      thirtyDayEnd.setDate(thirtyDayEnd.getDate() + 30);
-      relevantData = data.filter(d => {
-        const date = new Date(d.Date || d.date);
-        return date >= firstDate && date <= thirtyDayEnd;
-      });
-    }
-
-    const revenue = _.sumBy(relevantData, d => parseFloat(d.revenue || d.Revenue || d['Total Revenue'] || 0));
-    const spend = _.sumBy(relevantData, d => parseFloat(d.spend || d.Spend || d['Ad Spend'] || 0));
-    const margin = revenue - spend;
-    const roi = spend ? (margin / spend) * 100 : 0;
-
-    // Calculate daily margins for volatility
-    const dailyMargins = _.groupBy(relevantData, d => {
-      const date = d.Date ? new Date(d.Date) : new Date(d.date);
-      return date.toISOString().split('T')[0];
-    });
-
-    const margins = Object.values(dailyMargins).map(day => {
-      const dayRevenue = _.sumBy(day, d => parseFloat(d.revenue || d.Revenue || d['Total Revenue'] || 0));
-      const daySpend = _.sumBy(day, d => parseFloat(d.spend || d.Spend || d['Ad Spend'] || 0));
-      return dayRevenue - daySpend;
-    });
-
-    const mean = _.mean(margins);
-    const volatility = mean ? (Math.sqrt(_.sum(margins.map(m => Math.pow(m - mean, 2))) / margins.length) / Math.abs(mean)) * 100 : 0;
-
-    return {
-      buyer,
-      revenue,
-      spend,
-      margin,
-      roi,
-      volatility,
-      startDate: is30DayChallenge ? buyerFirstDates[buyer] : null,
-      daysActive: is30DayChallenge ? 
-        Math.min(30, Math.ceil((now - buyerFirstDates[buyer]) / (1000 * 60 * 60 * 24))) : 
-        days
-    };
-  }).filter(buyer => {
-    if (is30DayChallenge) {
-      // Only include buyers who started in the last 60 days
-      const daysSinceStart = Math.ceil((now - buyer.startDate) / (1000 * 60 * 60 * 24));
-      return daysSinceStart <= 60;
-    }
-    return buyer.buyer !== 'Unknown';
-  });
-
-  return {
-    metrics: buyerMetrics,
-    timeFrame: days,
-    focusMetric: 'mediaBuyers',
-    is30DayChallenge
-  };
-};
-
-const renderMediaBuyerSection = (metrics, timeFrame, query) => {
-  const isShowingStruggling = query.toLowerCase().includes('struggling') || 
-                             query.toLowerCase().includes('worst') ||
-                             query.toLowerCase().includes('underperforming');
-  
-  const sortedMetrics = [...metrics].sort((a, b) => {
-    if (isShowingStruggling) {
-      return a.roi - b.roi;
-    }
-    return b.roi - a.roi;
-  });
-
-  const title = isShowingStruggling ? 'Struggling Media Buyers' : 'Top Performing Media Buyers';
+              ...network,
+              trend,
+              profitMargin: (network.totalRevenue - network.totalSpend) / network.totalRevenue * 100,
+              dateRange: `${dates[0]} - ${dates[dates.length - 1]}`
+            };
+          })
+          .sort((a, b) => b.totalRevenue - a.totalRevenue);
 
   return (
-    <Card>
-      <CardHeader>
-        <CardTitle className="flex items-center">
-          <TrendingUp className="w-5 h-5 mr-2" />
-          {title}
-        </CardTitle>
-        <p className="text-sm text-gray-500 mt-1">
-          Analysis for the last {timeFrame} days. Metrics include revenue, margin, ROI, and active offers.
-        </p>
-      </CardHeader>
-      <CardContent>
-        <div className="overflow-x-auto">
+          <div className="space-y-4">
+            <h2 className="text-xl font-semibold mb-4">Show Network Performance Trend</h2>
+            <div className="flex justify-between items-center">
+              <h3 className="font-medium">Network Performance Analysis</h3>
+              <p className="text-sm text-gray-500">
+                All Time Data
+              </p>
+            </div>
           <table className="w-full">
             <thead>
               <tr className="border-b">
-                <th className="text-left py-3 px-4">Media Buyer</th>
-                <th className="text-right py-3 px-4">Active Offers</th>
-                <th className="text-right py-3 px-4">Revenue</th>
-                <th className="text-right py-3 px-4">Margin</th>
-                <th className="text-right py-3 px-4">ROI</th>
-                <th className="text-right py-3 px-4">
-                  <div className="flex items-center justify-end gap-1">
-                    Volatility
-                    <div className="group relative">
-                      <span className="text-xs text-gray-500 cursor-help">(Daily Variation)</span>
-                      <div className="hidden group-hover:block absolute right-0 top-full mt-1 w-48 p-2 bg-gray-800 text-white text-xs rounded shadow-lg z-10">
-                        <p>Measures daily performance stability:</p>
-                        <ul className="mt-1 space-y-1">
-                          <li>• {'<'}30%: Stable</li>
-                          <li>• 30-50%: Watch</li>
-                          <li>• {'>'}50%: High Risk</li>
-                        </ul>
-                      </div>
-                    </div>
-                  </div>
-                </th>
+                  <th className="text-left py-2">Network</th>
+                  <th className="text-right py-2">Total Revenue</th>
+                  <th className="text-right py-2">Profit Margin</th>
+                  <th className="text-right py-2">Daily Trend</th>
+                  <th className="text-right py-2">Date Range</th>
               </tr>
             </thead>
             <tbody>
-              {sortedMetrics.map((metric, index) => (
-                <tr 
-                  key={metric.buyer}
-                  className={`
-                    border-b last:border-0
-                    ${index === 0 ? 'bg-blue-50' : index % 2 === 0 ? 'bg-gray-50' : ''}
-                  `}
-                >
-                  <td className="py-3 px-4">
-                    <div className="font-medium">{metric.buyer}</div>
+                {networkPerformance.map((network, index) => (
+                  <tr key={index} className="border-b">
+                    <td className="py-2">{network.network}</td>
+                    <td className="text-right py-2">{formatCurrency(network.totalRevenue)}</td>
+                    <td className={`text-right py-2 ${network.profitMargin >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                      {network.profitMargin.toFixed(1)}%
                   </td>
-                  <td className="text-right py-3 px-4">
-                    {metric.offerCount}
+                    <td className={`text-right py-2 ${network.trend >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                      {formatCurrency(network.trend)}/day
                   </td>
-                  <td className="text-right py-3 px-4 font-medium">
-                    {formatCurrency(metric.revenue)}
-                  </td>
-                  <td className="text-right py-3 px-4">
-                    <span className={metric.margin >= 0 ? 'text-green-600' : 'text-red-600'}>
-                      {formatCurrency(metric.margin)}
-                    </span>
-                  </td>
-                  <td className="text-right py-3 px-4">
-                    <span className={`
-                      px-2 py-1 rounded-full text-sm font-medium
-                      ${metric.roi > 30 ? 'bg-green-100 text-green-800' : 
-                        metric.roi > 15 ? 'bg-blue-100 text-blue-800' : 
-                        'bg-orange-100 text-orange-800'}
-                    `}>
-                      {metric.roi.toFixed(1)}%
-                    </span>
-                  </td>
-                  <td className="text-right py-3 px-4">
-                    <span className={`
-                      font-medium
-                      ${metric.volatility > 50 ? 'text-red-600' :
-                        metric.volatility > 30 ? 'text-orange-600' :
-                        'text-green-600'}
-                    `}>
-                      {metric.volatility.toFixed(1)}%
-                    </span>
+                    <td className="text-right py-2 text-gray-500">
+                      {network.dateRange}
                   </td>
                 </tr>
               ))}
             </tbody>
           </table>
         </div>
-      </CardContent>
-    </Card>
-  );
-};
+        );
+      }
 
-const analyzeNetworkCaps = (data, days) => {
-  if (!data || !Array.isArray(data)) {
-    throw new Error('No performance data available');
-  }
+      case 'network-payment': {
+        const today = new Date();
+        const invoiceData = performanceData
+          .reduce((acc, entry) => {
+            const key = entry.Network;
+            if (!acc[key]) {
+              acc[key] = {
+                network: key,
+                invoices: []
+              };
+            }
+            
+            // Only add if it's an actual invoice entry with InvoiceNumber
+            if (entry.InvoiceNumber) {
+              acc[key].invoices.push({
+                invoiceNumber: entry.InvoiceNumber,
+                amount: parseFloat(entry['Amount Due'] || 0),
+                dueDate: new Date(entry['Due Date']),
+                periodStart: new Date(entry['Period Start']),
+                periodEnd: new Date(entry['Period End']),
+                status: new Date(entry['Due Date']) < today ? 'Overdue' : 'Pending'
+              });
+            }
+            
+            return acc;
+          }, {});
 
-  const now = new Date();
-  const startDate = new Date(now);
-  startDate.setDate(startDate.getDate() - days);
+        const networkInvoices = Object.values(invoiceData)
+          .map(network => ({
+            ...network,
+            totalAmount: network.invoices.reduce((sum, inv) => sum + inv.amount, 0),
+            overdueInvoices: network.invoices.filter(inv => inv.status === 'Overdue'),
+            pendingInvoices: network.invoices.filter(inv => inv.status === 'Pending')
+          }))
+          .filter(network => network.invoices.length > 0) // Only show networks with actual invoices
+          .sort((a, b) => b.totalAmount - a.totalAmount);
 
-  // Get the most recent data for daily revenue calculation
-  const recentData = data.filter(d => {
-    const date = d.Date ? new Date(d.Date) : new Date(d.date);
-    return date >= startDate && date <= now;
-  });
+        return (
+          <div className="space-y-4">
+            <h2 className="text-xl font-semibold mb-4">Show Network Payment Status</h2>
+            <p className="text-gray-600 mb-4">
+              This analysis displays all unpaid invoices across networks, with special highlighting for overdue payments. This helps track payment status and identify potential payment issues early.
+            </p>
+            <div className="flex justify-between items-center">
+              <h3 className="font-medium">Network Invoice Status</h3>
+              <p className="text-sm text-gray-500">
+                As of {format(today, 'MMM d, yyyy')}
+              </p>
+            </div>
+            <table className="w-full">
+              <thead>
+                <tr className="border-b">
+                  <th className="text-left py-2">Network</th>
+                  <th className="text-right py-2">Total Amount</th>
+                  <th className="text-right py-2">Overdue</th>
+                  <th className="text-right py-2">Pending</th>
+                  <th className="text-right py-2">Status</th>
+                </tr>
+              </thead>
+              <tbody>
+                {networkInvoices.map((network, index) => {
+                  const overdueTotal = network.overdueInvoices.reduce((sum, inv) => sum + inv.amount, 0);
+                  const pendingTotal = network.pendingInvoices.reduce((sum, inv) => sum + inv.amount, 0);
+                  const hasOverdue = network.overdueInvoices.length > 0;
+                  
+                  return (
+                    <tr key={index} className={`border-b ${hasOverdue ? 'bg-red-50' : ''}`}>
+                      <td className="py-2">{network.network}</td>
+                      <td className="text-right py-2">{formatCurrency(network.totalAmount)}</td>
+                      <td className={`text-right py-2 ${hasOverdue ? 'text-red-600' : ''}`}>
+                        {formatCurrency(overdueTotal)}
+                      </td>
+                      <td className="text-right py-2 text-green-600">
+                        {formatCurrency(pendingTotal)}
+                      </td>
+                      <td className="text-right py-2">
+                        <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
+                          hasOverdue ? 'bg-red-100 text-red-800' : 'bg-green-100 text-green-800'
+                        }`}>
+                          {hasOverdue ? 'Overdue' : 'On Track'}
+                        </span>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
 
-  if (recentData.length === 0) {
-    throw new Error(`No data found for the last ${days} days`);
-  }
-
-  // Group by network and calculate daily averages
-  const networkData = _.groupBy(recentData, d => {
-    const networkOffer = d.networkOffer || d['Network Offer'] || d['Network-Offer'];
-    if (networkOffer) return networkOffer.split(' - ')[0];
-    return d.Network || d.network || 'Unknown';
-  });
-
-  // Define network caps (you should replace these with actual caps from your data)
-  const networkCaps = {
-    'ACA': 100000,
-    'Suited': 75000,
-    'RevContent': 50000,
-    'Taboola': 150000,
-    'Outbrain': 125000,
-    // Add more networks and their caps as needed
-  };
-
-  const networkMetrics = Object.entries(networkData).map(([network, data]) => {
-    // Calculate daily revenues
-    const dailyRevenues = _.groupBy(data, d => {
-      const date = d.Date ? new Date(d.Date) : new Date(d.date);
-      return date.toISOString().split('T')[0];
-    });
-
-    const dailyTotals = Object.values(dailyRevenues).map(day => 
-      _.sumBy(day, d => parseFloat(d.revenue || d.Revenue || d['Total Revenue'] || 0))
-    );
-
-    const avgDailyRevenue = _.mean(dailyTotals);
-    const maxDailyRevenue = _.max(dailyTotals);
-    const cap = networkCaps[network] || 100000; // Default cap if not specified
-    const percentOfCap = (maxDailyRevenue / cap) * 100;
-    const daysToHitCap = avgDailyRevenue > 0 ? Math.floor((cap - maxDailyRevenue) / avgDailyRevenue) : Infinity;
-
-    return {
-      network,
-      avgDailyRevenue,
-      maxDailyRevenue,
-      cap,
-      percentOfCap,
-      daysToHitCap,
-      trend: calculateGrowthRate(
-        _.mean(dailyTotals.slice(-7)),
-        _.mean(dailyTotals.slice(-14, -7))
-      )
-    };
-  });
-
-  // Sort by percentage of cap descending
-  return {
-    metrics: networkMetrics.sort((a, b) => b.percentOfCap - a.percentOfCap),
-    timeFrame: days
-  };
-};
-
-const renderNetworkCaps = (capData) => (
-  <Card>
-    <CardHeader>
-      <CardTitle className="flex items-center">
-        <AlertCircle className="w-5 h-5 mr-2" />
-        Network Cap Analysis
-      </CardTitle>
-      <p className="text-sm text-gray-500 mt-1">
-        Daily revenue vs. network caps over the last {capData.timeFrame} days.
-      </p>
-    </CardHeader>
-    <CardContent>
-      <div className="overflow-x-auto">
+            {/* Detailed Invoice List */}
+            <div className="mt-8">
+              <h3 className="font-medium mb-4">Detailed Invoice List</h3>
         <table className="w-full">
           <thead>
             <tr className="border-b">
-              <th className="text-left py-3 px-4">Network</th>
-              <th className="text-right py-3 px-4">Daily Cap</th>
-              <th className="text-right py-3 px-4">Max Daily Rev</th>
-              <th className="text-right py-3 px-4">Avg Daily Rev</th>
-              <th className="text-right py-3 px-4">% of Cap</th>
-              <th className="text-right py-3 px-4">7-Day Trend</th>
+                    <th className="text-left py-2">Network</th>
+                    <th className="text-left py-2">Invoice #</th>
+                    <th className="text-right py-2">Amount Due</th>
+                    <th className="text-right py-2">Period</th>
+                    <th className="text-right py-2">Due Date</th>
+                    <th className="text-right py-2">Status</th>
             </tr>
           </thead>
           <tbody>
-            {capData.metrics.map((network, index) => (
-              <tr 
-                key={network.network}
-                className={`
-                  border-b last:border-0
-                  ${network.percentOfCap > 90 ? 'bg-red-50' :
-                    network.percentOfCap > 75 ? 'bg-orange-50' :
-                    index % 2 === 0 ? 'bg-gray-50' : ''}
-                `}
-              >
-                <td className="py-3 px-4">
-                  <div className="font-medium">{network.network}</div>
+                  {networkInvoices.flatMap(network => 
+                    network.invoices.map((invoice, index) => {
+                      const isOverdue = invoice.status === 'Overdue';
+                      return (
+                        <tr key={`${network.network}-${invoice.invoiceNumber}-${index}`} 
+                            className={`border-b ${isOverdue ? 'bg-red-50' : ''}`}>
+                          <td className="py-2">{network.network}</td>
+                          <td className="py-2">{invoice.invoiceNumber}</td>
+                          <td className={`text-right py-2 ${isOverdue ? 'text-red-600' : 'text-green-600'}`}>
+                            {formatCurrency(invoice.amount)}
                 </td>
-                <td className="text-right py-3 px-4 font-medium">
-                  {formatCurrency(network.cap)}
+                          <td className="text-right py-2">
+                            {format(invoice.periodStart, 'MMM d')} - {format(invoice.periodEnd, 'MMM d, yyyy')}
                 </td>
-                <td className="text-right py-3 px-4">
-                  {formatCurrency(network.maxDailyRevenue)}
+                          <td className="text-right py-2">
+                            {format(invoice.dueDate, 'MMM d, yyyy')}
                 </td>
-                <td className="text-right py-3 px-4">
-                  {formatCurrency(network.avgDailyRevenue)}
-                </td>
-                <td className="text-right py-3 px-4">
-                  <span className={`
-                    px-2 py-1 rounded-full text-sm font-medium
-                    ${network.percentOfCap > 90 ? 'bg-red-100 text-red-800' :
-                      network.percentOfCap > 75 ? 'bg-orange-100 text-orange-800' :
-                      'bg-green-100 text-green-800'}
-                  `}>
-                    {network.percentOfCap.toFixed(1)}%
+                          <td className="text-right py-2">
+                            <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
+                              isOverdue ? 'bg-red-100 text-red-800' : 'bg-green-100 text-green-800'
+                            }`}>
+                              {invoice.status}
                   </span>
                 </td>
-                <td className="text-right py-3 px-4">
-                  <span className={`
-                    font-medium
-                    ${network.trend > 0 ? 'text-green-600' : 'text-red-600'}
-                  `}>
-                    {network.trend > 0 ? '+' : ''}{network.trend.toFixed(1)}%
-                  </span>
+                        </tr>
+                      );
+                    })
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        );
+      }
+
+      case 'top-offers-30': {
+        const thirtyDaysAgo = subDays(lastDataDate, 30);
+        const offerData = performanceData
+          .filter(entry => new Date(entry.Date) >= thirtyDaysAgo)
+          .reduce((acc, entry) => {
+            const key = entry.Offer;
+            if (!acc[key]) {
+              acc[key] = { offer: key, profit: 0, revenue: 0, spend: 0 };
+            }
+            acc[key].spend += parseFloat(entry['Ad Spend'] || 0);
+            acc[key].revenue += parseFloat(entry['Total Revenue'] || 0);
+            acc[key].profit = acc[key].revenue - acc[key].spend;
+            return acc;
+          }, {});
+
+        const topOffers = Object.values(offerData)
+          .sort((a, b) => b.profit - a.profit)
+          .slice(0, 10);
+
+        return (
+          <div className="space-y-4">
+            <div className="flex justify-end">
+              <p className="text-sm text-gray-500">
+                {format(thirtyDaysAgo, 'MMM d')} - {format(lastDataDate, 'MMM d, yyyy')}
+              </p>
+            </div>
+            <table className="w-full">
+              <thead>
+                <tr className="border-b">
+                  <th className="text-left py-2">Offer</th>
+                  <th className="text-right py-2">Revenue</th>
+                  <th className="text-right py-2">Profit</th>
+                  <th className="text-right py-2">ROI</th>
+                </tr>
+              </thead>
+              <tbody>
+                {topOffers.map((offer, index) => (
+                  <tr key={index} className="border-b">
+                    <td className="py-2">{offer.offer}</td>
+                    <td className="text-right py-2">{formatCurrency(offer.revenue)}</td>
+                    <td className="text-right py-2 text-green-600">{formatCurrency(offer.profit)}</td>
+                    <td className="text-right py-2">
+                      {((offer.profit / offer.spend) * 100).toFixed(1)}%
                 </td>
               </tr>
             ))}
           </tbody>
         </table>
       </div>
+        );
+      }
 
-      <div className="mt-4 p-4 bg-gray-50 rounded-lg border border-gray-200">
-        <h4 className="font-medium mb-2">Cap Status Guide:</h4>
-        <div className="space-y-2 text-sm">
-          <div className="flex items-center gap-2">
-            <span className="w-3 h-3 rounded-full bg-red-100"></span>
-            <span>Critical ({'>'}90% of cap) - Immediate action required</span>
-          </div>
-          <div className="flex items-center gap-2">
-            <span className="w-3 h-3 rounded-full bg-orange-100"></span>
-            <span>Warning (75-90%) - Monitor closely</span>
-          </div>
-          <div className="flex items-center gap-2">
-            <span className="w-3 h-3 rounded-full bg-green-100"></span>
-            <span>Safe ({'<'}75%) - Room for scaling</span>
-          </div>
-        </div>
-      </div>
-    </CardContent>
-  </Card>
-);
+      case 'highest-roi-mtd': {
+        const startOfThisMonth = startOfMonth(lastDataDate);
+        const offerData = performanceData
+          .filter(entry => new Date(entry.Date) >= startOfThisMonth)
+          .reduce((acc, entry) => {
+            const key = entry.Offer;
+            if (!acc[key]) {
+              acc[key] = { offer: key, profit: 0, revenue: 0, spend: 0 };
+            }
+            acc[key].spend += parseFloat(entry['Ad Spend'] || 0);
+            acc[key].revenue += parseFloat(entry['Total Revenue'] || 0);
+            acc[key].profit = acc[key].revenue - acc[key].spend;
+            return acc;
+          }, {});
 
-const render30DayChallenge = (metrics, timeFrame) => {
-  const sortedBuyers = [...metrics].sort((a, b) => b.roi - a.roi);
+        const highRoiOffers = Object.values(offerData)
+          .filter(offer => offer.spend >= 1000)
+          .map(offer => ({
+            ...offer,
+            roi: (offer.profit / offer.spend) * 100
+          }))
+          .sort((a, b) => b.roi - a.roi)
+          .slice(0, 10);
 
-  return (
-    <Card>
-      <CardHeader>
-        <CardTitle className="flex items-center">
-          <TrendingUp className="w-5 h-5 mr-2" />
-          30 Day Challenge - Media Buyer Progress
-        </CardTitle>
-        <p className="text-sm text-gray-500 mt-1">
-          Performance tracking for media buyers in their first 30 days. Commission structure: $0-$100k (15%), $100k-$250k (20%), $250k+ (30%)
-        </p>
-      </CardHeader>
-      <CardContent>
-        <div className="overflow-x-auto">
-          <table className="w-full">
-            <thead>
-              <tr className="border-b">
-                <th className="text-left py-3 px-4">Media Buyer</th>
-                <th className="text-right py-3 px-4">Days Active</th>
-                <th className="text-right py-3 px-4">Revenue</th>
-                <th className="text-right py-3 px-4">Spend</th>
-                <th className="text-right py-3 px-4">Margin</th>
-                <th className="text-right py-3 px-4">ROI</th>
-                <th className="text-right py-3 px-4">Commission Rate</th>
-                <th className="text-right py-3 px-4">Est. Commission</th>
+        return (
+          <div className="space-y-4">
+            <div className="flex justify-end">
+              <p className="text-sm text-gray-500">
+                {format(startOfThisMonth, 'MMM d')} - {format(lastDataDate, 'MMM d, yyyy')}
+              </p>
+          </div>
+            <table className="w-full">
+              <thead>
+                <tr className="border-b">
+                  <th className="text-left py-2">Offer</th>
+                  <th className="text-right py-2">Spend</th>
+                  <th className="text-right py-2">Profit</th>
+                  <th className="text-right py-2">ROI</th>
               </tr>
             </thead>
             <tbody>
-              {sortedBuyers.map((buyer, index) => {
-                const commissionRate = buyer.margin > 250000 ? 30 :
-                                     buyer.margin > 100000 ? 20 : 15;
-                const commission = (buyer.margin * (commissionRate / 100));
-                
-                return (
-                  <tr 
-                    key={buyer.buyer}
-                    className={`
-                      border-b last:border-0
-                      ${index === 0 ? 'bg-blue-50' : index % 2 === 0 ? 'bg-gray-50' : ''}
-                    `}
-                  >
-                    <td className="py-3 px-4">
-                      <div className="font-medium">{buyer.buyer}</div>
-                      <div className="text-xs text-gray-500">
-                        Started {new Date(buyer.startDate).toLocaleDateString()}
-                      </div>
-                    </td>
-                    <td className="text-right py-3 px-4">
-                      <div className="font-medium">{buyer.daysActive}</div>
-                      <div className="text-xs text-gray-500">
-                        {30 - buyer.daysActive} days remaining
-                      </div>
-                    </td>
-                    <td className="text-right py-3 px-4 font-medium">
-                      {formatCurrency(buyer.revenue)}
-                    </td>
-                    <td className="text-right py-3 px-4 font-medium">
-                      {formatCurrency(buyer.spend)}
-                    </td>
-                    <td className="text-right py-3 px-4">
-                      <span className={buyer.margin >= 0 ? 'text-green-600' : 'text-red-600'}>
-                        {formatCurrency(buyer.margin)}
-                      </span>
-                    </td>
-                    <td className="text-right py-3 px-4">
-                      <span className={`
-                        px-2 py-1 rounded-full text-sm font-medium
-                        ${buyer.roi > 30 ? 'bg-green-100 text-green-800' : 
-                          buyer.roi > 15 ? 'bg-blue-100 text-blue-800' : 
-                          'bg-orange-100 text-orange-800'}
-                      `}>
-                        {buyer.roi.toFixed(1)}%
-                      </span>
-                    </td>
-                    <td className="text-right py-3 px-4">
-                      <span className="font-medium">{commissionRate}%</span>
-                    </td>
-                    <td className="text-right py-3 px-4 font-medium">
-                      {formatCurrency(commission)}
-                    </td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
-        </div>
-
-        <div className="mt-4 p-4 bg-gray-50 rounded-lg border border-gray-200">
-          <h4 className="font-medium mb-2">30 Day Challenge Rules:</h4>
-          <div className="space-y-2 text-sm">
-            <div className="flex items-center gap-2">
-              <span className="w-3 h-3 rounded-full bg-green-100"></span>
-              <span>First 30 days performance-based compensation</span>
-            </div>
-            <div className="flex items-center gap-2">
-              <span className="w-3 h-3 rounded-full bg-blue-100"></span>
-              <span>Commission tiers based on total margin</span>
-            </div>
-            <div className="flex items-center gap-2">
-              <span className="w-3 h-3 rounded-full bg-orange-100"></span>
-              <span>Full-time commitment required</span>
-            </div>
-          </div>
-        </div>
-      </CardContent>
-    </Card>
-  );
-};
-
-const AIInsightsPage = ({ performanceData, invoicesData, expenseData }) => {
-  const [query, setQuery] = useState('');
-  const [loading, setLoading] = useState(false);
-  const [insights, setInsights] = useState(null);
-  const [error, setError] = useState(null);
-
-  // Debug log the incoming data
-  React.useEffect(() => {
-    console.log('Performance Data Sample:', performanceData?.slice(0, 2));
-    console.log('Performance Data Length:', performanceData?.length);
-    console.log('Sample Data Fields:', performanceData?.[0] ? Object.keys(performanceData[0]) : 'No data');
-  }, [performanceData]);
-
-  const parseTimeFrame = (question) => {
-    const timeFrames = {
-      'last week': 7,
-      'last month': 30,
-      'last 7 days': 7,
-      'last 30 days': 30,
-      'this month': new Date().getDate(),
-      'this week': 7,
-    };
-
-    for (const [phrase, days] of Object.entries(timeFrames)) {
-      if (question.toLowerCase().includes(phrase)) {
-        return days;
-      }
-    }
-    return 30; // Default to 30 days if no time frame specified
-  };
-
-  const analyzePerformance = (data, days) => {
-    if (!data || !Array.isArray(data)) {
-      throw new Error('No performance data available');
-    }
-
-    console.log('Raw performance data sample:', {
-      first: data[0],
-      fields: Object.keys(data[0]),
-      possibleNetworkFields: {
-        networkOffer: data[0].networkOffer,
-        'Network Offer': data[0]['Network Offer'],
-        'Network-Offer': data[0]['Network-Offer'],
-        Network: data[0].Network,
-        Offer: data[0].Offer
-      }
-    });
-
-    const now = new Date();
-    const startDate = new Date(now);
-    startDate.setDate(startDate.getDate() - days);
-
-    const filteredData = data.filter(d => {
-      // Handle both date string formats
-      const date = d.Date ? new Date(d.Date) : new Date(d.date);
-      return date >= startDate && date <= now;
-    });
-
-    console.log('Filtered data count:', filteredData.length);
-
-    if (filteredData.length === 0) {
-      throw new Error(`No data found for the last ${days} days. Please try a different time period.`);
-    }
-
-    // Group data by network-offer, trying different possible field combinations
-    const groupedData = _.groupBy(filteredData, d => {
-      // Try all possible field combinations
-      const networkOffer = d.networkOffer || d['Network Offer'] || d['Network-Offer'];
-      if (networkOffer) return networkOffer;
-      
-      // If no combined field exists, try to combine Network and Offer fields
-      const network = d.Network || d.network;
-      const offer = d.Offer || d.offer;
-      if (network && offer) return `${network} - ${offer}`;
-      
-      // Fallback to prevent undefined
-      return 'Unknown';
-    });
-    
-    console.log('Grouped data keys:', Object.keys(groupedData));
-
-    // Combine "Suited - ACA" with "ACA - ACA"
-    if (groupedData['Suited - ACA']) {
-      if (!groupedData['ACA - ACA']) {
-        groupedData['ACA - ACA'] = [];
-      }
-      groupedData['ACA - ACA'] = [...groupedData['ACA - ACA'], ...groupedData['Suited - ACA']];
-      delete groupedData['Suited - ACA'];
-    }
-
-    const performanceMetrics = Object.entries(groupedData).map(([offer, data]) => {
-      const totalRevenue = _.sumBy(data, d => parseFloat(d.revenue || d.Revenue || d['Total Revenue'] || 0));
-      const totalSpend = _.sumBy(data, d => parseFloat(d.spend || d.Spend || d['Ad Spend'] || 0));
-      const totalMargin = totalRevenue - totalSpend;
-      const roi = totalSpend ? (totalMargin / totalSpend) * 100 : 0;
-
-      // Calculate daily margins for volatility
-      const dailyMargins = _.groupBy(data, d => {
-        const date = d.Date ? new Date(d.Date) : new Date(d.date);
-        return date.toISOString().split('T')[0];
-      });
-
-      const margins = Object.values(dailyMargins).map(day => {
-        const dayRevenue = _.sumBy(day, d => parseFloat(d.revenue || d.Revenue || d['Total Revenue'] || 0));
-        const daySpend = _.sumBy(day, d => parseFloat(d.spend || d.Spend || d['Ad Spend'] || 0));
-        return dayRevenue - daySpend;
-      });
-      
-      const mean = _.mean(margins);
-      const volatility = mean ? (Math.sqrt(_.sum(margins.map(m => Math.pow(m - mean, 2))) / margins.length) / Math.abs(mean)) * 100 : 0;
-
-      return {
-        offer: offer === 'Unknown' ? 'All Networks' : offer,
-        revenue: totalRevenue,
-        spend: totalSpend,
-        margin: totalMargin,
-        roi,
-        volatility,
-        dailyVolume: data.length / days
-      };
-    });
-
-    return {
-      metrics: performanceMetrics,
-      timeFrame: days
-    };
-  };
-
-  const analyzeExpenses = (data, days) => {
-    if (!data || !Array.isArray(data)) {
-      throw new Error('No expense data available');
-    }
-
-    const filteredData = data.filter(d => {
-      const date = new Date(d.date);
-      const now = new Date();
-      return (now - date) <= days * 24 * 60 * 60 * 1000;
-    });
-
-    const totalExpenses = _.sumBy(filteredData, 'amount');
-    const expensesByCategory = _.groupBy(filteredData, 'category');
-    const categoryBreakdown = Object.entries(expensesByCategory).map(([category, items]) => ({
-      category,
-      amount: _.sumBy(items, 'amount'),
-      percentage: (_.sumBy(items, 'amount') / totalExpenses) * 100
-    }));
-
-    return {
-      total: totalExpenses,
-      breakdown: categoryBreakdown,
-      timeFrame: days
-    };
-  };
-
-  const analyzeInvoices = (data, days) => {
-    if (!data || !Array.isArray(data)) {
-      throw new Error('No invoice data available');
-    }
-
-    const filteredData = data.filter(d => {
-      const date = new Date(d.dueDate);
-      const now = new Date();
-      return (now - date) <= days * 24 * 60 * 60 * 1000;
-    });
-
-    const overdue = filteredData.filter(inv => 
-      new Date(inv.dueDate) < new Date() && inv.status !== 'paid'
-    );
-
-    const upcoming = filteredData.filter(inv => 
-      new Date(inv.dueDate) >= new Date() && inv.status !== 'paid'
-    );
-
-    return {
-      overdue: {
-        count: overdue.length,
-        total: _.sumBy(overdue, 'amount')
-      },
-      upcoming: {
-        count: upcoming.length,
-        total: _.sumBy(upcoming, 'amount')
-      },
-      timeFrame: days
-    };
-  };
-
-  const generateInsights = useCallback(async (questionText) => {
-    const queryToAnalyze = questionText || query;
-    
-    if (!queryToAnalyze.trim()) {
-      setError('Please enter a question');
-      return;
-    }
-
-    setLoading(true);
-    setError(null);
-    try {
-      const days = parseTimeFrame(queryToAnalyze);
-      const lowerQuery = queryToAnalyze.toLowerCase();
-      let response = {};
-
-      // Network Cap Analysis
-      if (lowerQuery.includes('cap') || lowerQuery.includes('limit')) {
-        response.networkCaps = analyzeNetworkCaps(performanceData, days);
-      }
-      // Media Buyer Analysis
-      else if (lowerQuery.includes('media buyer') || lowerQuery.includes('buyer')) {
-        const is30DayChallenge = lowerQuery.includes('30 day challenge');
-        response.mediaBuyers = analyzeMediaBuyers(performanceData, days, is30DayChallenge);
-        if (!is30DayChallenge) {
-          response.mediaBuyers.filter = lowerQuery.includes('struggling') || 
-                                      lowerQuery.includes('worst') ? 'bottom' : 'top';
-        } else {
-          response.mediaBuyers.filter = '30day';
-        }
-      }
-      // Performance and Growth Analysis
-      else if (lowerQuery.includes('net profit') || lowerQuery.includes('profit increasing')) {
-        response.performance = analyzePerformance(performanceData, days);
-        response.performance.focusMetric = 'profit';
-        response.performance.comparison = true;
-      } 
-      else if (lowerQuery.includes('vs last month') || lowerQuery.includes('compared to last month')) {
-        response.performance = analyzePerformance(performanceData, 30);
-        response.performance.focusMetric = 'trend';
-        response.performance.comparison = 'month';
-      }
-      else if (lowerQuery.includes('last year') || lowerQuery.includes('year over year')) {
-        response.performance = analyzePerformance(performanceData, 365);
-        response.performance.focusMetric = 'trend';
-        response.performance.comparison = 'year';
-      }
-      else if (lowerQuery.includes('month-over-month') || lowerQuery.includes('monthly trend')) {
-        response.performance = analyzePerformance(performanceData, 90);
-        response.performance.focusMetric = 'trend';
-        response.performance.comparison = 'month';
-      }
-      else if (lowerQuery.includes('scale') || lowerQuery.includes('best performing')) {
-        response.performance = analyzePerformance(performanceData, days);
-        response.performance.focusMetric = 'opportunities';
-        response.performance.filter = 'top';
-      }
-      // Risk and Optimization Analysis
-      else if (lowerQuery.includes('risky') || lowerQuery.includes('risk')) {
-        response.networkExposure = analyzeNetworkExposure(performanceData, days);
-        response.performance = analyzePerformance(performanceData, days);
-        response.performance.focusMetric = 'risk';
-      }
-      else if (lowerQuery.includes('pause') || lowerQuery.includes('shut off') || 
-               lowerQuery.includes('underperforming')) {
-        response.performance = analyzePerformance(performanceData, days);
-        response.performance.focusMetric = 'underperforming';
-        response.performance.filter = 'bottom';
-      }
-      else if (lowerQuery.includes('optimization')) {
-        response.performance = analyzePerformance(performanceData, days);
-        response.networkExposure = analyzeNetworkExposure(performanceData, days);
-        response.performance.focusMetric = 'optimization';
-      }
-      // Financial Health Analysis
-      else if (lowerQuery.includes('cash position') || lowerQuery.includes('cash flow')) {
-        response.invoices = analyzeInvoices(invoicesData, days);
-        response.expenses = analyzeExpenses(expenseData, days);
-        response.focusMetric = 'cashPosition';
-      }
-      else if (lowerQuery.includes('payment risk') || lowerQuery.includes('outstanding payment')) {
-        response.invoices = analyzeInvoices(invoicesData, days);
-        response.focusMetric = 'paymentRisk';
-      }
-      else if (lowerQuery.includes('network payment') || lowerQuery.includes('network status')) {
-        response.invoices = analyzeInvoices(invoicesData, days);
-        response.networkExposure = analyzeNetworkExposure(performanceData, days);
-        response.focusMetric = 'networkStatus';
-      }
-      else if (lowerQuery.includes('large expense') || lowerQuery.includes('upcoming expense')) {
-        response.expenses = analyzeExpenses(expenseData, days);
-        response.focusMetric = 'largeExpenses';
-      }
-      else if (lowerQuery.includes('alert') || lowerQuery.includes('critical')) {
-        response.performance = analyzePerformance(performanceData, days);
-        response.invoices = analyzeInvoices(invoicesData, days);
-        response.networkExposure = analyzeNetworkExposure(performanceData, days);
-        response.focusMetric = 'alerts';
-      }
-      // Default Performance Analysis
-      else if (lowerQuery.includes('performance') || lowerQuery.includes('offer') || 
-               lowerQuery.includes('roi') || lowerQuery.includes('revenue')) {
-        response.performance = analyzePerformance(performanceData, days);
-      }
-
-      if (Object.keys(response).length === 0) {
-        throw new Error('I can help you analyze performance, network exposure, expenses, or invoices. Try asking about one of these topics!');
-      }
-
-      // Add context to the response based on the query type
-      if (response.performance?.focusMetric === 'underperforming') {
-        const metrics = response.performance.metrics;
-        response.performance.metrics = metrics
-          .filter(m => m.roi < 15 || m.volatility > 50)
-          .sort((a, b) => a.roi - b.roi);
-      }
-
-      setInsights(response);
-    } catch (err) {
-      setError(err.message);
-    } finally {
-      setLoading(false);
-    }
-  }, [query, performanceData, invoicesData, expenseData]);
-
-  const renderNetworkExposure = (exposure) => (
-    <Card>
-      <CardHeader>
-        <CardTitle className="flex items-center">
-          <AlertCircle className="w-5 h-5 mr-2" />
-          Network Exposure Analysis
-        </CardTitle>
-        <p className="text-sm text-gray-500 mt-1">
-          Revenue concentration and risk analysis across networks for the last {exposure.timeFrame} days.
-        </p>
-      </CardHeader>
-      <CardContent>
-        <div className="overflow-x-auto">
-          <table className="w-full">
-            <thead>
-              <tr className="border-b">
-                <th className="text-left py-3 px-4">Network</th>
-                <th className="text-right py-3 px-4">Active Offers</th>
-                <th className="text-right py-3 px-4">Revenue</th>
-                <th className="text-right py-3 px-4">Margin</th>
-                <th className="text-right py-3 px-4">% of Revenue</th>
-                <th className="text-right py-3 px-4">
-                  <div className="flex items-center justify-end gap-1">
-                    Volatility
-                    <div className="group relative">
-                      <span className="text-xs text-gray-500 cursor-help">(Daily Variation)</span>
-                      <div className="hidden group-hover:block absolute right-0 top-full mt-1 w-48 p-2 bg-gray-800 text-white text-xs rounded shadow-lg z-10">
-                        <p>Measures daily performance stability:</p>
-                        <ul className="mt-1 space-y-1">
-                          <li>• {'<'}30%: Stable</li>
-                          <li>• 30-50%: Watch</li>
-                          <li>• {'>'}50%: High Risk</li>
-                        </ul>
-                      </div>
-                    </div>
-                  </div>
-                </th>
-              </tr>
-            </thead>
-            <tbody>
-              {exposure.metrics.map((network, index) => (
-                <tr 
-                  key={network.network}
-                  className={`
-                    border-b last:border-0
-                    ${network.percentageOfRevenue > 40 ? 'bg-red-50' :
-                      network.percentageOfRevenue > 25 ? 'bg-orange-50' :
-                      index % 2 === 0 ? 'bg-gray-50' : ''}
-                  `}
-                >
-                  <td className="py-3 px-4">
-                    <div className="font-medium">{network.network}</div>
-                  </td>
-                  <td className="text-right py-3 px-4">
-                    {network.offerCount}
-                  </td>
-                  <td className="text-right py-3 px-4 font-medium">
-                    {formatCurrency(network.revenue)}
-                  </td>
-                  <td className="text-right py-3 px-4">
-                    <span className={network.margin >= 0 ? 'text-green-600' : 'text-red-600'}>
-                      {formatCurrency(network.margin)}
-                    </span>
-                  </td>
-                  <td className="text-right py-3 px-4">
-                    <span className={`
-                      px-2 py-1 rounded-full text-sm font-medium
-                      ${network.percentageOfRevenue > 40 ? 'bg-red-100 text-red-800' :
-                        network.percentageOfRevenue > 25 ? 'bg-orange-100 text-orange-800' :
-                        'bg-green-100 text-green-800'}
-                    `}>
-                      {network.percentageOfRevenue.toFixed(1)}%
-                    </span>
-                  </td>
-                  <td className="text-right py-3 px-4">
-                    <span className={`
-                      font-medium
-                      ${network.volatility > 50 ? 'text-red-600' :
-                        network.volatility > 30 ? 'text-orange-600' :
-                        'text-green-600'}
-                    `}>
-                      {network.volatility.toFixed(1)}%
-                    </span>
+                {highRoiOffers.map((offer, index) => (
+                  <tr key={index} className="border-b">
+                    <td className="py-2">{offer.offer}</td>
+                    <td className="text-right py-2">{formatCurrency(offer.spend)}</td>
+                    <td className="text-right py-2 text-green-600">{formatCurrency(offer.profit)}</td>
+                    <td className="text-right py-2 text-green-600">
+                      {offer.roi.toFixed(1)}%
                   </td>
                 </tr>
               ))}
             </tbody>
           </table>
-        </div>
+          </div>
+        );
+      }
 
-        <div className="mt-4 p-4 bg-gray-50 rounded-lg border border-gray-200">
-          <h4 className="font-medium mb-2">Risk Assessment Guide:</h4>
-          <div className="space-y-2 text-sm">
-            <div className="flex items-center gap-2">
-              <span className="w-3 h-3 rounded-full bg-red-100"></span>
-              <span>High Concentration ({'>'}40% of revenue) - Consider diversification</span>
+      case 'best-buyers-margin': {
+        const buyerData = performanceData
+          .reduce((acc, entry) => {
+            const key = entry['Media Buyer'];
+            if (!acc[key]) {
+              acc[key] = { buyer: key, profit: 0, revenue: 0, spend: 0 };
+            }
+            acc[key].spend += parseFloat(entry['Ad Spend'] || 0);
+            acc[key].revenue += parseFloat(entry['Total Revenue'] || 0);
+            acc[key].profit = acc[key].revenue - acc[key].spend;
+            return acc;
+          }, {});
+
+        const buyersByMargin = Object.values(buyerData)
+          .filter(buyer => buyer.spend >= 10000)
+          .map(buyer => ({
+            ...buyer,
+            margin: (buyer.profit / buyer.revenue) * 100
+          }))
+          .sort((a, b) => b.margin - a.margin)
+          .slice(0, 10);
+
+  return (
+          <div className="space-y-4">
+            <div className="flex justify-end">
+              <p className="text-sm text-gray-500">
+                All Time Data (Min $10,000 Spend)
+              </p>
             </div>
-            <div className="flex items-center gap-2">
-              <span className="w-3 h-3 rounded-full bg-orange-100"></span>
-              <span>Moderate Concentration (25-40%) - Monitor closely</span>
+          <table className="w-full">
+            <thead>
+              <tr className="border-b">
+                  <th className="text-left py-2">Media Buyer</th>
+                  <th className="text-right py-2">Revenue</th>
+                  <th className="text-right py-2">Profit</th>
+                  <th className="text-right py-2">Margin</th>
+              </tr>
+            </thead>
+            <tbody>
+                {buyersByMargin.map((buyer, index) => (
+                  <tr key={index} className="border-b">
+                    <td className="py-2">{buyer.buyer}</td>
+                    <td className="text-right py-2">{formatCurrency(buyer.revenue)}</td>
+                    <td className="text-right py-2 text-green-600">{formatCurrency(buyer.profit)}</td>
+                    <td className="text-right py-2 text-green-600">
+                      {buyer.margin.toFixed(1)}%
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+              </div>
+        );
+      }
+
+      case 'buyers-30-challenge': {
+        const thirtyDaysAgo = subDays(lastDataDate, 30);
+        const buyerData = performanceData
+          .filter(entry => new Date(entry.Date) >= thirtyDaysAgo)
+          .reduce((acc, entry) => {
+            const key = entry['Media Buyer'];
+            if (!acc[key]) {
+              acc[key] = { 
+                buyer: key, 
+                profit: 0, 
+                revenue: 0, 
+                spend: 0,
+                dailyProfits: {}
+              };
+            }
+            acc[key].spend += parseFloat(entry['Ad Spend'] || 0);
+            acc[key].revenue += parseFloat(entry['Total Revenue'] || 0);
+            acc[key].profit = acc[key].revenue - acc[key].spend;
+            acc[key].dailyProfits[entry.Date] = (acc[key].dailyProfits[entry.Date] || 0) + 
+              (parseFloat(entry['Total Revenue'] || 0) - parseFloat(entry['Ad Spend'] || 0));
+            return acc;
+          }, {});
+
+        const challengeResults = Object.values(buyerData)
+          .map(buyer => ({
+            ...buyer,
+            profitMargin: buyer.revenue > 0 ? (buyer.profit / buyer.revenue) * 100 : 0,
+            consistency: Object.values(buyer.dailyProfits).filter(p => p > 0).length / 
+                        Object.keys(buyer.dailyProfits).length * 100
+          }))
+          .sort((a, b) => b.profit - a.profit);
+                
+                return (
+          <div className="space-y-4">
+            <div className="flex justify-end">
+              <p className="text-sm text-gray-500">
+                {format(thirtyDaysAgo, 'MMM d')} - {format(lastDataDate, 'MMM d, yyyy')}
+              </p>
+                      </div>
+            <table className="w-full">
+              <thead>
+                <tr className="border-b">
+                  <th className="text-left py-2">Media Buyer</th>
+                  <th className="text-right py-2">Revenue</th>
+                  <th className="text-right py-2">Profit</th>
+                  <th className="text-right py-2">Margin</th>
+                  <th className="text-right py-2">Consistency</th>
+                </tr>
+              </thead>
+              <tbody>
+                {challengeResults.map((buyer, index) => (
+                  <tr key={index} className="border-b">
+                    <td className="py-2">{buyer.buyer}</td>
+                    <td className="text-right py-2">{formatCurrency(buyer.revenue)}</td>
+                    <td className={`text-right py-2 ${buyer.profit >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                      {formatCurrency(buyer.profit)}
+                    </td>
+                    <td className={`text-right py-2 ${buyer.profitMargin >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                      {buyer.profitMargin.toFixed(1)}%
+                    </td>
+                    <td className="text-right py-2">
+                      {buyer.consistency.toFixed(1)}%
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+              <tfoot>
+                <tr className="border-t font-medium">
+                  <td className="py-2">Total</td>
+                  <td className="text-right py-2">
+                    {formatCurrency(challengeResults.reduce((sum, buyer) => sum + buyer.revenue, 0))}
+                    </td>
+                  <td className="text-right py-2">
+                    {formatCurrency(challengeResults.reduce((sum, buyer) => sum + buyer.profit, 0))}
+                    </td>
+                  <td className="py-2"></td>
+                  <td className="py-2"></td>
+                </tr>
+              </tfoot>
+            </table>
+          </div>
+        );
+      }
+
+      case 'high-volatility': {
+        const offerData = performanceData
+          .reduce((acc, entry) => {
+            const key = entry.Offer;
+            const date = entry.Date;
+            if (!acc[key]) {
+              acc[key] = { 
+                offer: key, 
+                dailyProfits: {},
+                totalSpend: 0,
+                totalProfit: 0
+              };
+            }
+            const dailyProfit = parseFloat(entry['Total Revenue'] || 0) - parseFloat(entry['Ad Spend'] || 0);
+            acc[key].dailyProfits[date] = dailyProfit;
+            acc[key].totalSpend += parseFloat(entry['Ad Spend'] || 0);
+            acc[key].totalProfit += dailyProfit;
+            return acc;
+          }, {});
+
+        const volatileOffers = Object.values(offerData)
+          .filter(offer => Object.keys(offer.dailyProfits).length >= 7 && offer.totalSpend >= 1000)
+          .map(offer => {
+            const profits = Object.values(offer.dailyProfits);
+            const mean = profits.reduce((a, b) => a + b, 0) / profits.length;
+            const variance = profits.reduce((a, b) => a + Math.pow(b - mean, 2), 0) / profits.length;
+            const volatility = Math.sqrt(variance);
+            return {
+              ...offer,
+              volatility,
+              profitMargin: (offer.totalProfit / offer.totalSpend) * 100
+            };
+          })
+          .sort((a, b) => b.volatility - a.volatility)
+          .slice(0, 10);
+
+        return (
+          <div className="space-y-4">
+            <h2 className="text-xl font-semibold mb-4">High Volatility Offers</h2>
+            <div className="flex justify-between items-center">
+              <h3 className="font-medium">Top 10 High Volatility Offers</h3>
+              <p className="text-sm text-gray-500">
+                All Time Data (Min 7 Days Data, $1,000 Spend)
+              </p>
             </div>
-            <div className="flex items-center gap-2">
-              <span className="w-3 h-3 rounded-full bg-gray-100"></span>
-              <span>Healthy Distribution ({'<'}25%) - Well diversified</span>
+            <table className="w-full">
+              <thead>
+                <tr className="border-b">
+                  <th className="text-left py-2">Offer</th>
+                  <th className="text-right py-2">Volatility</th>
+                  <th className="text-right py-2">Total Spend</th>
+                  <th className="text-right py-2">Profit Margin</th>
+                </tr>
+              </thead>
+              <tbody>
+                {volatileOffers.map((offer, index) => (
+                  <tr key={index} className="border-b">
+                    <td className="py-2">{offer.offer}</td>
+                    <td className="text-right py-2 text-yellow-600">
+                      {formatCurrency(offer.volatility)}
+                    </td>
+                    <td className="text-right py-2">{formatCurrency(offer.totalSpend)}</td>
+                    <td className={`text-right py-2 ${offer.profitMargin >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                      {offer.profitMargin.toFixed(1)}%
+                    </td>
+                  </tr>
+                ))}
+            </tbody>
+          </table>
+        </div>
+        );
+      }
+
+      case 'compensation-guidelines': {
+        return (
+          <div className="space-y-4">
+            <h2 className="text-xl font-semibold mb-4">Show Media Buyer Compensation Guidelines</h2>
+            <div className="bg-white p-6 rounded-lg shadow">
+              <h3 className="text-lg font-medium mb-4">Media Buyer Commission Structure</h3>
+              <div className="space-y-4">
+                <div>
+                  <h4 className="font-medium mb-2">Mike's Commission Structure</h4>
+                  <p className="text-gray-600">Flat 10% commission rate on all profits</p>
+            </div>
+                <div>
+                  <h4 className="font-medium mb-2">New Media Buyers Commission Structure</h4>
+                  <p className="text-gray-600">Sliding scale based on profit:</p>
+                  <ul className="list-disc list-inside text-gray-600 mt-2">
+                    <li>First $1,000 profit: 15%</li>
+                    <li>Next $1,000 profit: 12%</li>
+                    <li>Remaining profit: 10%</li>
+                  </ul>
+            </div>
+                <div>
+                  <h4 className="font-medium mb-2">ACA Deduction</h4>
+                  <p className="text-gray-600">2% deduction from commission based on ACA revenue</p>
             </div>
           </div>
         </div>
-      </CardContent>
-    </Card>
-  );
+          </div>
+        );
+      }
 
-  const renderInsights = () => {
-    if (!insights) return null;
+      case 'last-month-commissions': {
+        const startOfLastMonth = startOfMonth(subMonths(lastDataDate, 1));
+        const endOfLastMonth = endOfMonth(startOfLastMonth);
+        
+        const lastMonthData = performanceData
+          .filter(entry => {
+            const entryDate = new Date(entry.Date);
+            return entryDate >= startOfLastMonth && entryDate <= endOfLastMonth;
+          });
 
-    return (
-      <div className="space-y-6">
-        {insights.networkExposure && renderNetworkExposure(insights.networkExposure)}
-        {insights.performance && renderPerformanceSection(
-          insights.performance,
-          insights.performance.timeFrame,
-          query
-        )}
+        const buyerData = lastMonthData
+          .reduce((acc, entry) => {
+            const key = entry['Media Buyer'];
+            if (!acc[key]) {
+              acc[key] = { 
+                buyer: key, 
+                profit: 0, 
+                revenue: 0, 
+                spend: 0,
+                acaRevenue: 0
+              };
+            }
+            acc[key].spend += parseFloat(entry['Ad Spend'] || 0);
+            acc[key].revenue += parseFloat(entry['Total Revenue'] || 0);
+            acc[key].profit = acc[key].revenue - acc[key].spend;
+            acc[key].acaRevenue += parseFloat(entry['ACA Revenue'] || 0);
+            return acc;
+          }, {});
 
-        {insights.expenses && (
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center">
-                <DollarSign className="w-5 h-5 mr-2" />
-                Expense Analysis
-              </CardTitle>
-              <p className="text-sm text-gray-500 mt-1">
-                Breakdown of expenses by category for the selected period.
+        const commissionStructures = {
+          'Mike': {
+            rate: 0.10,
+            type: 'flat'
+          },
+          'default': {
+            rates: [
+              { threshold: 1000, rate: 0.15 },
+              { threshold: 2000, rate: 0.12 },
+              { threshold: Infinity, rate: 0.10 }
+            ],
+            type: 'sliding'
+          }
+        };
+
+        const commissionData = Object.values(buyerData)
+          .map(buyer => {
+            const structure = commissionStructures[buyer.buyer] || commissionStructures.default;
+            let commission = 0;
+
+            if (buyer.profit > 0) {
+              if (structure.type === 'flat') {
+                commission = buyer.profit * structure.rate;
+              } else {
+                let remainingProfit = buyer.profit;
+                commission = structure.rates.reduce((total, tier) => {
+                  if (remainingProfit <= 0) return total;
+                  const amount = Math.min(remainingProfit, tier.threshold - (tier.threshold === Infinity ? 0 : tier.threshold - 1000));
+                  remainingProfit -= amount;
+                  return total + (amount * tier.rate);
+                }, 0);
+              }
+
+              // Apply ACA deduction
+              const acaDeduction = buyer.acaRevenue * 0.02;
+              commission -= acaDeduction;
+            }
+
+      return {
+              ...buyer,
+              commission: Math.max(0, commission),
+              acaDeduction: buyer.acaRevenue * 0.02,
+              commissionRate: structure.type === 'flat' ? structure.rate : 
+                (commission / buyer.profit) * 100
+            };
+          })
+          .sort((a, b) => b.commission - a.commission);
+
+        return (
+          <div className="space-y-4">
+            <h2 className="text-xl font-semibold mb-4">Show Last Month Media Buyer Commissions</h2>
+            <div className="flex justify-between items-center">
+              <h3 className="font-medium">Last Month Commission Report</h3>
+              <p className="text-sm text-gray-500">
+                {format(startOfLastMonth, 'MMM d')} - {format(endOfLastMonth, 'MMM d, yyyy')}
               </p>
-            </CardHeader>
-            <CardContent>
-              <p className="text-xl font-bold mb-4">
-                Total Expenses: {formatCurrency(insights.expenses.total)}
-              </p>
-              <div className="space-y-2">
-                {insights.expenses.breakdown.map(category => (
-                  <div 
-                    key={category.category} 
-                    className={`
-                      flex justify-between items-center p-2 rounded
-                      ${category.percentage > 30 ? 'bg-red-50' :
-                        category.percentage > 20 ? 'bg-orange-50' :
-                        category.percentage > 10 ? 'bg-yellow-50' : ''}
-                    `}
-                  >
-                    <span className="font-medium">{category.category}</span>
-                    <div className="text-right">
-                      <span className="font-medium block">
-                        {formatCurrency(category.amount)}
-                      </span>
-                      <span className={`text-sm ${
-                        category.percentage > 30 ? 'text-red-600' :
-                        category.percentage > 20 ? 'text-orange-600' :
-                        'text-gray-500'
-                      }`}>
-                        {category.percentage.toFixed(1)}% of total
-                      </span>
-                    </div>
-                  </div>
+            </div>
+            <table className="w-full">
+              <thead>
+                <tr className="border-b">
+                  <th className="text-left py-2">Media Buyer</th>
+                  <th className="text-right py-2">Total Revenue</th>
+                  <th className="text-right py-2">Profit</th>
+                  <th className="text-right py-2">ACA Revenue</th>
+                  <th className="text-right py-2">ACA Deduction</th>
+                  <th className="text-right py-2">Commission Rate</th>
+                  <th className="text-right py-2">Final Commission</th>
+                </tr>
+              </thead>
+              <tbody>
+                {commissionData.map((buyer, index) => (
+                  <tr key={index} className="border-b">
+                    <td className="py-2">{buyer.buyer}</td>
+                    <td className="text-right py-2">{formatCurrency(buyer.revenue)}</td>
+                    <td className={`text-right py-2 ${buyer.profit >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                      {formatCurrency(buyer.profit)}
+                    </td>
+                    <td className="text-right py-2">{formatCurrency(buyer.acaRevenue)}</td>
+                    <td className="text-right py-2 text-red-600">
+                      {formatCurrency(buyer.acaDeduction)}
+                    </td>
+                    <td className="text-right py-2">
+                      {buyer.profit > 0 ? `${buyer.commissionRate.toFixed(1)}%` : 'N/A'}
+                    </td>
+                    <td className="text-right py-2 text-green-600">
+                      {formatCurrency(buyer.commission)}
+                    </td>
+                  </tr>
                 ))}
-              </div>
-            </CardContent>
-          </Card>
-        )}
+              </tbody>
+              <tfoot>
+                <tr className="border-t font-medium">
+                  <td className="py-2">Total</td>
+                  <td className="text-right py-2">
+                    {formatCurrency(commissionData.reduce((sum, buyer) => sum + buyer.revenue, 0))}
+                  </td>
+                  <td className="text-right py-2">
+                    {formatCurrency(commissionData.reduce((sum, buyer) => sum + buyer.profit, 0))}
+                  </td>
+                  <td className="text-right py-2">
+                    {formatCurrency(commissionData.reduce((sum, buyer) => sum + buyer.acaRevenue, 0))}
+                  </td>
+                  <td className="text-right py-2 text-red-600">
+                    {formatCurrency(commissionData.reduce((sum, buyer) => sum + buyer.acaDeduction, 0))}
+                  </td>
+                  <td className="py-2"></td>
+                  <td className="text-right py-2 text-green-600">
+                    {formatCurrency(commissionData.reduce((sum, buyer) => sum + buyer.commission, 0))}
+                  </td>
+                </tr>
+              </tfoot>
+            </table>
+          </div>
+        );
+      }
 
-        {insights.invoices && (
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center">
-                <FileText className="w-5 h-5 mr-2" />
-                Invoice Status
-              </CardTitle>
-              <p className="text-sm text-gray-500 mt-1">
-                Overview of overdue and upcoming invoice payments.
+      case 'current-month-projections': {
+        const startOfThisMonth = startOfMonth(lastDataDate);
+        
+        const currentMonthData = performanceData
+          .filter(entry => {
+            const entryDate = new Date(entry.Date);
+            return entryDate >= startOfThisMonth && entryDate <= lastDataDate;
+          });
+
+        const buyerData = currentMonthData
+          .reduce((acc, entry) => {
+            const key = entry['Media Buyer'];
+            if (!acc[key]) {
+              acc[key] = { 
+                buyer: key, 
+                profit: 0, 
+                revenue: 0, 
+                spend: 0,
+                acaRevenue: 0
+              };
+            }
+            acc[key].spend += parseFloat(entry['Ad Spend'] || 0);
+            acc[key].revenue += parseFloat(entry['Total Revenue'] || 0);
+            acc[key].profit = acc[key].revenue - acc[key].spend;
+            acc[key].acaRevenue += parseFloat(entry['ACA Revenue'] || 0);
+            return acc;
+          }, {});
+
+        const commissionStructures = {
+          'Mike': {
+            rate: 0.10,
+            type: 'flat'
+          },
+          'default': {
+            rates: [
+              { threshold: 1000, rate: 0.15 },
+              { threshold: 2000, rate: 0.12 },
+              { threshold: Infinity, rate: 0.10 }
+            ],
+            type: 'sliding'
+          }
+        };
+
+        const commissionData = Object.values(buyerData)
+          .map(buyer => {
+            const structure = commissionStructures[buyer.buyer] || commissionStructures.default;
+            let commission = 0;
+
+            if (buyer.profit > 0) {
+              if (structure.type === 'flat') {
+                commission = buyer.profit * structure.rate;
+        } else {
+                let remainingProfit = buyer.profit;
+                commission = structure.rates.reduce((total, tier) => {
+                  if (remainingProfit <= 0) return total;
+                  const amount = Math.min(remainingProfit, tier.threshold - (tier.threshold === Infinity ? 0 : tier.threshold - 1000));
+                  remainingProfit -= amount;
+                  return total + (amount * tier.rate);
+                }, 0);
+              }
+
+              // Apply ACA deduction
+              const acaDeduction = buyer.acaRevenue * 0.02;
+              commission -= acaDeduction;
+            }
+
+            return {
+              ...buyer,
+              commission: Math.max(0, commission),
+              acaDeduction: buyer.acaRevenue * 0.02,
+              commissionRate: structure.type === 'flat' ? structure.rate : 
+                (commission / buyer.profit) * 100
+            };
+          })
+          .sort((a, b) => b.commission - a.commission);
+
+        return (
+          <div className="space-y-4">
+            <h2 className="text-xl font-semibold mb-4">Show Current Month Commission Projections</h2>
+            <div className="flex justify-between items-center">
+              <h3 className="font-medium">Current Month Commission Projections</h3>
+              <p className="text-sm text-gray-500">
+                {format(startOfThisMonth, 'MMM d')} - {format(lastDataDate, 'MMM d, yyyy')}
               </p>
-            </CardHeader>
-            <CardContent>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                <div className="bg-red-50 rounded-lg p-4">
-                  <h4 className="font-medium text-red-800 mb-2">Overdue Invoices</h4>
-                  <div className="space-y-2">
-                    <p className="text-2xl font-bold text-red-600">
-                      {formatCurrency(insights.invoices.overdue.total)}
-                    </p>
-                    <p className="text-sm text-red-600">
-                      {insights.invoices.overdue.count} invoice{insights.invoices.overdue.count !== 1 ? 's' : ''} pending
-                    </p>
-                  </div>
-                  <p className="text-xs text-red-700 mt-2">
-                    Immediate attention required for overdue payments
-                  </p>
-                </div>
-                <div className="bg-yellow-50 rounded-lg p-4">
-                  <h4 className="font-medium text-yellow-800 mb-2">Upcoming Payments</h4>
-                  <div className="space-y-2">
-                    <p className="text-2xl font-bold text-yellow-600">
-                      {formatCurrency(insights.invoices.upcoming.total)}
-                    </p>
-                    <p className="text-sm text-yellow-600">
-                      {insights.invoices.upcoming.count} invoice{insights.invoices.upcoming.count !== 1 ? 's' : ''} due soon
-                    </p>
-                  </div>
-                  <p className="text-xs text-yellow-700 mt-2">
-                    Plan ahead for these upcoming payments
-                  </p>
-                </div>
+            </div>
+          <table className="w-full">
+            <thead>
+              <tr className="border-b">
+                  <th className="text-left py-2">Media Buyer</th>
+                  <th className="text-right py-2">Total Revenue</th>
+                  <th className="text-right py-2">Profit</th>
+                  <th className="text-right py-2">ACA Revenue</th>
+                  <th className="text-right py-2">ACA Deduction</th>
+                  <th className="text-right py-2">Commission Rate</th>
+                  <th className="text-right py-2">Projected Commission</th>
+              </tr>
+            </thead>
+            <tbody>
+                {commissionData.map((buyer, index) => (
+                  <tr key={index} className="border-b">
+                    <td className="py-2">{buyer.buyer}</td>
+                    <td className="text-right py-2">{formatCurrency(buyer.revenue)}</td>
+                    <td className={`text-right py-2 ${buyer.profit >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                      {formatCurrency(buyer.profit)}
+                  </td>
+                    <td className="text-right py-2">{formatCurrency(buyer.acaRevenue)}</td>
+                    <td className="text-right py-2 text-red-600">
+                      {formatCurrency(buyer.acaDeduction)}
+                  </td>
+                    <td className="text-right py-2">
+                      {buyer.profit > 0 ? `${buyer.commissionRate.toFixed(1)}%` : 'N/A'}
+                  </td>
+                    <td className="text-right py-2 text-green-600">
+                      {formatCurrency(buyer.commission)}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+              <tfoot>
+                <tr className="border-t font-medium">
+                  <td className="py-2">Total</td>
+                  <td className="text-right py-2">
+                    {formatCurrency(commissionData.reduce((sum, buyer) => sum + buyer.revenue, 0))}
+                  </td>
+                  <td className="text-right py-2">
+                    {formatCurrency(commissionData.reduce((sum, buyer) => sum + buyer.profit, 0))}
+                  </td>
+                  <td className="text-right py-2">
+                    {formatCurrency(commissionData.reduce((sum, buyer) => sum + buyer.acaRevenue, 0))}
+                  </td>
+                  <td className="text-right py-2 text-red-600">
+                    {formatCurrency(commissionData.reduce((sum, buyer) => sum + buyer.acaDeduction, 0))}
+                  </td>
+                  <td className="py-2"></td>
+                  <td className="text-right py-2 text-green-600">
+                    {formatCurrency(commissionData.reduce((sum, buyer) => sum + buyer.commission, 0))}
+                  </td>
+                </tr>
+              </tfoot>
+          </table>
+        </div>
+        );
+      }
+
+      case 'negative-margin': {
+        const offerData = performanceData
+          .reduce((acc, entry) => {
+            const key = entry.Offer;
+            if (!acc[key]) {
+              acc[key] = { offer: key, profit: 0, revenue: 0, spend: 0 };
+            }
+            acc[key].spend += parseFloat(entry['Ad Spend'] || 0);
+            acc[key].revenue += parseFloat(entry['Total Revenue'] || 0);
+            acc[key].profit = acc[key].revenue - acc[key].spend;
+            return acc;
+          }, {});
+
+        const negativeMarginOffers = Object.values(offerData)
+          .filter(offer => offer.revenue > 0 && (offer.profit / offer.revenue) < 0)
+          .sort((a, b) => (a.profit / a.revenue) - (b.profit / b.revenue));
+
+        return (
+          <div className="space-y-4">
+            <div className="flex justify-end">
+              <p className="text-sm text-gray-500">
+                All Time Data
+              </p>
+                    </div>
+            <table className="w-full">
+              <thead>
+                <tr className="border-b">
+                  <th className="text-left py-2">Offer</th>
+                  <th className="text-right py-2">Revenue</th>
+                  <th className="text-right py-2">Spend</th>
+                  <th className="text-right py-2">Profit</th>
+                  <th className="text-right py-2">Margin</th>
+                </tr>
+              </thead>
+              <tbody>
+                {negativeMarginOffers.map((offer, index) => (
+                  <tr key={index} className="border-b">
+                    <td className="py-2">{offer.offer}</td>
+                    <td className="text-right py-2">{formatCurrency(offer.revenue)}</td>
+                    <td className="text-right py-2">{formatCurrency(offer.spend)}</td>
+                    <td className="text-right py-2 text-red-600">{formatCurrency(offer.profit)}</td>
+                    <td className="text-right py-2 text-red-600">
+                      {((offer.profit / offer.revenue) * 100).toFixed(1)}%
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
               </div>
-            </CardContent>
-          </Card>
-        )}
+        );
+      }
 
-        {insights.mediaBuyers && renderMediaBuyerSection(
-          insights.mediaBuyers.metrics,
-          insights.mediaBuyers.timeFrame,
-          query
-        )}
+      case 'overdue-invoices': {
+        const today = new Date();
+        console.log('Invoice Data Sample:', invoiceData?.slice(0, 2));
+        
+        // Filter for overdue invoices
+        const filteredInvoices = invoiceData
+          ?.filter(invoice => {
+            const dueDate = new Date(invoice['Due Date']);
+            return dueDate < today;
+          })
+          .map(invoice => ({
+            Network: invoice.Network,
+            InvoiceNumber: invoice['Invoice Number'],
+            AmountDue: parseFloat(invoice['Amount Due']?.replace(/[$,]/g, '') || 0),
+            DueDate: new Date(invoice['Due Date']),
+            PeriodStart: new Date(invoice['Period Start']),
+            PeriodEnd: new Date(invoice['Period End'])
+          }))
+          .sort((a, b) => a.DueDate - b.DueDate) || [];
 
-        {insights.networkCaps && renderNetworkCaps(insights.networkCaps)}
+        console.log('Final Invoice Data:', filteredInvoices);
+
+        return (
+          <div className="space-y-4">
+            <h2 className="text-xl font-semibold mb-4">Show Overdue Invoices</h2>
+            <p className="text-gray-600 mb-4">
+              This analysis displays all overdue invoices across networks, sorted by days overdue. This helps track payment issues that need immediate attention.
+            </p>
+            <div className="flex justify-between items-center">
+              <h3 className="font-medium">Overdue Invoices</h3>
+              <p className="text-sm text-gray-500">
+                As of {format(today, 'MMM d, yyyy')}
+                    </p>
+                  </div>
+            {filteredInvoices.length > 0 ? (
+              <table className="w-full">
+                <thead>
+                  <tr className="border-b">
+                    <th className="text-left py-2">Network</th>
+                    <th className="text-left py-2">Invoice #</th>
+                    <th className="text-right py-2">Amount Due</th>
+                    <th className="text-right py-2">Due Date</th>
+                    <th className="text-right py-2">Days Overdue</th>
+                    <th className="text-right py-2">Period</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {filteredInvoices.map((invoice, index) => {
+                    const daysOverdue = Math.floor((today - invoice.DueDate) / (1000 * 60 * 60 * 24));
+                    return (
+                      <tr key={index} className="border-b bg-red-50">
+                        <td className="py-2">{invoice.Network}</td>
+                        <td className="py-2">{invoice.InvoiceNumber}</td>
+                        <td className="text-right py-2 text-red-600">
+                          {formatCurrency(invoice.AmountDue)}
+                        </td>
+                        <td className="text-right py-2">
+                          {format(invoice.DueDate, 'MMM d, yyyy')}
+                        </td>
+                        <td className="text-right py-2 text-red-600">
+                          {daysOverdue} days
+                        </td>
+                        <td className="text-right py-2">
+                          {format(invoice.PeriodStart, 'MMM d')} - {format(invoice.PeriodEnd, 'MMM d, yyyy')}
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+                <tfoot>
+                  <tr className="border-t font-medium">
+                    <td colSpan="2" className="py-2">Total Overdue</td>
+                    <td className="text-right py-2 text-red-600">
+                      {formatCurrency(filteredInvoices.reduce((sum, inv) => sum + inv.AmountDue, 0))}
+                    </td>
+                    <td colSpan="3" className="py-2"></td>
+                  </tr>
+                </tfoot>
+              </table>
+            ) : (
+              <p className="text-gray-500">No overdue invoices found.</p>
+            )}
+                </div>
+        );
+      }
+
+      case 'current-invoices': {
+        const today = new Date();
+        console.log('Invoice Data Sample:', invoiceData?.slice(0, 2));
+        
+        const filteredInvoices = invoiceData
+          ?.filter(invoice => {
+            const dueDate = new Date(invoice['Due Date']);
+            return dueDate >= today;
+          })
+          .map(invoice => ({
+            Network: invoice.Network,
+            InvoiceNumber: invoice['Invoice Number'],
+            AmountDue: parseFloat(invoice['Amount Due']?.replace(/[$,]/g, '') || 0),
+            DueDate: new Date(invoice['Due Date']),
+            PeriodStart: new Date(invoice['Period Start']),
+            PeriodEnd: new Date(invoice['Period End'])
+          }))
+          .sort((a, b) => a.DueDate - b.DueDate) || [];
+
+        console.log('Final Invoice Data:', filteredInvoices);
+
+        return (
+          <div className="space-y-4">
+            <h2 className="text-xl font-semibold mb-4">Show Current Unpaid Invoices</h2>
+            <p className="text-gray-600 mb-4">
+              This analysis displays all current unpaid invoices across networks, sorted by days until due. This helps track upcoming payments and manage cash flow.
+            </p>
+            <div className="flex justify-between items-center">
+              <h3 className="font-medium">Current Unpaid Invoices</h3>
+              <p className="text-sm text-gray-500">
+                As of {format(today, 'MMM d, yyyy')}
+                    </p>
+                  </div>
+            {filteredInvoices.length > 0 ? (
+              <table className="w-full">
+                <thead>
+                  <tr className="border-b">
+                    <th className="text-left py-2">Network</th>
+                    <th className="text-left py-2">Invoice #</th>
+                    <th className="text-right py-2">Amount Due</th>
+                    <th className="text-right py-2">Due Date</th>
+                    <th className="text-right py-2">Days Until Due</th>
+                    <th className="text-right py-2">Period</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {filteredInvoices.map((invoice, index) => {
+                    const daysUntilDue = Math.floor((invoice.DueDate - today) / (1000 * 60 * 60 * 24));
+                    return (
+                      <tr key={index} className="border-b">
+                        <td className="py-2">{invoice.Network}</td>
+                        <td className="py-2">{invoice.InvoiceNumber}</td>
+                        <td className="text-right py-2 text-green-600">
+                          {formatCurrency(invoice.AmountDue)}
+                        </td>
+                        <td className="text-right py-2">
+                          {format(invoice.DueDate, 'MMM d, yyyy')}
+                        </td>
+                        <td className="text-right py-2">
+                          {daysUntilDue} days
+                        </td>
+                        <td className="text-right py-2">
+                          {format(invoice.PeriodStart, 'MMM d')} - {format(invoice.PeriodEnd, 'MMM d, yyyy')}
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+                <tfoot>
+                  <tr className="border-t font-medium">
+                    <td colSpan="2" className="py-2">Total Current</td>
+                    <td className="text-right py-2 text-green-600">
+                      {formatCurrency(filteredInvoices.reduce((sum, inv) => sum + inv.AmountDue, 0))}
+                    </td>
+                    <td colSpan="3" className="py-2"></td>
+                  </tr>
+                </tfoot>
+              </table>
+            ) : (
+              <p className="text-gray-500">No current unpaid invoices found.</p>
+            )}
+          </div>
+        );
+      }
+
+      // Update the default case to show the selected question
+      default:
+        return (
+          <div className="space-y-4">
+            <h2 className="text-xl font-semibold mb-4">
+              {questionCategories.topPerformers.find(q => q.id === questionId)?.text ||
+               questionCategories.underperforming.find(q => q.id === questionId)?.text}
+            </h2>
+            <p className="text-gray-500">Analysis coming soon...</p>
       </div>
     );
+    }
+  };
+
+  const handleQuestionClick = (questionId) => {
+    setSelectedQuestion(questionId);
+    setAnswer(generateAnswer(questionId));
   };
 
   return (
     <div className="space-y-6">
-      <Card>
-        <CardContent className="pt-6">
-          <div className="flex items-center space-x-4">
-            <div className="flex-1">
-              <Input
-                placeholder="Ask about performance, expenses, invoices, or trends..."
-                value={query}
-                onChange={(e) => setQuery(e.target.value)}
-                onKeyPress={(e) => e.key === 'Enter' && generateInsights(query)}
-                className="border-gray-200"
-              />
-            </div>
-            <Button
-              onClick={() => generateInsights(query)}
-              disabled={loading}
-              className="bg-[#FF0000] hover:bg-[#cc0000] text-white"
+      {/* Questions Section */}
+      <div className="space-y-4">
+        <h2 className="text-lg font-semibold">Shortcuts</h2>
+        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-2">
+          {getFilteredQuestions(questionCategories.topPerformers).map((question) => (
+                    <button
+              key={question.id}
+              onClick={() => handleQuestionClick(question.id)}
+              className={`text-left hover:text-blue-600 transition-colors text-sm font-medium ${
+                selectedQuestion === question.id ? 'text-blue-600 font-bold' : ''
+              }`}
             >
-              {loading ? (
-                <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-white" />
-              ) : (
-                <>
-                  <Brain className="w-5 h-5 mr-2" />
-                  Analyze
-                </>
-              )}
-            </Button>
-          </div>
-
-          <div className="mt-4">
-            <p className="text-sm text-gray-600">Try asking about:</p>
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3 mt-2">
-              <div>
-                <p className="text-xs font-medium text-gray-600 mb-1">Top Performers</p>
-                <div className="space-y-1">
-                  {[
-                    "Show top offers from last week",
-                    "Best media buyers this month",
-                    "Top performing offers last 30 days",
-                    "Show highest ROI offers MTD",
-                    "Best media buyers by margin",
-                    "Show media buyers 30 day challenge"
-                  ].map((example, i) => (
+              {question.text}
+                    </button>
+                  ))}
+          {getFilteredQuestions(questionCategories.underperforming).map((question) => (
                     <button
-                      key={i}
-                      className="block text-sm text-[#FF0000] hover:text-[#cc0000] hover:underline text-left"
-                      onClick={async () => {
-                        setQuery(example);
-                        await generateInsights(example);
-                      }}
-                    >
-                      {example}
+              key={question.id}
+              onClick={() => handleQuestionClick(question.id)}
+              className={`text-left hover:text-blue-600 transition-colors text-sm font-medium ${
+                selectedQuestion === question.id ? 'text-blue-600 font-bold' : ''
+              }`}
+            >
+              {question.text}
                     </button>
                   ))}
                 </div>
-              </div>
-
-              <div>
-                <p className="text-xs font-medium text-gray-600 mb-1">Underperforming</p>
-                <div className="space-y-1">
-                  {[
-                    "Show struggling media buyers",
-                    "Worst performing offers this week",
-                    "Offers below 15% ROI",
-                    "High volatility offers",
-                    "Negative margin offers"
-                  ].map((example, i) => (
+        {/* Answer Display */}
+        {selectedQuestion && answer && (
+          <div className="mt-6">
+            <div className="flex justify-between items-center mb-4">
+              <h2 className="text-xl font-semibold">
+                {questionCategories.topPerformers.find(q => q.id === selectedQuestion)?.text ||
+                 questionCategories.underperforming.find(q => q.id === selectedQuestion)?.text}
+              </h2>
                     <button
-                      key={i}
-                      className="block text-sm text-[#FF0000] hover:text-[#cc0000] hover:underline text-left"
-                      onClick={async () => {
-                        setQuery(example);
-                        await generateInsights(example);
-                      }}
-                    >
-                      {example}
+                onClick={() => {
+                  setSelectedQuestion(null);
+                  setAnswer(null);
+                }}
+                className="text-gray-500 hover:text-gray-700"
+              >
+                ✕
                     </button>
-                  ))}
                 </div>
-              </div>
-
-              <div>
-                <p className="text-xs font-medium text-gray-600 mb-1">Network Analysis</p>
-                <div className="space-y-1">
-                  {[
-                    "Show network exposure risk",
-                    "Network revenue breakdown",
-                    "Networks hitting their caps",
-                    "Network performance trend",
-                    "Network payment status"
-                  ].map((example, i) => (
-                    <button
-                      key={i}
-                      className="block text-sm text-[#FF0000] hover:text-[#cc0000] hover:underline text-left"
-                      onClick={async () => {
-                        setQuery(example);
-                        await generateInsights(example);
-                      }}
-                    >
-                      {example}
-                    </button>
-                  ))}
-                </div>
+            <div className="answer-content">
+              {React.cloneElement(answer, { hideTitle: true })}
               </div>
             </div>
+        )}
           </div>
 
-          {/* Simple metrics key */}
-          <div className="mt-6 border-t pt-4">
-            <div className="flex justify-end">
-              <div className="text-xs text-gray-500 space-y-2">
+      {/* Date Range Selector */}
+      <div className="flex justify-between items-center">
+        <h2 className="text-lg font-semibold">Performance Overview</h2>
                 <div className="flex items-center gap-2">
-                  <span className="w-2 h-2 rounded-full bg-green-500"></span>
-                  <span>ROI {'>'}30% | Volatility {'<'}30%</span>
+          <span className="text-sm text-gray-500">
+            Last data: {format(lastDataDate, 'MMM d, yyyy')}
+          </span>
+          <Select value={dateRange} onValueChange={setDateRange}>
+            <SelectTrigger className="w-[180px]">
+              <SelectValue placeholder="Select date range" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="lastMonth">Last Month</SelectItem>
+              <SelectItem value="mtd">Month to Date</SelectItem>
+              <SelectItem value="last7">Last 7 Days</SelectItem>
+              <SelectItem value="yesterday">Yesterday</SelectItem>
+            </SelectContent>
+          </Select>
                 </div>
-                <div className="flex items-center gap-2">
-                  <span className="w-2 h-2 rounded-full bg-blue-500"></span>
-                  <span>ROI 15-30% | Volatility 30-50%</span>
                 </div>
-                <div className="flex items-center gap-2">
-                  <span className="w-2 h-2 rounded-full bg-orange-500"></span>
-                  <span>ROI {'<'}15% | Volatility {'>'}50%</span>
+
+      {/* Performance Metrics */}
+      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+        <Card className="p-4">
+          <div className="flex items-center justify-between">
+              <div>
+              <h3 className="text-sm font-medium text-gray-500">Spend</h3>
+              <p className="text-2xl font-bold">{formatCurrency(metrics.spend)}</p>
                 </div>
-                <div className="flex items-center gap-2">
-                  <span className="w-2 h-2 rounded-full bg-red-500"></span>
-                  <span>Negative ROI | High Risk</span>
+            <DollarSign className="w-8 h-8 text-blue-600" />
                 </div>
+        </Card>
+
+        <Card className="p-4">
+          <div className="flex items-center justify-between">
+            <div>
+              <h3 className="text-sm font-medium text-gray-500">Revenue</h3>
+              <p className="text-2xl font-bold">{formatCurrency(metrics.revenue)}</p>
               </div>
+            <DollarSign className="w-8 h-8 text-green-600" />
             </div>
-          </div>
-        </CardContent>
       </Card>
 
-      {error && (
-        <Card className="bg-red-50 border-red-200">
-          <CardContent className="pt-4">
-            <div className="flex items-center text-red-700">
-              <AlertCircle className="w-5 h-5 mr-2" />
-              {error}
-            </div>
-          </CardContent>
-        </Card>
-      )}
+        <Card className="p-4">
+          <div className="flex items-center justify-between">
+            <div>
+              <h3 className="text-sm font-medium text-gray-500">Profit</h3>
+              <p className={`text-2xl font-bold ${metrics.profit >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                {formatCurrency(metrics.profit)}
+              </p>
+          </div>
+            <TrendingUp className="w-8 h-8 text-green-600" />
+                </div>
+      </Card>
 
-      {insights?.mediaBuyers?.is30DayChallenge ? 
-        render30DayChallenge(insights.mediaBuyers.metrics, insights.mediaBuyers.timeFrame) :
-        renderInsights()
-      }
+        <Card className="p-4">
+          <div className="flex items-center justify-between">
+            <div>
+              <h3 className="text-sm font-medium text-gray-500">ROI</h3>
+              <p className={`text-2xl font-bold ${metrics.roi >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                {metrics.roi.toFixed(1)}%
+              </p>
+            </div>
+            <TrendingUp className="w-8 h-8 text-blue-600" />
+                </div>
+        </Card>
+              </div>
+
+      {/* Media Buyer Performance Table */}
+      <Card className="p-6">
+        <h2 className="text-lg font-semibold mb-4">Media Buyer Performance</h2>
+        <div className="space-y-6">
+          {Object.entries(groupDataByCategory(mediaBuyerData)).map(([category, buyers]) => (
+            <div key={category} className="space-y-2">
+              <h3 className="font-medium text-lg">{category} Media Buyers</h3>
+              <div className="overflow-x-auto">
+                <table className="w-full">
+                  <thead>
+                    <tr className="border-b">
+                      <th className="text-left py-2">Media Buyer</th>
+                      <th className="text-left py-2">Network</th>
+                      <th className="text-left py-2">Offer</th>
+                      <th className="text-right py-2">Profit</th>
+                      <th className="text-right py-2">Trend</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {buyers.map((row, index) => (
+                      <tr key={index} className="border-b">
+                        <td className="py-2">{row.mediaBuyer}</td>
+                        <td className="py-2">{row.network}</td>
+                        <td className="py-2">{row.offer}</td>
+                        <td className={`text-right py-2 ${row.profit >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                          {formatCurrency(row.profit)}
+                        </td>
+                        <td className="text-right py-2">
+                          <Sparkline 
+                            data={Object.values(row.dailyProfits)} 
+                            width={100} 
+                            height={30}
+                            color={row.profit >= 0 ? '#22c55e' : '#ef4444'}
+                          />
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+            </div>
+          </div>
+          ))}
+            </div>
+        </Card>
     </div>
   );
 };

@@ -22,19 +22,24 @@ const MEETING_DATES = [
 ];
 
 const getMediaBuyerStatus = (performanceData, buyer) => {
-  if (!performanceData) return { message: 'No data available', type: 'neutral' };
+  if (!performanceData) return { message: 'No data available', type: 'neutral', sortOrder: 5, metrics: null };
 
   // Filter data for this buyer
   const buyerData = performanceData.filter(entry => 
     entry['Media Buyer']?.toLowerCase().includes(buyer.toLowerCase())
   );
 
-  if (buyerData.length === 0) return { message: 'Not running', type: 'inactive' };
+  if (buyerData.length === 0) return { 
+    message: 'Not running', 
+    type: 'inactive', 
+    sortOrder: 6,
+    metrics: null 
+  };
 
   // Calculate total spend and profit
   const totalSpend = buyerData.reduce((sum, entry) => sum + (parseFloat(entry['Ad Spend']) || 0), 0);
   const totalRevenue = buyerData.reduce((sum, entry) => sum + (parseFloat(entry['Total Revenue']) || 0), 0);
-  const totalProfit = buyerData.reduce((sum, entry) => sum + (parseFloat(entry.Margin) || 0), 0);
+  const totalProfit = totalRevenue - totalSpend;
   
   // Calculate ROI
   const roi = totalSpend > 0 ? ((totalRevenue / totalSpend - 1) * 100) : 0;
@@ -46,44 +51,64 @@ const getMediaBuyerStatus = (performanceData, buyer) => {
   })));
   const daysSinceLastActivity = Math.floor((new Date() - latestDate) / (1000 * 60 * 60 * 24));
 
-  // Format currency
-  const formatCurrency = (amount) => {
-    return new Intl.NumberFormat('en-US', {
-      style: 'currency',
-      currency: 'USD',
-      minimumFractionDigits: 0,
-      maximumFractionDigits: 0
-    }).format(amount);
+  const metrics = {
+    spend: totalSpend,
+    revenue: totalRevenue,
+    profit: totalProfit,
+    roi: roi,
+    lastActive: latestDate,
+    daysSinceLastActivity
   };
 
   // Determine status type and message
   if (totalSpend === 0) {
-    return { message: 'Not running', type: 'inactive' };
+    return { 
+      message: 'Not running', 
+      type: 'inactive', 
+      sortOrder: 6,
+      metrics 
+    };
   }
 
   if (daysSinceLastActivity > 7) {
     return { 
-      message: `Inactive (${formatCurrency(totalProfit)} | ${roi.toFixed(1)}% ROI)`, 
-      type: 'inactive' 
+      message: 'Inactive', 
+      type: 'inactive',
+      sortOrder: 5,
+      metrics
     };
   }
 
   // Active status with profit and ROI
-  let type;
   if (totalProfit >= 1000 && roi >= 100) {
-    type = 'excellent';
+    return {
+      message: 'Excellent',
+      type: 'excellent',
+      sortOrder: 1,
+      metrics
+    };
   } else if (totalProfit >= 1000 || roi >= 100) {
-    type = 'good';
+    return {
+      message: 'Good',
+      type: 'good',
+      sortOrder: 2,
+      metrics
+    };
   } else if (totalProfit > 0) {
-    type = 'okay';
+    return {
+      message: 'Okay',
+      type: 'okay',
+      sortOrder: 3,
+      metrics
+    };
   } else {
-    type = 'warning';
+    return {
+      message: 'Warning',
+      type: 'warning',
+      sortOrder: 4,
+      metrics
+    };
   }
-
-  return {
-    message: `${formatCurrency(totalProfit)} | ${roi.toFixed(1)}% ROI`,
-    type
-  };
 };
 
 const getStatusColor = (type) => {
@@ -114,6 +139,12 @@ const formatDate = (date) => {
 const MediaBuyerProgress = ({ performanceData }) => {
   const [currentMeetingIndex, setCurrentMeetingIndex] = useState(0);
   const currentDate = MEETING_DATES[currentMeetingIndex];
+
+  // Get and sort media buyers by status
+  const sortedMediaBuyers = MEDIA_BUYERS.map(buyer => ({
+    name: buyer,
+    status: getMediaBuyerStatus(performanceData, buyer)
+  })).sort((a, b) => a.status.sortOrder - b.status.sortOrder);
 
   // Initialize meeting data with a default structure
   const defaultMeetingData = MEETING_DATES.reduce((dates, date) => {
@@ -196,6 +227,23 @@ const MediaBuyerProgress = ({ performanceData }) => {
     return meetingData?.[date]?.[buyer] ?? { attended: false, notes: '' };
   };
 
+  // Format currency with optional 'k' suffix
+  const formatCompactCurrency = (amount) => {
+    if (!amount && amount !== 0) return '–';
+    if (amount === 0) return '$0';
+    
+    const absAmount = Math.abs(amount);
+    if (absAmount >= 1000) {
+      return `${amount < 0 ? '-' : ''}$${(absAmount / 1000).toFixed(1)}k`;
+    }
+    return new Intl.NumberFormat('en-US', {
+      style: 'currency',
+      currency: 'USD',
+      minimumFractionDigits: 0,
+      maximumFractionDigits: 0
+    }).format(amount);
+  };
+
   return (
     <Card className="mt-8">
       <CardHeader>
@@ -215,13 +263,17 @@ const MediaBuyerProgress = ({ performanceData }) => {
                 <th className="text-left p-4 font-medium text-gray-500">Media Buyer</th>
                 <th className="text-left p-4 font-medium text-gray-500">{formatDate(currentDate)}</th>
                 <th className="text-left p-4 font-medium text-gray-500">Notes</th>
-                <th className="text-left p-4 font-medium text-gray-500">Current Status</th>
+                <th className="text-center p-4 font-medium text-gray-500">Status</th>
+                <th className="text-right p-4 font-medium text-gray-500">Ad Spend</th>
+                <th className="text-right p-4 font-medium text-gray-500">Revenue</th>
+                <th className="text-right p-4 font-medium text-gray-500">Profit</th>
+                <th className="text-right p-4 font-medium text-gray-500">ROI</th>
               </tr>
             </thead>
             <tbody>
-              {MEDIA_BUYERS.map(buyer => (
-                <tr key={buyer} className="border-b">
-                  <td className="p-4">{buyer}</td>
+              {sortedMediaBuyers.map(({ name: buyer, status }) => (
+                <tr key={buyer} className="border-b hover:bg-gray-50">
+                  <td className="p-4 font-medium">{buyer}</td>
                   <td className="p-4">
                     <input
                       type="checkbox"
@@ -239,15 +291,28 @@ const MediaBuyerProgress = ({ performanceData }) => {
                       placeholder="Enter notes..."
                     />
                   </td>
-                  <td className="p-4 text-sm">
-                    {(() => {
-                      const status = getMediaBuyerStatus(performanceData, buyer);
-                      return (
-                        <div className={`inline-block px-3 py-1 rounded-full font-medium ${getStatusColor(status.type)}`}>
-                          {status.message}
-                        </div>
-                      );
-                    })()}
+                  <td className="p-4">
+                    <div className={`inline-block px-3 py-1 rounded-full text-center font-medium ${getStatusColor(status.type)}`}>
+                      {status.message}
+                    </div>
+                  </td>
+                  <td className="p-4 text-right font-mono">
+                    {status.metrics ? formatCompactCurrency(status.metrics.spend) : '–'}
+                  </td>
+                  <td className="p-4 text-right font-mono">
+                    {status.metrics ? formatCompactCurrency(status.metrics.revenue) : '–'}
+                  </td>
+                  <td className={`p-4 text-right font-mono ${
+                    status.metrics?.profit > 0 ? 'text-green-600' : 
+                    status.metrics?.profit < 0 ? 'text-red-600' : ''
+                  }`}>
+                    {status.metrics ? formatCompactCurrency(status.metrics.profit) : '–'}
+                  </td>
+                  <td className={`p-4 text-right font-mono ${
+                    status.metrics?.roi > 0 ? 'text-green-600' : 
+                    status.metrics?.roi < 0 ? 'text-red-600' : ''
+                  }`}>
+                    {status.metrics ? `${status.metrics.roi.toFixed(1)}%` : '–'}
                   </td>
                 </tr>
               ))}
