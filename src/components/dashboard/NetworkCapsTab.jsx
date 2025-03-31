@@ -62,8 +62,8 @@ const NetworkCapsTab = ({ networkTerms }) => {
         </div>
       </CardHeader>
       <CardContent>
-        <div className="overflow-x-auto">
-          <table className="min-w-full divide-y divide-gray-200">
+        <div className="w-full">
+          <table className="w-full divide-y divide-gray-200">
             <thead className="bg-gray-50">
               <tr>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Network</th>
@@ -75,9 +75,6 @@ const NetworkCapsTab = ({ networkTerms }) => {
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Invoice Due</th>
                 <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase">Running Total</th>
                 <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase">Daily Cap</th>
-                <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase">
-                  Last Day's Usage ({networkTerms?.[0]?.lastDate || ''})
-                </th>
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-200">
@@ -103,28 +100,6 @@ const NetworkCapsTab = ({ networkTerms }) => {
                     </td>
                     <td className={`px-6 py-4 whitespace-nowrap text-sm font-medium text-right ${textColorClass}`}>
                       {typeof network.dailyCap === 'number' ? formatCurrency(network.dailyCap) : network.dailyCap}
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-right">
-                      {typeof network.dailyCap === 'number' ? (
-                        <div className="flex items-center justify-end space-x-2">
-                          <span className={`font-medium ${
-                            !network.capUtilization ? 'text-gray-600' :
-                            network.capUtilization > 90 ? 'text-red-600' : 
-                            network.capUtilization > 75 ? 'text-yellow-600' : 
-                            'text-green-600'
-                          }`}>
-                            {typeof network.capUtilization === 'number' 
-                              ? `${network.capUtilization.toFixed(1)}%` 
-                              : '0%'
-                            }
-                          </span>
-                          <span className="text-gray-500">
-                            ({formatCurrency(network.lastDateSpend || 0)})
-                          </span>
-                        </div>
-                      ) : (
-                        <span className="text-gray-500">-</span>
-                      )}
                     </td>
                   </tr>
                 );

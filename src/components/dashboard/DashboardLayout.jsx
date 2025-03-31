@@ -42,6 +42,10 @@ import MonthlyExpenses from './MonthlyExpenses';
 import BreakevenCalculator from '@/components/dashboard/BreakevenCalculator';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import EODReport from './EODReport';
+import StatCard from '@/components/ui/StatCard';
+import DataTable from '@/components/ui/DataTable';
+import ChartContainer from '@/components/ui/ChartContainer';
+import PageHeader from '@/components/ui/PageHeader';
 
 export default function DashboardLayout({ 
   performanceData, 
@@ -177,7 +181,12 @@ export default function DashboardLayout({
     switch (activeTab) {
       case 'ai-insights':
         return (
-          <div className="space-y-6">
+          <div className="space-y-8">
+            <PageHeader 
+              title="AI Insights" 
+              subtitle="Intelligent analysis of your business performance"
+              icon={Brain}
+            />
             <AIInsightsPage
               performanceData={performanceData}
               invoicesData={invoiceData}
@@ -188,13 +197,23 @@ export default function DashboardLayout({
         );
       case 'media-buyer-pl':
         return (
-          <div className="space-y-6">
+          <div className="space-y-8">
+            <PageHeader 
+              title="Media Buyer P&L" 
+              subtitle="Performance and profitability analysis"
+              icon={DollarSign}
+            />
             <MediaBuyerPL performanceData={performanceData} />
           </div>
         );
       case 'eod-report':
         return (
-          <div className="space-y-6">
+          <div className="space-y-8">
+            <PageHeader 
+              title="EOD Report" 
+              subtitle="End of day performance summary"
+              icon={BarChart2}
+            />
             <EODReport performanceData={performanceData} />
           </div>
         );
@@ -382,7 +401,7 @@ export default function DashboardLayout({
   
       case 'thirty-day-challenge':
         return (
-          <div className="space-y-8">
+          <div className="space-8">
             <ThirtyDayChallenge performanceData={performanceData} />
             <MediaBuyerProgress performanceData={performanceData} />
           </div>
@@ -419,71 +438,74 @@ export default function DashboardLayout({
   };
 
   return (
-    <main className="min-h-screen bg-gray-50">
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-8">
-          <h1 className="text-3xl font-bold text-gray-900">Performance Dashboard</h1>
-          <div className="flex items-center gap-4">
-            <button
-              onClick={handleRefresh}
-              className={`inline-flex items-center px-4 py-2 border border-gray-300 rounded-md shadow-sm text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 ${
-                isRefreshing ? 'opacity-75 cursor-not-allowed' : ''
-              }`}
-              disabled={isRefreshing}
-            >
-              <RefreshCw className={`h-4 w-4 mr-2 ${isRefreshing ? 'animate-spin' : ''}`} />
-              {isRefreshing ? 'Refreshing...' : 'Refresh Data'}
-            </button>
-            {lastUpdated && (
-              <div className="text-sm text-gray-500">
-                Last Updated: {lastUpdated.toLocaleString()}
+    <main className="min-h-screen bg-[#F9FAFB]">
+      {/* Fixed Header */}
+      <div className="fixed top-0 left-0 right-0 bg-[#1C1F2B] shadow-lg z-50">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+          {/* Header Content */}
+          <div className="flex items-center justify-between h-16">
+            <div className="flex items-center gap-6">
+              <div className="bg-white/10 p-2 rounded-lg shadow-md">
+                <img 
+                  src="/convert2freedom_logo.png" 
+                  alt="Convert2Freedom Logo" 
+                  className="h-8 w-auto"
+                />
               </div>
-            )}
-          </div>
-        </div>
-
-        {error && (
-          <div className="bg-red-50 border-l-4 border-red-400 p-4 mb-6">
-            <div className="flex">
-              <div className="ml-3">
-                <p className="text-sm text-red-700">
-                  {typeof error === 'string' ? error : 'An error occurred while loading data.'}
-                </p>
+              <div>
+                <h1 className="text-xl font-bold text-white">Business Intelligence Dashboard</h1>
+                <p className="text-xs text-gray-400">Convert2Freedom Analytics</p>
               </div>
             </div>
+            <div className="flex items-center gap-4">
+              <button
+                onClick={handleRefresh}
+                className={`inline-flex items-center px-4 py-2 border border-gray-600 rounded-md shadow-sm text-sm font-medium text-gray-200 bg-white/10 hover:bg-white/20 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition-all duration-200 ${
+                  isRefreshing ? 'opacity-75 cursor-not-allowed' : ''
+                }`}
+                disabled={isRefreshing}
+              >
+                <RefreshCw className={`h-4 w-4 mr-2 ${isRefreshing ? 'animate-spin' : ''}`} />
+                {isRefreshing ? 'Refreshing...' : 'Refresh Data'}
+              </button>
+              {lastUpdated && (
+                <div className="text-sm text-gray-400 bg-white/5 px-3 py-1 rounded-md">
+                  Last Updated: {lastUpdated.toLocaleString()}
+                </div>
+              )}
+            </div>
           </div>
-        )}
 
-        <div className="space-y-6">
-          <div className="border-b border-gray-200">
-            <nav className="-mb-px flex space-x-8 overflow-x-auto">
+          {/* Navigation Tabs */}
+          <div className="border-t border-gray-700/50">
+            <nav className="flex space-x-8 overflow-x-auto">
               {mainTabs.map((tab) => {
-              const Icon = tab.icon;
-              return (
-                <button
-                  key={tab.id}
-                  onClick={() => setActiveTab(tab.id)}
-                  className={`
-                      whitespace-nowrap py-4 px-3 border-b-2 font-medium text-sm flex items-center
+                const Icon = tab.icon;
+                return (
+                  <button
+                    key={tab.id}
+                    onClick={() => setActiveTab(tab.id)}
+                    className={`
+                      whitespace-nowrap py-3 px-3 border-b-2 font-medium text-sm flex items-center transition-all duration-200
                       ${
                         activeTab === tab.id
-                          ? 'border-indigo-500 text-indigo-600'
-                          : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                          ? 'border-[#4A90E2] text-[#4A90E2]'
+                          : 'border-transparent text-gray-400 hover:text-gray-200 hover:border-gray-600'
                       }
                     `}
                   >
                     {Icon && <Icon className="w-4 h-4 mr-2" />}
                     {tab.label}
-                </button>
-              );
-            })}
+                  </button>
+                );
+              })}
               
               {/* More dropdown */}
               <div className="relative flex items-center">
                 <button
                   ref={moreButtonRef}
                   onClick={handleMoreClick}
-                  className="whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300 flex items-center gap-1"
+                  className="whitespace-nowrap py-3 px-1 border-b-2 font-medium text-sm border-transparent text-gray-400 hover:text-gray-200 hover:border-gray-600 flex items-center gap-1 transition-all duration-200"
                 >
                   More
                   <ChevronDown className="h-4 w-4" />
@@ -491,7 +513,7 @@ export default function DashboardLayout({
                 
                 {showMoreMenu && (
                   <div 
-                    className="fixed mt-2 w-56 rounded-md shadow-lg bg-white ring-1 ring-black ring-opacity-5 z-50"
+                    className="fixed mt-2 w-56 rounded-lg shadow-lg bg-[#1C1F2B] ring-1 ring-black ring-opacity-5 z-50 border border-gray-700/50"
                     style={{
                       top: 'var(--menu-top, 64px)',
                       left: 'var(--menu-left, auto)',
@@ -507,11 +529,11 @@ export default function DashboardLayout({
                             setShowMoreMenu(false);
                           }}
                           className={`
-                            block w-full text-left px-4 py-2 text-sm
+                            block w-full text-left px-4 py-2 text-sm transition-all duration-200
                             ${
                               activeTab === tab.id
-                                ? 'bg-gray-100 text-gray-900'
-                                : 'text-gray-700 hover:bg-gray-50'
+                                ? 'bg-white/10 text-[#4A90E2]'
+                                : 'text-gray-300 hover:bg-white/5'
                             }
                           `}
                         >
@@ -522,19 +544,45 @@ export default function DashboardLayout({
                   </div>
                 )}
               </div>
-          </nav>
+            </nav>
+          </div>
         </div>
+      </div>
 
-          {['media-buyers', 'network'].includes(activeTab) && (
-            <EnhancedDateSelector 
-              onDateChange={handleDateChange}
-              selectedPeriod={dateRange.period}
-              defaultRange="last7"
-              latestDate={getLatestDataDate(performanceData)}
-            />
+      {/* Main Content with Top Padding for Fixed Header */}
+      <div className="pt-32">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+          {error && (
+            <div className="bg-red-50 border-l-4 border-[#E74C3C] p-4 mb-6 rounded-md shadow-sm">
+              <div className="flex">
+                <div className="ml-3">
+                  <p className="text-sm text-[#C0392B]">
+                    {typeof error === 'string' ? error : 'An error occurred while loading data.'}
+                  </p>
+                </div>
+              </div>
+            </div>
           )}
 
-          <div className="mt-6">{renderTabContent()}</div>
+          {/* Main Content Area with Light Background */}
+          <div className="space-y-8">
+            {['media-buyers', 'network'].includes(activeTab) && (
+              <div className="bg-white rounded-lg shadow-sm border border-gray-100 p-6">
+                <EnhancedDateSelector 
+                  onDateChange={handleDateChange}
+                  selectedPeriod={dateRange.period}
+                  defaultRange="last7"
+                  latestDate={getLatestDataDate(performanceData)}
+                />
+              </div>
+            )}
+
+            {/* Content Sections with Improved Spacing */}
+            <div className="bg-white rounded-lg shadow-sm border border-gray-100 p-6">
+              {/* Main Content */}
+              <div className="mt-6">{renderTabContent()}</div>
+            </div>
+          </div>
         </div>
       </div>
     </main>

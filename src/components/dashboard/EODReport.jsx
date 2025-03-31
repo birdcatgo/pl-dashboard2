@@ -1,7 +1,7 @@
 import React, { useMemo, useState } from 'react';
 import { Card } from '../ui/card';
 import { format, startOfMonth, endOfMonth, isSameDay } from 'date-fns';
-import { TrendingUp, DollarSign, Target, ChevronDown, ChevronRight, ChevronDownSquare, ChevronRightSquare } from 'lucide-react';
+import { TrendingUp, DollarSign, Target, ChevronDown, ChevronRight, ChevronDownSquare, ChevronRightSquare, ChevronUpSquare, HelpCircle } from 'lucide-react';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Input } from '../ui/input';
 

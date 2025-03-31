@@ -152,102 +152,88 @@ async function processTradeShiftData(response) {
 
 async function processNetworkTermsData(response) {
   try {
-    if (!response?.values || response.values.length < 2) {
-      console.error('Invalid Network Terms data:', response);
-      return [];
-    }
-
-    // Log raw data before processing
-    console.log('Network Terms Raw Data:', {
-      totalRows: response.values.length,
-      headerRow: response.values[0],
-      firstDataRow: response.values[1],
-      allRows: response.values.slice(1).map(row => ({
-        network: row[0],
-        offer: row[1],
-        payPeriod: row[2],
-        netTerms: row[3],
-        periodStart: row[4],
-        periodEnd: row[5],
-        invoiceDue: row[6],
-        runningTotal: row[7],
-        dailyCap: row[8],
-        lastDayUsage: row[9]
-      }))
+    console.log('Processing Network Terms data:', {
+      hasResponse: !!response,
+      responseLength: response?.values?.length,
+      sampleRow: response?.values?.[1]
     });
 
-    // Skip header row and process each row
-    const processedData = response.values.slice(1).map(row => {
-      if (!row || row.length < 9) {
-        console.warn('Invalid row in Network Terms data:', row);
-        return null;
-      }
-
-      // Validate required fields
-      if (!row[0]?.trim()) {
-        console.warn('Missing network name in row:', row);
-        return null;
-      }
-
-      // Parse running total and daily cap, handling special cases
-      const runningTotal = parseFloat((row[7] || '0').replace(/[$,]/g, ''));
-      let dailyCap;
-      if (row[8] === 'Uncapped' || row[8] === 'N/A') {
-        dailyCap = row[8];
-      } else {
-        dailyCap = parseFloat((row[8] || '0').replace(/[$,]/g, ''));
-      }
-
-      // Parse Last Day's Usage - now optional since it might not be present
-      const lastDayUsage = row[9] || '-';  // Default to '-' if not present
-      let lastDayPercentage = 0;
-      let lastDayAmount = 0;
-
-      if (lastDayUsage && lastDayUsage !== '-') {
-        // Extract percentage and amount from format like "0% ($0)"
-        const percentageMatch = lastDayUsage.match(/(\d+(?:\.\d+)?)%/);
-        const amountMatch = lastDayUsage.match(/\$(\d+(?:\.\d+)?)/);
-        
-        if (percentageMatch) {
-          lastDayPercentage = parseFloat(percentageMatch[1]);
+    const processedData = (response?.values || [])
+      .slice(1)
+      .map(row => {
+        if (!row || row.length < 9) {
+          console.warn('Invalid row in Network Terms data:', row);
+          return null;
         }
-        if (amountMatch) {
-          lastDayAmount = parseFloat(amountMatch[1]);
+
+        // Validate required fields
+        if (!row[0]?.trim()) {
+          console.warn('Missing network name in row:', row);
+          return null;
         }
-      }
 
-      const processedRow = {
-        networkName: row[0]?.trim() || '',
-        offer: row[1]?.trim() || '',
-        payPeriod: parseInt(row[2] || '0'),
-        netTerms: parseInt(row[3] || '0'),
-        periodStart: row[4]?.trim() || '',
-        periodEnd: row[5]?.trim() || '',
-        invoiceDue: row[6]?.trim() || '',
-        runningTotal,
-        dailyCap,
-        lastDayUsage: lastDayUsage === '-' ? '-' : {
-          percentage: lastDayPercentage,
-          amount: lastDayAmount
+        // Parse running total and daily cap, handling special cases
+        const runningTotal = parseFloat((row[7] || '0').replace(/[$,]/g, ''));
+        let dailyCap;
+        if (row[8] === 'Uncapped' || row[8] === 'N/A') {
+          dailyCap = row[8];
+        } else {
+          dailyCap = parseFloat((row[8] || '0').replace(/[$,]/g, ''));
         }
-      };
 
-      // Log each processed row
-      console.log('Processed Network Terms row:', {
-        raw: row,
-        processed: processedRow
-      });
+        // Parse Last Day's Usage - now optional since it might not be present
+        const lastDayUsage = row[9] || '-';  // Default to '-' if not present
+        let lastDayPercentage = 0;
+        let lastDayAmount = 0;
 
-      return processedRow;
-    }).filter(Boolean);
+        if (lastDayUsage && lastDayUsage !== '-') {
+          // Extract percentage and amount from format like "0% ($0)"
+          const percentageMatch = lastDayUsage.match(/(\d+(?:\.\d+)?)%/);
+          const amountMatch = lastDayUsage.match(/\$(\d+(?:\.\d+)?)/);
+          
+          if (percentageMatch) {
+            lastDayPercentage = parseFloat(percentageMatch[1]);
+          }
+          if (amountMatch) {
+            lastDayAmount = parseFloat(amountMatch[1]);
+          }
 
-    // Log final processed data
-    console.log('Processed Network Terms Summary:', {
-      totalRows: response.values.length - 1,
-      processedRows: processedData.length,
-      networks: processedData.map(term => term.networkName),
-      sampleData: processedData.slice(0, 3),
-      allData: processedData
+          console.log('Parsed Last Day Usage:', {
+            raw: lastDayUsage,
+            percentage: lastDayPercentage,
+            amount: lastDayAmount
+          });
+        }
+
+        const processedRow = {
+          networkName: row[0]?.trim() || '',
+          offer: row[1]?.trim() || '',
+          payPeriod: parseInt(row[2] || '0'),
+          netTerms: parseInt(row[3] || '0'),
+          periodStart: row[4]?.trim() || '',
+          periodEnd: row[5]?.trim() || '',
+          invoiceDue: row[6]?.trim() || '',
+          runningTotal,
+          dailyCap,
+          lastDayUsage: lastDayUsage === '-' ? '-' : {
+            percentage: lastDayPercentage,
+            amount: lastDayAmount
+          }
+        };
+
+        // Log each processed row
+        console.log('Processed Network Terms row:', {
+          raw: row,
+          processed: processedRow
+        });
+
+        return processedRow;
+      })
+      .filter(Boolean);
+
+    console.log('Final processed Network Terms data:', {
+      totalRows: processedData.length,
+      sampleData: processedData.slice(0, 3)
     });
 
     return processedData;
