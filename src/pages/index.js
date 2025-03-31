@@ -17,11 +17,26 @@ export default function DashboardPage() {
     try {
       const response = await fetch('/api/sheets');
       if (!response.ok) {
-        throw new Error('Failed to fetch dashboard data');
+        throw new Error(`Failed to fetch dashboard data: ${response.status} ${response.statusText}`);
       }
       
       const data = await response.json();
-      console.log('API Response:', data);
+      console.log('API Response Structure:', {
+        hasPerformanceData: !!data.performanceData,
+        performanceDataLength: data.performanceData?.length,
+        hasInvoicesData: !!data.rawData?.invoices,
+        invoicesDataLength: data.rawData?.invoices?.length,
+        hasPayrollData: !!data.rawData?.payroll,
+        payrollDataLength: data.rawData?.payroll?.length,
+        hasCashFlowData: !!data.cashFlowData,
+        cashFlowDataKeys: data.cashFlowData ? Object.keys(data.cashFlowData) : [],
+        hasNetworkTerms: !!data.networkTerms,
+        networkTermsLength: data.networkTerms?.length,
+        hasTradeshiftData: !!data.tradeshiftData,
+        tradeshiftDataLength: data.tradeshiftData?.length,
+        hasPlData: !!data.plData,
+        plDataKeys: data.plData ? Object.keys(data.plData) : []
+      });
       
       // Transform performance data from array of arrays to array of objects
       const transformedPerformanceData = data.performanceData.map(row => ({

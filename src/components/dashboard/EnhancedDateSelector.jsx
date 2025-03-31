@@ -13,12 +13,6 @@ const EnhancedDateSelector = ({
     let startDate, endDate;
     
     switch (period) {
-      case 'yesterday': {
-        const yesterday = subDays(now, 1);
-        startDate = startOfDay(yesterday);
-        endDate = endOfDay(yesterday);
-        break;
-      }
       case 'last7':
         startDate = startOfDay(subDays(now, 6));
         endDate = endOfDay(now);
@@ -80,7 +74,6 @@ const EnhancedDateSelector = ({
     {
       label: 'Quick Select',
       options: [
-        { id: 'yesterday', label: 'Yesterday', icon: '⏪' },
         { id: 'last7', label: 'Last 7 Days', icon: '📊' },
         { id: 'last30', label: 'Last 30 Days', icon: '📈' }
       ]

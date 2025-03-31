@@ -49,6 +49,14 @@ const calculateCorrelation = (x, y) => {
   return den === 0 ? 0 : num / den;
 };
 
+const getConsistencyLabel = (consistency) => {
+  if (consistency >= 90) return 'Very Stable';
+  if (consistency >= 70) return 'Stable';
+  if (consistency >= 50) return 'Moderate';
+  if (consistency >= 30) return 'Variable';
+  return 'Highly Variable';
+};
+
 // Add new components for enhanced BI features
 const TrendAnalysis = ({ data, timeRange }) => {
   const calculateGrowth = (current, previous) => {
@@ -80,24 +88,58 @@ const TrendAnalysis = ({ data, timeRange }) => {
     const currentPeriod = dailyTotals.slice(-timeRange);
     const previousPeriod = dailyTotals.slice(-timeRange * 2, -timeRange);
     
-    // Calculate totals for each period, ensuring we handle undefined/null values
+    // Debug log the values
+    console.log('Growth Rate Calculation:', {
+      currentPeriod: {
+        days: currentPeriod.map(d => d.date),
+        total: currentPeriod.reduce((sum, day) => sum + (day.total || 0), 0),
+        dailyTotals: currentPeriod.map(d => d.total)
+      },
+      previousPeriod: {
+        days: previousPeriod.map(d => d.date),
+        total: previousPeriod.reduce((sum, day) => sum + (day.total || 0), 0),
+        dailyTotals: previousPeriod.map(d => d.total)
+      },
+      timeRange,
+      totalDays: dailyTotals.length
+    });
+    
+    // Calculate totals for each period
     const currentTotal = currentPeriod.reduce((sum, day) => sum + (day.total || 0), 0);
     const previousTotal = previousPeriod.reduce((sum, day) => sum + (day.total || 0), 0);
     
-    // Debug log the values
-    console.log('Growth calculation:', {
-      currentPeriodDays: currentPeriod.length,
-      previousPeriodDays: previousPeriod.length,
-      currentTotal,
-      previousTotal
-    });
+    // If we have less than 14 days of data, compare with available previous data
+    if (dailyTotals.length < timeRange * 2) {
+      const availablePreviousDays = dailyTotals.slice(0, -timeRange);
+      if (availablePreviousDays.length === 0) {
+        console.log('No previous data available, returning 0');
+        return 0;
+      }
+      
+      const previousTotal = availablePreviousDays.reduce((sum, day) => sum + (day.total || 0), 0);
+      const previousDaysCount = availablePreviousDays.length;
+      
+      // Normalize previous total to match current period length
+      const normalizedPreviousTotal = (previousTotal / previousDaysCount) * timeRange;
+      
+      if (normalizedPreviousTotal === 0) {
+        console.log('Previous total is 0, returning:', currentTotal > 0 ? 100 : 0);
+        return currentTotal > 0 ? 100 : 0;
+      }
+      
+      const growthRate = ((currentTotal - normalizedPreviousTotal) / Math.abs(normalizedPreviousTotal)) * 100;
+      console.log('Calculated growth rate with normalized previous period:', growthRate);
+      return isNaN(growthRate) ? 0 : growthRate;
+    }
     
-    // Calculate growth rate
+    // Calculate growth rate for full periods
     if (previousTotal === 0) {
+      console.log('Previous total is 0, returning:', currentTotal > 0 ? 100 : 0);
       return currentTotal > 0 ? 100 : 0;
     }
     
     const growthRate = ((currentTotal - previousTotal) / Math.abs(previousTotal)) * 100;
+    console.log('Calculated growth rate:', growthRate);
     return isNaN(growthRate) ? 0 : growthRate;
   }, [dailyTotals, timeRange]);
 
@@ -137,38 +179,65 @@ const TrendAnalysis = ({ data, timeRange }) => {
           </div>
         </div>
       </div>
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
-        <div className="bg-gray-50 p-4 rounded-lg">
-          <div className="text-sm text-gray-500">Growth Rate ({timeRange}d)</div>
-          <div className={`text-2xl font-bold ${growth >= 0 ? 'text-green-600' : 'text-red-600'}`}>
-            {growth.toFixed(1)}%
-          </div>
+      
+      {/* Growth Rate Box */}
+      <div className="bg-gray-50 p-4 rounded-lg mb-6">
+        <div className="text-sm text-gray-500">Growth Rate ({timeRange}d)</div>
+        <div className={`text-2xl font-bold ${growth >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+          {growth.toFixed(1)}%
         </div>
-        <div className="bg-gray-50 p-4 rounded-lg">
-          <div className="text-sm text-gray-500">30-Day Trend</div>
-          <div className="h-16">
-            <ResponsiveContainer width="100%" height="100%">
-              <LineChart data={movingAverages.slice(-30)}>
-                <YAxis 
-                  domain={['auto', 'auto']}
-                  tickFormatter={(value) => formatCurrency(value)}
-                />
-                <Line 
-                  type="monotone" 
-                  dataKey="7d_avg" 
-                  stroke="#3B82F6" 
-                  dot={false}
-                  isAnimationActive={false}
-                />
-                <Line 
-                  type="monotone" 
-                  dataKey="30d_avg" 
-                  stroke="#10B981" 
-                  dot={false}
-                  isAnimationActive={false}
-                />
-              </LineChart>
-            </ResponsiveContainer>
+      </div>
+
+      {/* 30-Day Trend Chart */}
+      <div className="bg-gray-50 p-4 rounded-lg">
+        <div className="text-sm text-gray-500 mb-4">30-Day Trend</div>
+        <div className="h-[200px]">
+          <ResponsiveContainer width="100%" height="100%">
+            <LineChart data={movingAverages.slice(-30)}>
+              <YAxis 
+                domain={['auto', 'auto']}
+                tickFormatter={(value) => formatCurrency(value)}
+              />
+              <Line 
+                type="monotone" 
+                dataKey="7d_avg" 
+                stroke="#3B82F6" 
+                dot={false}
+                isAnimationActive={false}
+                strokeWidth={2}
+                name="7-Day Average"
+              />
+              <Line 
+                type="monotone" 
+                dataKey="30d_avg" 
+                stroke="#10B981" 
+                dot={false}
+                isAnimationActive={false}
+                strokeWidth={2}
+                name="30-Day Average"
+              />
+              <Tooltip 
+                formatter={(value) => formatCurrency(value)}
+                labelFormatter={(label) => `Date: ${label}`}
+                contentStyle={{
+                  backgroundColor: 'rgba(255, 255, 255, 0.95)',
+                  borderRadius: '6px',
+                  border: '1px solid #ddd',
+                  boxShadow: '0 2px 4px rgba(0,0,0,0.1)'
+                }}
+              />
+            </LineChart>
+          </ResponsiveContainer>
+        </div>
+        {/* Legend moved below the chart */}
+        <div className="flex justify-center gap-6 mt-4 text-sm">
+          <div className="flex items-center">
+            <div className="w-3 h-3 bg-blue-500 rounded-full mr-2"></div>
+            <span>7-Day Average (Short-term trend)</span>
+          </div>
+          <div className="flex items-center">
+            <div className="w-3 h-3 bg-green-500 rounded-full mr-2"></div>
+            <span>30-Day Average (Long-term trend)</span>
           </div>
         </div>
       </div>
@@ -219,15 +288,23 @@ const TopPerformers = ({ data, period = 30, performanceData }) => {
         const totalSpend = _.sumBy(offerData, 'spend');
         const meanMargin = _.mean(offerData.map(d => d.margin));
         
-        // Calculate ROI as (Revenue - Spend) / Spend * 100
-        const roi = totalSpend > 0 ? (totalMargin / totalSpend) * 100 : 0;
-        
         // Calculate consistency using coefficient of variation
         const margins = offerData.map(d => d.margin);
         const stdDev = calculateStandardDeviation(margins);
-        const consistency = meanMargin !== 0 ? 
-          100 * (1 - (stdDev / Math.abs(meanMargin))) : 
-          0;
+        
+        // Improved consistency calculation
+        let consistency;
+        if (meanMargin === 0) {
+          consistency = 0;
+        } else {
+          const coefficientOfVariation = stdDev / Math.abs(meanMargin);
+          // Cap the coefficient of variation at 1 to prevent negative consistency
+          consistency = 100 * (1 - Math.min(coefficientOfVariation, 1));
+        }
+
+        // Calculate ROI
+        const totalAdSpend = offerData.reduce((sum, d) => sum + d.spend, 0);
+        const roi = totalAdSpend > 0 ? (totalMargin / totalAdSpend) * 100 : 0;
 
         return {
           networkOffer: isACA ? 'ACA - ACA (incl. Suited)' : networkOffer,
@@ -280,9 +357,19 @@ const TopPerformers = ({ data, period = 30, performanceData }) => {
               <div className="font-bold text-green-600">{formatCurrency(offer.totalMargin)}</div>
               <div className="text-sm text-gray-500">
                 <span className="group relative inline-block">
-                  Consistency: {offer.consistency.toFixed(1)}%
-                  <div className="hidden group-hover:block absolute right-0 top-6 w-48 p-2 bg-gray-800 text-white text-xs rounded-lg z-10">
-                    Higher % means more stable daily margins
+                  Consistency: {getConsistencyLabel(offer.consistency)}
+                  <div className="hidden group-hover:block absolute right-0 top-6 w-64 p-2 bg-gray-800 text-white text-xs rounded-lg z-10">
+                    <div className="font-medium mb-1">Consistency Rating:</div>
+                    <div className="space-y-1">
+                      <div>• Very Stable: Daily margins vary by less than 10%</div>
+                      <div>• Stable: Daily margins vary by 10-30%</div>
+                      <div>• Moderate: Daily margins vary by 30-50%</div>
+                      <div>• Variable: Daily margins vary by 50-70%</div>
+                      <div>• Highly Variable: Daily margins vary by more than 70%</div>
+                    </div>
+                    <div className="mt-2 text-gray-300">
+                      Technical: {offer.consistency.toFixed(1)}% (based on coefficient of variation)
+                    </div>
                   </div>
                 </span>
               </div>
@@ -321,10 +408,15 @@ const OfferPerformance = ({ performanceData, dateRange, onDateChange, latestDate
   const filteredData = useMemo(() => {
     if (!performanceData || !dateRange) return [];
     
+    // Get the end date from the date range
+    const endDate = endOfDay(dateRange.endDate);
+    // Calculate start date to include 14 days before the end date
+    const startDate = startOfDay(new Date(endDate.getTime() - (14 * 24 * 60 * 60 * 1000)));
+    
     return performanceData.filter(entry => {
       const [month, day, year] = entry.Date.split('/').map(num => parseInt(num, 10));
       const entryDate = new Date(year, month - 1, day);
-      const matchesDate = entryDate >= startOfDay(dateRange.startDate) && entryDate <= endOfDay(dateRange.endDate);
+      const matchesDate = entryDate >= startDate && entryDate <= endDate;
       const matchesNetwork = selectedNetworks.includes('all') || selectedNetworks.includes(entry.Network);
       const matchesOffer = selectedOffers.includes('all') || selectedOffers.includes(entry.Offer);
       
@@ -381,8 +473,17 @@ const OfferPerformance = ({ performanceData, dateRange, onDateChange, latestDate
     }, {});
 
     // Convert to array and sort by date
-    return Object.values(dailyData)
+    const sortedData = Object.values(dailyData)
       .sort((a, b) => new Date(a.date) - new Date(b.date));
+
+    // Log the data being passed to TrendAnalysis
+    console.log('Chart data for TrendAnalysis:', {
+      totalDays: sortedData.length,
+      dateRange: sortedData.map(d => d.date),
+      sampleData: sortedData.slice(0, 2)
+    });
+
+    return sortedData;
   }, [filteredData]);
 
   // Get unique network-offer combinations

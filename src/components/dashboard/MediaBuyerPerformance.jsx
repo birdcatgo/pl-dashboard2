@@ -227,96 +227,125 @@ const MediaBuyerPerformance = ({ performanceData, dateRange }) => {
   const filteredByDate = useMemo(() => {
     if (!performanceData?.length) return [];
 
-    // Pre-calculate the comparison dates once
-    const startDate = new Date(dateRange.startDate);
-    const endDate = new Date(dateRange.endDate);
-    startDate.setUTCHours(0, 0, 0, 0);
-    endDate.setUTCHours(23, 59, 59, 999);
-
-    // Create a cache for parsed dates to avoid repeated parsing
-    const dateCache = new Map();
-
-    return performanceData.filter(entry => {
-      if (!entry.Date) return false;
-
-      try {
-        // Use cached date if available
-        let entryDate = dateCache.get(entry.Date);
-        if (!entryDate) {
-          const [month, day, year] = entry.Date.split('/').map(num => parseInt(num, 10));
-          entryDate = new Date(year, month - 1, day);
-          entryDate.setUTCHours(0, 0, 0, 0);
-          dateCache.set(entry.Date, entryDate);
-        }
-
-        return entryDate >= startDate && entryDate <= endDate;
-      } catch (error) {
-        console.error('Error processing date:', error, entry);
-        return false;
+    try {
+      // Pre-calculate the comparison dates once
+      const startDate = new Date(dateRange.startDate);
+      const endDate = new Date(dateRange.endDate);
+      
+      // Validate dates
+      if (isNaN(startDate.getTime()) || isNaN(endDate.getTime())) {
+        console.error('Invalid date range:', { startDate, endDate });
+        return [];
       }
-    });
-  }, [performanceData, dateRange.startDate, dateRange.endDate]); // Remove dateRange object to prevent unnecessary recalculation
 
-  // Then process the filtered data - Optimize the data processing
+      startDate.setUTCHours(0, 0, 0, 0);
+      endDate.setUTCHours(23, 59, 59, 999);
+
+      // Create a cache for parsed dates to avoid repeated parsing
+      const dateCache = new Map();
+
+      return performanceData.filter(entry => {
+        if (!entry.Date) return false;
+
+        try {
+          // Use cached date if available
+          let entryDate = dateCache.get(entry.Date);
+          if (!entryDate) {
+            const [month, day, year] = entry.Date.split('/').map(num => parseInt(num, 10));
+            if (isNaN(month) || isNaN(day) || isNaN(year)) {
+              console.error('Invalid date format:', entry.Date);
+              return false;
+            }
+            entryDate = new Date(year, month - 1, day);
+            if (isNaN(entryDate.getTime())) {
+              console.error('Invalid parsed date:', entryDate);
+              return false;
+            }
+            entryDate.setUTCHours(0, 0, 0, 0);
+            dateCache.set(entry.Date, entryDate);
+          }
+
+          return entryDate >= startDate && entryDate <= endDate;
+        } catch (error) {
+          console.error('Error processing date:', error, entry);
+          return false;
+        }
+      });
+    } catch (error) {
+      console.error('Error in filteredByDate:', error);
+      return [];
+    }
+  }, [performanceData, dateRange.startDate, dateRange.endDate]);
+
+  // Add error boundary for data processing
   const processedData = useMemo(() => {
-    if (!filteredByDate.length) return { buyerMetrics: [], buyerOptions: ['all'] };
+    try {
+      if (!filteredByDate.length) return { buyerMetrics: [], buyerOptions: ['all'] };
 
-    // Pre-calculate field names to avoid repeated lookups
-    const buyerData = new Map();
-    const buyerOptions = new Set(['all']);
+      // Pre-calculate field names to avoid repeated lookups
+      const buyerData = new Map();
+      const buyerOptions = new Set(['all']);
 
-    // Single pass through the data
-    filteredByDate.forEach(row => {
-      const buyer = row['Media Buyer'] || 'Unknown';
-      buyerOptions.add(buyer);
+      // Single pass through the data
+      filteredByDate.forEach(row => {
+        try {
+          const buyer = row['Media Buyer'] || 'Unknown';
+          buyerOptions.add(buyer);
 
-      let buyerMetrics = buyerData.get(buyer);
-      if (!buyerMetrics) {
-        buyerMetrics = {
-          name: buyer,
-          spend: 0,
-          revenue: 0,
-          margin: 0,
-          networkData: new Map()
-        };
-        buyerData.set(buyer, buyerMetrics);
-      }
+          let buyerMetrics = buyerData.get(buyer);
+          if (!buyerMetrics) {
+            buyerMetrics = {
+              name: buyer,
+              spend: 0,
+              revenue: 0,
+              margin: 0,
+              networkData: new Map()
+            };
+            buyerData.set(buyer, buyerMetrics);
+          }
 
-      const spend = parseFloat(row['Ad Spend'] || 0);
-      const revenue = parseFloat(row['Total Revenue'] || 0);
-      const margin = revenue - spend;
+          const spend = parseFloat(row['Ad Spend'] || 0);
+          const revenue = parseFloat(row['Total Revenue'] || 0);
+          const margin = revenue - spend;
 
-      buyerMetrics.spend += spend;
-      buyerMetrics.revenue += revenue;
-      buyerMetrics.margin += margin;
+          buyerMetrics.spend += spend;
+          buyerMetrics.revenue += revenue;
+          buyerMetrics.margin += margin;
 
-      const network = row.Network;
-      if (network) {
-        let networkMetrics = buyerMetrics.networkData.get(network);
-        if (!networkMetrics) {
-          networkMetrics = { spend: 0, revenue: 0, margin: 0 };
-          buyerMetrics.networkData.set(network, networkMetrics);
+          const network = row.Network;
+          if (network) {
+            let networkMetrics = buyerMetrics.networkData.get(network);
+            if (!networkMetrics) {
+              networkMetrics = { spend: 0, revenue: 0, margin: 0 };
+              buyerMetrics.networkData.set(network, networkMetrics);
+            }
+            networkMetrics.spend += spend;
+            networkMetrics.revenue += revenue;
+            networkMetrics.margin += margin;
+          }
+        } catch (error) {
+          console.error('Error processing row:', error, row);
         }
-        networkMetrics.spend += spend;
-        networkMetrics.revenue += revenue;
-        networkMetrics.margin += margin;
-      }
-    });
+      });
 
-    // Convert Map to array and calculate final metrics
-    const buyerMetrics = Array.from(buyerData.values()).map(metrics => ({
-      ...metrics,
-      roi: metrics.spend ? ((metrics.revenue / metrics.spend) - 1) * 100 : 0,
-      networkData: Object.fromEntries(metrics.networkData)
-    }));
+      // Convert Map to array and calculate final metrics
+      const buyerMetrics = Array.from(buyerData.values()).map(metrics => ({
+        ...metrics,
+        roi: metrics.spend ? ((metrics.revenue / metrics.spend) - 1) * 100 : 0,
+        networkData: Object.fromEntries(metrics.networkData)
+      }));
 
-    // Sort by margin descending
-    buyerMetrics.sort((a, b) => b.margin - a.margin);
+      // Sort by margin descending
+      buyerMetrics.sort((a, b) => b.margin - a.margin);
 
-    return {
-      buyerMetrics,
-      buyerOptions: Array.from(buyerOptions)
-    };
+      return {
+        buyerMetrics,
+        buyerOptions: Array.from(buyerOptions)
+      };
+    } catch (error) {
+      console.error('Error in processedData:', error);
+      return { buyerMetrics: [], buyerOptions: ['all'] };
+    }
   }, [filteredByDate]);
 
   // Debug logging

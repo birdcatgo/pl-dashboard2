@@ -57,34 +57,73 @@ const AIInsightsPage = ({ performanceData, invoiceData, expenseData, cashFlowDat
 
   // Calculate date ranges based on selection and last data date
   const dateRanges = useMemo(() => {
-    const ranges = {
-      lastMonth: {
-        start: startOfMonth(subDays(lastDataDate, lastDataDate.getDate())),
-        end: endOfMonth(subDays(lastDataDate, lastDataDate.getDate())),
-        label: 'Last Month'
-      },
-      mtd: {
-        start: startOfMonth(lastDataDate),
-        end: lastDataDate,
-        label: 'Month to Date'
-      },
-      last7: {
-        start: subDays(lastDataDate, 6),
-        end: lastDataDate,
-        label: 'Last 7 Days'
-      },
-      last30: {
-        start: subDays(lastDataDate, 29),
-        end: lastDataDate,
-        label: 'Last 30 Days'
-      },
-      allTime: {
-        start: new Date(Math.min(...performanceData.map(entry => new Date(entry.Date)))),
-        end: lastDataDate,
-        label: 'All Time'
+    try {
+      if (!performanceData?.length) {
+        console.warn('No performance data available for date range calculation');
+        return {
+          start: new Date(),
+          end: new Date(),
+          label: 'No Data'
+        };
       }
-    };
-    return ranges[dateRange];
+
+      const ranges = {
+        lastMonth: {
+          start: startOfMonth(subDays(lastDataDate, lastDataDate.getDate())),
+          end: endOfMonth(subDays(lastDataDate, lastDataDate.getDate())),
+          label: 'Last Month'
+        },
+        mtd: {
+          start: startOfMonth(lastDataDate),
+          end: lastDataDate,
+          label: 'Month to Date'
+        },
+        last7: {
+          start: subDays(lastDataDate, 6),
+          end: lastDataDate,
+          label: 'Last 7 Days'
+        },
+        last30: {
+          start: subDays(lastDataDate, 29),
+          end: lastDataDate,
+          label: 'Last 30 Days'
+        },
+        allTime: {
+          start: new Date(Math.min(...performanceData.map(entry => {
+            try {
+              const [month, day, year] = entry.Date.split('/').map(num => parseInt(num, 10));
+              return new Date(year, month - 1, day).getTime();
+            } catch (error) {
+              console.error('Error parsing date:', entry.Date);
+              return Infinity;
+            }
+          }))),
+          end: lastDataDate,
+          label: 'All Time'
+        }
+      };
+
+      const selectedRange = ranges[dateRange];
+      if (!selectedRange) {
+        console.warn('Invalid date range selection:', dateRange);
+        return ranges.last7; // Default to last 7 days
+      }
+
+      // Validate dates
+      if (isNaN(selectedRange.start.getTime()) || isNaN(selectedRange.end.getTime())) {
+        console.error('Invalid date range calculated:', selectedRange);
+        return ranges.last7; // Default to last 7 days
+      }
+
+      return selectedRange;
+    } catch (error) {
+      console.error('Error calculating date ranges:', error);
+      return {
+        start: subDays(new Date(), 6),
+        end: new Date(),
+        label: 'Last 7 Days'
+      };
+    }
   }, [dateRange, lastDataDate, performanceData]);
 
   // Calculate analysis date range
@@ -123,48 +162,118 @@ const AIInsightsPage = ({ performanceData, invoiceData, expenseData, cashFlowDat
   const getFilteredData = (data, dateRange) => {
     if (!data || data.length === 0) return [];
     
-    const { start, end } = dateRange;
-    return data.filter(entry => {
-      const entryDate = new Date(entry.Date);
-      return entryDate >= start && entryDate <= end;
-    });
+    try {
+      const { start, end } = dateRange;
+      
+      // Validate dates
+      if (isNaN(start.getTime()) || isNaN(end.getTime())) {
+        console.error('Invalid date range in getFilteredData:', { start, end });
+        return [];
+      }
+
+      return data.filter(entry => {
+        try {
+          if (!entry.Date) return false;
+          const [month, day, year] = entry.Date.split('/').map(num => parseInt(num, 10));
+          if (isNaN(month) || isNaN(day) || isNaN(year)) {
+            console.error('Invalid date format:', entry.Date);
+            return false;
+          }
+          const entryDate = new Date(year, month - 1, day);
+          if (isNaN(entryDate.getTime())) {
+            console.error('Invalid parsed date:', entryDate);
+            return false;
+          }
+          return entryDate >= start && entryDate <= end;
+        } catch (error) {
+          console.error('Error processing entry:', error, entry);
+          return false;
+        }
+      });
+    } catch (error) {
+      console.error('Error in getFilteredData:', error);
+      return [];
+    }
   };
 
   const getDateRange = (range) => {
-    const today = new Date();
-    const lastDataDate = new Date(Math.max(...performanceData.map(d => new Date(d.Date))));
-    
-    switch (range) {
-      case '7d':
-        return {
-          start: subDays(lastDataDate, 6),
-          end: lastDataDate
-        };
-      case '30d':
-        return {
-          start: subDays(lastDataDate, 29),
-          end: lastDataDate
-        };
-      case 'mtd':
-        return {
-          start: startOfMonth(lastDataDate),
-          end: lastDataDate
-        };
-      case 'lastMonth':
-        return {
-          start: startOfMonth(subMonths(lastDataDate, 1)),
-          end: endOfMonth(subMonths(lastDataDate, 1))
-        };
-      case 'all':
-        return {
-          start: new Date(0),
-          end: lastDataDate
-        };
-      default:
-        return {
-          start: subDays(lastDataDate, 6),
-          end: lastDataDate
-        };
+    try {
+      const today = new Date();
+      const yesterday = new Date(today);
+      yesterday.setDate(yesterday.getDate() - 1);
+
+      switch (range) {
+        case 'yesterday':
+          return {
+            startDate: yesterday,
+            endDate: yesterday,
+            label: 'Yesterday'
+          };
+        case '7d':
+          const sevenDaysAgo = new Date(today);
+          sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
+          return {
+            startDate: sevenDaysAgo,
+            endDate: today,
+            label: 'Last 7 Days'
+          };
+        case '30d':
+          const thirtyDaysAgo = new Date(today);
+          thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+          return {
+            startDate: thirtyDaysAgo,
+            endDate: today,
+            label: 'Last 30 Days'
+          };
+        case 'mtd':
+          const firstDayOfMonth = new Date(today.getFullYear(), today.getMonth(), 1);
+          return {
+            startDate: firstDayOfMonth,
+            endDate: today,
+            label: 'Month to Date'
+          };
+        case 'lastMonth':
+          const firstDayOfLastMonth = new Date(today.getFullYear(), today.getMonth() - 1, 1);
+          const lastDayOfLastMonth = new Date(today.getFullYear(), today.getMonth(), 0);
+          return {
+            startDate: firstDayOfLastMonth,
+            endDate: lastDayOfLastMonth,
+            label: 'Last Month'
+          };
+        case 'all':
+          // Find the earliest date in the performance data
+          const earliestDate = new Date(Math.min(...performanceData.map(entry => {
+            try {
+              const [month, day, year] = entry.Date.split('/').map(num => parseInt(num, 10));
+              return new Date(year, month - 1, day).getTime();
+            } catch (error) {
+              console.error('Error parsing date:', entry.Date);
+              return Infinity;
+            }
+          })));
+          return {
+            startDate: earliestDate,
+            endDate: today,
+            label: 'All Time'
+          };
+        default:
+          console.warn('Invalid date range:', range);
+          return {
+            startDate: yesterday,
+            endDate: yesterday,
+            label: 'Yesterday'
+          };
+      }
+    } catch (error) {
+      console.error('Error in getDateRange:', error);
+      // Return yesterday as a safe fallback
+      const yesterday = new Date();
+      yesterday.setDate(yesterday.getDate() - 1);
+      return {
+        startDate: yesterday,
+        endDate: yesterday,
+        label: 'Yesterday'
+      };
     }
   };
 

@@ -85,7 +85,7 @@ const MediaBuyerPL = ({ performanceData }) => {
     // First, calculate daily totals
     const dailyTotals = _.chain(performanceData)
       .filter(entry => entry && entry.Date) // Filter out undefined or entries without Date
-      .map(entry => {
+      .groupBy(entry => {
         // Parse the date correctly
         let parsedDate;
         try {
@@ -100,19 +100,37 @@ const MediaBuyerPL = ({ performanceData }) => {
             console.error('Invalid date:', entry.Date);
             return null;
           }
+          return format(parsedDate, 'yyyy-MM-dd');
         } catch (error) {
           console.error('Error parsing date:', entry.Date, error);
           return null;
         }
+      })
+      .map((entries, dateKey) => {
+        if (!dateKey) return null;
 
-        // Calculate revenue components
-        const totalRevenue = typeof entry['Total Revenue'] === 'string' 
-          ? parseFloat(entry['Total Revenue'].replace(/[$,]/g, '')) 
-          : entry['Total Revenue'] || 0;
-        const totalAdSpend = typeof entry['Ad Spend'] === 'string'
-          ? parseFloat(entry['Ad Spend'].replace(/[$,]/g, ''))
-          : entry['Ad Spend'] || 0;
-        const acaRevenue = entry.Network?.toLowerCase().includes('aca') ? totalRevenue : 0;
+        // Aggregate all entries for this date
+        const totalRevenue = entries.reduce((sum, entry) => {
+          const revenue = typeof entry['Total Revenue'] === 'string' 
+            ? parseFloat(entry['Total Revenue'].replace(/[$,]/g, '')) 
+            : entry['Total Revenue'] || 0;
+          return sum + revenue;
+        }, 0);
+
+        const totalAdSpend = entries.reduce((sum, entry) => {
+          const spend = typeof entry['Ad Spend'] === 'string'
+            ? parseFloat(entry['Ad Spend'].replace(/[$,]/g, ''))
+            : entry['Ad Spend'] || 0;
+          return sum + spend;
+        }, 0);
+
+        const acaRevenue = entries.reduce((sum, entry) => {
+          return sum + (entry.Network?.toLowerCase().includes('aca') ? 
+            (typeof entry['Total Revenue'] === 'string' 
+              ? parseFloat(entry['Total Revenue'].replace(/[$,]/g, '')) 
+              : entry['Total Revenue'] || 0) : 0);
+        }, 0);
+
         const baseProfit = totalRevenue - totalAdSpend;
         const mediaBuyerCommission = baseProfit * 0.10; // 10% of profit
         const ringbaExpense = acaRevenue * 0.02; // 2% of ACA-ACA revenue
@@ -124,7 +142,7 @@ const MediaBuyerPL = ({ performanceData }) => {
         const roi = totalAdSpend ? (finalProfit / totalAdSpend) * 100 : 0;
 
         return {
-          date: parsedDate,
+          date: new Date(dateKey),
           totalRevenue,
           totalAdSpend,
           baseProfit,

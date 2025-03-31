@@ -30,6 +30,14 @@ const getCapStatusText = (dailyCap, utilization) => {
 };
 
 const NetworkCapsTab = ({ networkTerms }) => {
+  // Add logging to verify data
+  console.log('NetworkCapsTab received data:', {
+    hasNetworkTerms: !!networkTerms,
+    networkTermsLength: networkTerms?.length,
+    networks: networkTerms?.map(term => term.networkName),
+    sampleData: networkTerms?.slice(0, 3)
+  });
+
   return (
     <Card>
       <CardHeader className="flex flex-row justify-between items-center">
@@ -80,7 +88,7 @@ const NetworkCapsTab = ({ networkTerms }) => {
                 return (
                   <tr key={index} className={`${rowColorClass} transition-colors`}>
                     <td className={`px-6 py-4 whitespace-nowrap text-sm ${textColorClass}`}>
-                      {network.network}
+                      {network.networkName}
                     </td>
                     <td className={`px-6 py-4 whitespace-nowrap text-sm ${textColorClass}`}>
                       {network.offer}

@@ -52,10 +52,8 @@ const NetProfit = ({ performanceData, dateRange, cashFlowData }) => {
     return total + (limit - available);
   }, 0) || 0;
 
-  // Calculate outstanding invoices using the new networkTerms structure
-  const outstandingInvoices = cashFlowData?.networkTerms?.reduce((total, term) => {
-    return total + (parseFloat(term.runningTotal) || 0);
-  }, 0) || 0;
+  // Calculate outstanding invoices using the invoices data
+  const outstandingInvoices = cashFlowData?.outstandingInvoices || 0;
 
   // Add debug logs for financial calculations
   console.log('Financial calculations:', {

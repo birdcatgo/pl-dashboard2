@@ -67,22 +67,7 @@ async function processPLData(batchResponse) {
       }
     }));
 
-    // Add Tradeshift data processing with better error handling
-    let tradeshiftData;
-    try {
-      tradeshiftData = await processTradeShiftData(tradeshiftResponse);
-      console.log('Processed Tradeshift data:', {
-        hasData: !!tradeshiftData,
-        dataLength: tradeshiftData?.length,
-        sampleData: tradeshiftData?.[0]
-      });
-    } catch (error) {
-      console.error('Error processing Tradeshift data:', error);
-      tradeshiftData = [];
-    }
-
     const result = { summary: summaryData, monthly: monthlyData };
-    result.tradeshiftData = tradeshiftData;
 
     console.log('API sending networkTerms:', {
       hasTerms: !!result.networkTerms,
@@ -165,6 +150,113 @@ async function processTradeShiftData(response) {
   }
 }
 
+async function processNetworkTermsData(response) {
+  try {
+    if (!response?.values || response.values.length < 2) {
+      console.error('Invalid Network Terms data:', response);
+      return [];
+    }
+
+    // Log raw data before processing
+    console.log('Network Terms Raw Data:', {
+      totalRows: response.values.length,
+      headerRow: response.values[0],
+      firstDataRow: response.values[1],
+      allRows: response.values.slice(1).map(row => ({
+        network: row[0],
+        offer: row[1],
+        payPeriod: row[2],
+        netTerms: row[3],
+        periodStart: row[4],
+        periodEnd: row[5],
+        invoiceDue: row[6],
+        runningTotal: row[7],
+        dailyCap: row[8],
+        lastDayUsage: row[9]
+      }))
+    });
+
+    // Skip header row and process each row
+    const processedData = response.values.slice(1).map(row => {
+      if (!row || row.length < 9) {
+        console.warn('Invalid row in Network Terms data:', row);
+        return null;
+      }
+
+      // Validate required fields
+      if (!row[0]?.trim()) {
+        console.warn('Missing network name in row:', row);
+        return null;
+      }
+
+      // Parse running total and daily cap, handling special cases
+      const runningTotal = parseFloat((row[7] || '0').replace(/[$,]/g, ''));
+      let dailyCap;
+      if (row[8] === 'Uncapped' || row[8] === 'N/A') {
+        dailyCap = row[8];
+      } else {
+        dailyCap = parseFloat((row[8] || '0').replace(/[$,]/g, ''));
+      }
+
+      // Parse Last Day's Usage - now optional since it might not be present
+      const lastDayUsage = row[9] || '-';  // Default to '-' if not present
+      let lastDayPercentage = 0;
+      let lastDayAmount = 0;
+
+      if (lastDayUsage && lastDayUsage !== '-') {
+        // Extract percentage and amount from format like "0% ($0)"
+        const percentageMatch = lastDayUsage.match(/(\d+(?:\.\d+)?)%/);
+        const amountMatch = lastDayUsage.match(/\$(\d+(?:\.\d+)?)/);
+        
+        if (percentageMatch) {
+          lastDayPercentage = parseFloat(percentageMatch[1]);
+        }
+        if (amountMatch) {
+          lastDayAmount = parseFloat(amountMatch[1]);
+        }
+      }
+
+      const processedRow = {
+        networkName: row[0]?.trim() || '',
+        offer: row[1]?.trim() || '',
+        payPeriod: parseInt(row[2] || '0'),
+        netTerms: parseInt(row[3] || '0'),
+        periodStart: row[4]?.trim() || '',
+        periodEnd: row[5]?.trim() || '',
+        invoiceDue: row[6]?.trim() || '',
+        runningTotal,
+        dailyCap,
+        lastDayUsage: lastDayUsage === '-' ? '-' : {
+          percentage: lastDayPercentage,
+          amount: lastDayAmount
+        }
+      };
+
+      // Log each processed row
+      console.log('Processed Network Terms row:', {
+        raw: row,
+        processed: processedRow
+      });
+
+      return processedRow;
+    }).filter(Boolean);
+
+    // Log final processed data
+    console.log('Processed Network Terms Summary:', {
+      totalRows: response.values.length - 1,
+      processedRows: processedData.length,
+      networks: processedData.map(term => term.networkName),
+      sampleData: processedData.slice(0, 3),
+      allData: processedData
+    });
+
+    return processedData;
+  } catch (error) {
+    console.error('Error processing Network Terms data:', error);
+    return [];
+  }
+}
+
 export default async function handler(req, res) {
   try {
     if (req.method !== 'GET') {
@@ -182,7 +274,8 @@ export default async function handler(req, res) {
       hasPrivateKey: !!GOOGLE_SHEETS_PRIVATE_KEY,
       privateKeyLength: GOOGLE_SHEETS_PRIVATE_KEY?.length,
       hasSheetId: !!SHEET_ID,
-      sheetId: SHEET_ID
+      sheetId: SHEET_ID,
+      environment: process.env.NODE_ENV
     });
 
     // Validate required environment variables
@@ -224,16 +317,67 @@ export default async function handler(req, res) {
       "'August'!A:D",
       "'July'!A:D",
       "'June'!A:D",
-      "'Network Terms'!A2:I",
+      "'Network Terms'!A:J",
       "'Invoices'!A:F",
       "'Tradeshift Check'!A:E",
       "'Monthly Expenses'!A:D"
     ];
 
-    const batchResponse = await sheets.spreadsheets.values.batchGet({
-      spreadsheetId: SHEET_ID,
-      ranges: ranges
-    });
+    console.log('Fetching sheets data with ranges:', ranges);
+    
+    let batchResponse;
+    try {
+      batchResponse = await sheets.spreadsheets.values.batchGet({
+        spreadsheetId: SHEET_ID,
+        ranges: ranges
+      });
+      console.log('Successfully fetched sheets data:', {
+        valueRangesCount: batchResponse.data.valueRanges?.length,
+        ranges: batchResponse.data.valueRanges?.map(range => ({
+          range: range.range,
+          hasValues: !!range.values,
+          valuesCount: range.values?.length
+        }))
+      });
+    } catch (error) {
+      console.error('Error fetching sheets data:', {
+        message: error.message,
+        code: error.code,
+        stack: error.stack,
+        response: error.response?.data,
+        status: error.response?.status,
+        statusText: error.response?.statusText
+      });
+      throw new Error(`Failed to fetch sheets data: ${error.message}`);
+    }
+
+    if (!batchResponse?.data?.valueRanges) {
+      throw new Error('Invalid response from Google Sheets API');
+    }
+
+    // Initialize processedData first
+    let processedData = {
+      performanceData: [],
+      cashFlowData: null,
+      payrollData: [],
+      networkTerms: [],
+      rawData: {
+        invoices: [],
+        payroll: []
+      },
+      plData: null,
+      tradeshiftData: []
+    };
+
+    // Log all sheet names and their responses
+    console.log('All Sheet Responses:', batchResponse.data.valueRanges.map(range => ({
+      range: range.range,
+      hasValues: !!range.values,
+      valuesCount: range.values?.length,
+      firstRow: range.values?.[0],
+      error: range.error,
+      status: range.status
+    })));
 
     // Extract array positions for debugging
     const [
@@ -257,381 +401,190 @@ export default async function handler(req, res) {
       invoicesResponse,
       tradeshiftResponse,
       monthlyExpensesResponse
-    ] = batchResponse.data.valueRanges || [];
+    ] = batchResponse.data.valueRanges;
 
-    // Initialize result object with empty arrays
-    let result = {
-      performanceData: [],
-      cashFlowData: {},
-      networkPaymentsData: [],
-      plData: {},
-      rawData: {
-        financialResources: [],
-        invoices: [],
-        payroll: [],
-        mediaBuyerSpend: [],
-        networkTerms: [],
-        monthlyExpenses: []
-      },
-      networkTerms: [],
-      tradeshiftData: []
-    };
+    // Add specific logging for Network Terms sheet
+    console.log('Network Terms Sheet Details:', {
+      sheetName: 'Network Terms',
+      range: "'Network Terms'!A:J",
+      response: {
+        hasResponse: !!networkTermsResponse,
+        hasValues: !!networkTermsResponse?.values,
+        valuesLength: networkTermsResponse?.values?.length,
+        firstRow: networkTermsResponse?.values?.[0],
+        sampleRows: networkTermsResponse?.values?.slice(0, 3),
+        fullResponse: networkTermsResponse
+      }
+    });
 
-    // Process Financial Resources
+    // Add this right after the batchResponse is received
+    console.log('Network Terms Raw Data:', {
+      hasResponse: !!networkTermsResponse,
+      range: networkTermsResponse?.range,
+      hasValues: !!networkTermsResponse?.values,
+      valuesCount: networkTermsResponse?.values?.length,
+      headerRow: networkTermsResponse?.values?.[0],
+      allRows: networkTermsResponse?.values?.slice(1),
+      networks: networkTermsResponse?.values?.slice(1).map(row => row[0]).filter(Boolean)
+    });
+
+    // Process each response with error handling
     try {
-      if (!financialResponse?.values) {
-        console.error('No financial resources data received');
-        result.rawData.financialResources = [];
-        result.cashFlowData = {
+      // Process main performance data
+      processedData.performanceData = mainResponse?.values?.slice(1) || [];
+      console.log('Processed performance data:', processedData.performanceData.length);
+
+      // Process cash flow data
+      console.log('Financial Resources Response:', {
+        hasValues: !!financialResponse?.values,
+        valuesLength: financialResponse?.values?.length,
+        firstRow: financialResponse?.values?.[0],
+        sampleRows: financialResponse?.values?.slice(0, 3),
+        fullResponse: financialResponse
+      });
+      
+      if (!financialResponse?.values || financialResponse.values.length < 2) {
+        console.error('Invalid Financial Resources data:', financialResponse);
+        processedData.cashFlowData = {
           availableCash: 0,
           creditAvailable: 0,
           totalAvailable: 0,
           financialResources: []
         };
       } else {
-        // Process the data using the imported function
-        const processedData = processCashFlowData(financialResponse.values);
-        result.rawData.financialResources = processedData.financialResources;
-        result.cashFlowData = processedData;
+        try {
+          // Log the raw data before processing
+          console.log('Raw Financial Resources data:', {
+            headerRow: financialResponse.values[0],
+            dataRows: financialResponse.values.slice(1),
+            rowCount: financialResponse.values.length - 1
+          });
+
+          processedData.cashFlowData = processCashFlowData(financialResponse);
+          console.log('Processed cash flow data:', {
+            hasData: !!processedData.cashFlowData,
+            availableCash: processedData.cashFlowData?.availableCash,
+            creditAvailable: processedData.cashFlowData?.creditAvailable,
+            totalAvailable: processedData.cashFlowData?.totalAvailable,
+            resourcesCount: processedData.cashFlowData?.financialResources?.length,
+            resources: processedData.cashFlowData?.financialResources
+          });
+        } catch (error) {
+          console.error('Error processing cash flow data:', error);
+          processedData.cashFlowData = {
+            availableCash: 0,
+            creditAvailable: 0,
+            totalAvailable: 0,
+            financialResources: []
+          };
+        }
       }
-    } catch (error) {
-      console.error('Error processing financial resources:', error);
-      result.rawData.financialResources = [];
-      result.cashFlowData = {
-        availableCash: 0,
-        creditAvailable: 0,
-        totalAvailable: 0,
-        financialResources: []
-      };
-    }
 
-    // Process Invoices - Updated with fixes
-    console.log('Processing invoices:', {
-      hasValues: !!invoicesResponse?.values,
-      rowCount: invoicesResponse?.values?.length,
-      sampleRow: invoicesResponse?.values?.[1]
-    });
+      // Process payroll data
+      processedData.payrollData = payrollResponse?.values?.slice(1) || [];
+      processedData.rawData.payroll = processedData.payrollData;
+      console.log('Processed payroll data:', processedData.payrollData.length);
 
-    // Single, consolidated invoice processing
-    if (invoicesResponse?.values) {
-      console.log('Raw invoice data:', {
-        headers: invoicesResponse.values[0],
-        firstRow: invoicesResponse.values[1],
-        totalRows: invoicesResponse.values.length
+      // Process network terms
+      console.log('Network Terms Response:', {
+        hasResponse: !!networkTermsResponse,
+        hasValues: !!networkTermsResponse?.values,
+        valuesLength: networkTermsResponse?.values?.length,
+        firstRow: networkTermsResponse?.values?.[0],
+        sampleRows: networkTermsResponse?.values?.slice(0, 3),
+        fullResponse: networkTermsResponse
       });
-      
-      result.rawData.invoices = invoicesResponse.values
-        .slice(1) // Skip header row
-        .filter(row => row.length >= 6) // Ensure we have all required columns
-        .map(row => {
-          const cleanDateString = (str) => {
-            if (!str) return '';
-            if (str.includes('$') || str.includes(',')) return '';
-            return str.trim();
-          };
 
-          const parseAmount = (str) => {
-            if (!str) return 0;
-            const cleaned = str.toString().replace(/[$,]/g, '');
-            const parsed = parseFloat(cleaned);
-            return isNaN(parsed) ? 0 : parsed;
-          };
+      processedData.networkTerms = await processNetworkTermsData(networkTermsResponse);
+      console.log('Processed Network Terms:', {
+        count: processedData.networkTerms.length,
+        networks: processedData.networkTerms.map(term => term.networkName),
+        sample: processedData.networkTerms[0],
+        allTerms: processedData.networkTerms
+      });
 
-          const invoice = {
-            Network: row[0]?.trim() || '',
-            PeriodStart: cleanDateString(row[1]),
-            PeriodEnd: cleanDateString(row[2]),
-            DueDate: cleanDateString(row[3]),
-            Amount: parseAmount(row[4]),
-            Status: row[6]?.trim() || 'Unpaid',  // Use actual status if available
-            InvoiceNumber: row[5]?.toString().trim() || '',
-            paid: false // Default to unpaid
-          };
-
-          console.log('Processed invoice:', invoice);
-          return invoice;
-        })
-        .filter(row => row.Network && row.Amount > 0); // Only keep rows with a network name and positive amount
-
+      // Process invoices
+      processedData.rawData.invoices = invoicesResponse?.values?.slice(1) || [];
       console.log('Processed invoices:', {
-        count: result.rawData.invoices.length,
-        sample: result.rawData.invoices[0],
-        totalAmount: result.rawData.invoices.reduce((sum, inv) => sum + (inv.Amount || 0), 0),
-        fields: result.rawData.invoices[0] ? Object.keys(result.rawData.invoices[0]) : []
-      });
-    } else {
-      console.log('No invoice data found in response');
-      result.rawData.invoices = [];
-    }
-
-    // Process Payroll
-    result.rawData.payroll = Array.isArray(payrollResponse?.values)
-      ? payrollResponse.values.slice(1).map(row => ({
-          Type: row[0]?.trim() || '',
-          Description: row[1]?.trim() || '',
-          Amount: parseFloat((row[2] || '0').replace(/[$,]/g, '')),
-          DueDate: row[3]?.trim() || ''
-        }))
-      : [];
-
-    // Process Media Buyer Spend
-    result.rawData.mediaBuyerSpend = mediaBuyerResponse?.values || [];
-
-    // Process P&L Data
-    result.plData = await processPLData(batchResponse);
-
-    // Process Monthly Expenses data
-    if (monthlyExpensesResponse?.values && monthlyExpensesResponse.values.length > 1) {
-      console.log('Raw Monthly Expenses data:', {
-        headers: monthlyExpensesResponse.values[0],
-        firstRow: monthlyExpensesResponse.values[1],
-        totalRows: monthlyExpensesResponse.values.length
+        count: processedData.rawData.invoices.length,
+        sample: processedData.rawData.invoices.slice(0, 3)
       });
 
-      result.rawData.monthlyExpenses = monthlyExpensesResponse.values
-        .slice(1) // Skip header row
-        .map(row => ({
-          Category: row[0]?.trim() || '',
-          Description: row[1]?.trim() || '',
-          Amount: parseFloat((row[2] || '0').replace(/[$,]/g, '')),
-          Month: row[3]?.trim() || ''
-        }))
-        .filter(row => row.Category && row.Amount > 0);
+      // Calculate outstanding invoices
+      const outstandingInvoices = processedData.rawData.invoices.reduce((total, invoice) => {
+        if (!invoice || invoice.length < 6) return total;
+        
+        const amount = parseFloat((invoice[5] || '0').replace(/[$,]/g, ''));
+        const status = invoice[4]?.toLowerCase() || '';
+        
+        // Only count invoices that are not paid
+        if (status !== 'paid' && !isNaN(amount)) {
+          return total + amount;
+        }
+        return total;
+      }, 0);
 
-      console.log('Processed Monthly Expenses:', {
-        count: result.rawData.monthlyExpenses.length,
-        sample: result.rawData.monthlyExpenses[0],
-        totalAmount: result.rawData.monthlyExpenses.reduce((sum, exp) => sum + exp.Amount, 0),
-        allExpenses: result.rawData.monthlyExpenses
-      });
-    } else {
-      console.log('No Monthly Expenses data found in response');
-      result.rawData.monthlyExpenses = [];
-    }
+      processedData.cashFlowData.outstandingInvoices = outstandingInvoices;
+      console.log('Calculated outstanding invoices:', outstandingInvoices);
 
-    // Calculate daily expenses from monthly expenses
-    const dailyExpenses = {};
-    if (result.rawData.monthlyExpenses?.length > 0) {
-      // Hard code daily expenses amount
-      const dailyAmount = 1946.85;
-      
-      // Set the daily amount for each category
-      result.rawData.monthlyExpenses.forEach(expense => {
-        dailyExpenses[expense.Category] = dailyAmount;
+      // Process Tradeshift data
+      processedData.tradeshiftData = await processTradeShiftData(tradeshiftResponse);
+      console.log('Processed Tradeshift data:', {
+        count: processedData.tradeshiftData.length,
+        sample: processedData.tradeshiftData[0],
+        allData: processedData.tradeshiftData
       });
 
-      console.log('Daily expenses calculated:', {
-        dailyAmount,
-        categories: Object.keys(dailyExpenses)
-      });
-    }
-
-    // Process performance data
-    if (mainResponse?.values) {
-      const headers = mainResponse.values[0];
-      
-      console.log('Raw Data Analysis:', {
-        totalRows: mainResponse.values.length,
-        rowLengths: mainResponse.values.slice(1).reduce((acc, row) => {
-          acc[row.length] = (acc[row.length] || 0) + 1;
-          return acc;
-        }, {}),
-        dateRange: {
-          first: mainResponse.values[1]?.[0],
-          last: mainResponse.values[mainResponse.values.length - 1]?.[0]
+      // Process P&L data
+      const plData = await processPLData({
+        data: {
+          valueRanges: [
+            februaryResponse,
+            januaryResponse,
+            decemberResponse,
+            novemberResponse,
+            octoberResponse,
+            septemberResponse,
+            augustResponse,
+            julyResponse,
+            juneResponse
+          ]
         }
       });
+      processedData.plData = plData;
+      console.log('Processed P&L data:', !!processedData.plData);
 
-      const performanceData = mainResponse.values
-        .slice(1)
-        .map((row) => {
-          if (row.length < 10) {
-            console.log('Short row:', { length: row.length, data: row });
-          }
-
-          // Calculate total daily expenses for this row
-          const totalDailyExpenses = Object.values(dailyExpenses).reduce((sum, amount) => sum + amount, 0);
-
-          // Calculate base profit (Revenue - Ad Spend)
-          const revenue = parseFloat((row[7] || '0').replace(/[$,]/g, '')) || 0;
-          const adSpend = parseFloat((row[4] || '0').replace(/[$,]/g, '')) || 0;
-          const baseProfit = revenue - adSpend;
-
-          // Calculate MB Commission (10% of base profit)
-          const mbCommission = baseProfit * 0.1;
-
-          // Calculate Ringba Cost (from row[8])
-          const ringbaCost = parseFloat((row[8] || '0').replace(/[$,]/g, '')) || 0;
-
-          // Calculate Final Profit (Base Profit - MB Commission - Ringba Cost - Daily Expenses)
-          const finalProfit = baseProfit - mbCommission - ringbaCost - totalDailyExpenses;
-
-          // Calculate ROI
-          const roi = adSpend > 0 ? (finalProfit / adSpend) * 100 : 0;
-
-          return {
-            Date: row[0] || '',
-            Network: row[1] || '',
-            Offer: row[2] || '',
-            'Media Buyer': row[3] || '',
-            'Ad Spend': adSpend,
-            'Ad Revenue': parseFloat((row[5] || '0').replace(/[$,]/g, '')) || 0,
-            'Comment Revenue': parseFloat((row[6] || '0').replace(/[$,]/g, '')) || 0,
-            'Total Revenue': revenue,
-            'Base Profit': baseProfit,
-            'MB Commission': mbCommission,
-            'Ringba Cost': ringbaCost,
-            'Daily Expenses': totalDailyExpenses,
-            'Final Profit': finalProfit,
-            'ROI': roi,
-            'Expected Payment': row[9] || '',
-            'Running Balance': parseFloat((row[10] || '0').replace(/[$,]/g, '')) || 0,
-            'Ad Account': row[11] || ''
-          };
-        })
-        .filter(row => row.Date);
-
-      result.performanceData = performanceData;
+    } catch (processingError) {
+      console.error('Error processing data:', processingError);
+      // Continue with partial data rather than failing completely
     }
 
-    // Process Network Payments
-    const networkPayments = Array.isArray(networkPaymentsResponse?.values)
-      ? networkPaymentsResponse.values.slice(1).map(row => ({
-          network: row[0]?.trim() || '',
-          offer: row[1]?.trim() || '',
-          paymentTerms: row[2]?.trim() || '',
-          dailyCap: parseFloat((row[3] || '0').replace(/[$,]/g, '')),
-          dailyBudget: parseFloat((row[4] || '0').replace(/[$,]/g, '')),
-          currentExposure: parseFloat((row[5] || '0').replace(/[$,]/g, '')),
-          availableBudget: parseFloat((row[6] || '0').replace(/[$,]/g, '')),
-          riskLevel: row[7]?.trim() || ''
-        }))
-      : [];
-
-    result.networkPaymentsData = networkPayments;
-
-    // Process Network Terms with more detailed logging
-    if (networkTermsResponse?.values) {
-      result.networkTerms = networkTermsResponse.values
-        .map(row => {
-          if (!row || row.length < 9) {
-            console.log('Skipping invalid network terms row:', row);
-            return null;
-          }
-
-          const runningTotal = parseFloat((row[7] || '0').replace(/[$,]/g, ''));
-          
-          if (runningTotal <= 0) {
-            console.log('Skipping network term with zero or negative running total:', {
-              network: row[0],
-              runningTotal
-            });
-            return null;
-          }
-
-          const lastDate = mainResponse?.values
-            ?.slice(1)
-            ?.sort((a, b) => new Date(b[0]) - new Date(a[0]))?.[0]?.[0];
-
-          const networkTerm = {
-            network: row[0]?.trim() || '',
-            offer: row[1]?.trim() || '',
-            payPeriod: row[2]?.trim() || '',
-            netTerms: row[3]?.trim() || '',
-            periodStart: row[4]?.trim() || '',
-            periodEnd: row[5]?.trim() || '',
-            invoiceDue: row[6]?.trim() || '',
-            runningTotal,
-            dailyCap: row[8] === 'Uncapped' ? 'Uncapped' : 
-                     row[8] === 'N/A' ? 'N/A' :
-                     row[8] === 'TBC' ? 'TBC' :
-                     parseFloat((row[8] || '0').replace(/[$,]/g, '')),
-            lastDate
-          };
-
-          console.log('Processed network term:', networkTerm);
-          return networkTerm;
-        })
-        .filter(Boolean);
-
-      result.networkTerms.sort((a, b) => b.runningTotal - a.runningTotal);
-
-      console.log('Final Network Terms:', {
-        count: result.networkTerms.length,
-        sample: result.networkTerms[0],
-        totalExposure: result.networkTerms.reduce((sum, term) => sum + (term.runningTotal || 0), 0),
-        allData: result.networkTerms
-      });
-    } else {
-      result.networkTerms = [];
-    }
-
-    console.log('API Response Structure:', {
-      hasNetworkTerms: !!result.networkTerms,
-      networkTermsCount: result.networkTerms.length,
-      allKeys: Object.keys(result)
+    console.log('Final processed data structure:', {
+      performanceDataLength: processedData.performanceData.length,
+      hasCashFlowData: !!processedData.cashFlowData,
+      cashFlowDataKeys: processedData.cashFlowData ? Object.keys(processedData.cashFlowData) : [],
+      payrollDataLength: processedData.payrollData.length,
+      networkTermsLength: processedData.networkTerms.length,
+      invoicesLength: processedData.rawData.invoices.length,
+      tradeshiftDataLength: processedData.tradeshiftData.length,
+      hasPlData: !!processedData.plData
     });
 
-    console.log('Raw Sheet Response:', {
-      totalRows: mainResponse?.values?.length,
-      firstRow: mainResponse?.values?.[1],
-      lastRow: mainResponse?.values?.[mainResponse?.values?.length - 1],
-      dateRange: {
-        first: mainResponse?.values?.[1]?.[0],
-        last: mainResponse?.values?.[mainResponse?.values?.length - 1]?.[0]
-      }
-    });
-
-    // Process financial resources data
-    const financialResourcesRange = batchResponse.data.valueRanges.find(range => range.range.includes('Financial Resources'));
-    const cashFlowData = processCashFlowData(financialResourcesRange?.values || []);
-
-    // Process network terms data
-    const networkTermsRange = batchResponse.data.valueRanges.find(range => range.range.includes('Network Terms'));
-    let networkTermsData = null;
-    if (networkTermsRange?.values) {
-      networkTermsData = {
-        allData: networkTermsRange.values.slice(1).map(row => ({
-          network: row[0] || '',
-          terms: row[1] || '',
-          exposure: parseFloat((row[2] || '0').replace(/[$,]/g, '')),
-          runningTotal: parseFloat((row[3] || '0').replace(/[$,]/g, '')),
-          status: row[4] || '',
-          notes: row[5] || ''
-        })),
-        totalExposure: networkTermsRange.values.slice(1).reduce((total, row) => {
-          return total + parseFloat((row[3] || '0').replace(/[$,]/g, ''));
-        }, 0)
-      };
-    }
-
-    // Process performance data
-    const performanceRange = batchResponse.data.valueRanges.find(range => range.range.includes('Main Sheet'));
-    const performanceData = performanceRange?.values?.slice(1) || [];
-
-    // Add network terms to cash flow data
-    if (networkTermsData) {
-      cashFlowData.networkTerms = networkTermsData;
-    }
-
-    // Return all data
-    return res.status(200).json({
-      performanceData: performanceData || [],
-      rawData: {
-        invoices: result.rawData.invoices || [],
-        payroll: result.rawData.payroll || [],
-        mediaBuyerSpend: result.rawData.mediaBuyerSpend || [],
-        networkTerms: result.rawData.networkTerms || [],
-        monthlyExpenses: result.rawData.monthlyExpenses || []
-      },
-      cashFlowData: result.cashFlowData || {},
-      networkTerms: result.networkTerms || [],
-      tradeshiftData: result.tradeshiftData || [],
-      plData: result.plData || {},
-      success: true
-    });
+    return res.status(200).json(processedData);
   } catch (error) {
-    console.error('API Error:', error);
-    return res.status(500).json({ error: error.message });
+    console.error('API Error:', {
+      message: error.message,
+      stack: error.stack,
+      name: error.name,
+      code: error.code,
+      response: error.response?.data,
+      status: error.response?.status,
+      statusText: error.response?.statusText
+    });
+    return res.status(500).json({ 
+      error: 'Failed to fetch dashboard data',
+      details: error.message,
+      environment: process.env.NODE_ENV
+    });
   }
 }
