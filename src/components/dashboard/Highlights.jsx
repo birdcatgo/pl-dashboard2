@@ -19,6 +19,39 @@ const formatPercent = (value) => {
   return `${Number(value).toFixed(1)}%`;
 };
 
+const getDateRangeText = (period) => {
+  const now = new Date();
+  const startDate = new Date();
+  
+  switch (period) {
+    case '7d':
+      startDate.setDate(now.getDate() - 7);
+      break;
+    case '30d':
+      startDate.setDate(now.getDate() - 30);
+      break;
+    case '90d':
+      startDate.setDate(now.getDate() - 90);
+      break;
+    case '180d':
+      startDate.setDate(now.getDate() - 180);
+      break;
+    case '365d':
+      startDate.setDate(now.getDate() - 365);
+      break;
+    case 'ytd':
+      startDate.setMonth(0, 1);
+      break;
+    case 'all':
+      startDate.setFullYear(2025, 0, 1);
+      break;
+    default:
+      startDate.setDate(now.getDate() - 7);
+  }
+
+  return `${format(startDate, 'MMM d')} to ${format(now, 'MMM d, yyyy')}`;
+};
+
 const getTrendStatus = (data) => {
   if (!data || data.length < 2) return 'neutral';
   
@@ -87,39 +120,6 @@ const TrendGraph = ({ data, width = 100, height = 36 }) => {
 const TimePeriodSelector = ({ selectedPeriod, onPeriodChange }) => {
   const [isOpen, setIsOpen] = useState(false);
   const [activeGroup, setActiveGroup] = useState('quick');
-
-  const getDateRangeText = (period) => {
-    const now = new Date();
-    const startDate = new Date();
-    
-    switch (period) {
-      case '7d':
-        startDate.setDate(now.getDate() - 7);
-        break;
-      case '30d':
-        startDate.setDate(now.getDate() - 30);
-        break;
-      case '90d':
-        startDate.setDate(now.getDate() - 90);
-        break;
-      case '180d':
-        startDate.setDate(now.getDate() - 180);
-        break;
-      case '365d':
-        startDate.setDate(now.getDate() - 365);
-        break;
-      case 'ytd':
-        startDate.setMonth(0, 1);
-        break;
-      case 'all':
-        startDate.setFullYear(2025, 0, 1);
-        break;
-      default:
-        startDate.setDate(now.getDate() - 7);
-    }
-
-    return `${format(startDate, 'MMM d')} to ${format(now, 'MMM d, yyyy')}`;
-  };
 
   const periods = {
     quick: [
