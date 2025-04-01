@@ -55,13 +55,23 @@ const getDateRangeText = (period) => {
 const getTrendStatus = (data) => {
   if (!data || data.length < 2) return 'neutral';
   
-  const lastValue = data[data.length - 1];
-  const previousValue = data[data.length - 2];
-  const change = ((lastValue - previousValue) / Math.abs(previousValue)) * 100;
+  // Calculate the average of the last 3 values (or all if less than 3)
+  const recentValues = data.slice(-3);
+  const avgRecentValue = recentValues.reduce((sum, val) => sum + val, 0) / recentValues.length;
   
+  // Calculate the average of the previous 3 values (or all if less than 3)
+  const previousValues = data.slice(-6, -3);
+  const avgPreviousValue = previousValues.length > 0 ? 
+    previousValues.reduce((sum, val) => sum + val, 0) / previousValues.length : 
+    avgRecentValue;
+  
+  // Calculate percentage change
+  const change = ((avgRecentValue - avgPreviousValue) / Math.abs(avgPreviousValue)) * 100;
+  
+  // Determine trend status
   if (change > 5) return 'improving';
   if (change < -5) return 'volatile';
-  if (lastValue === 0) return 'new';
+  if (Math.abs(change) <= 5) return 'neutral';
   return 'neutral';
 };
 
