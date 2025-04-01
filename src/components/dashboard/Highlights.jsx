@@ -620,10 +620,14 @@ const Highlights = ({ performanceData }) => {
         <div className="bg-[#F5F0FF] rounded-lg shadow-sm border border-gray-100 p-5">
           <div className="flex items-center gap-2 mb-2">
             <span className="text-xl">⚖️</span>
-            <h3 className="text-sm font-medium text-gray-500">Average ROI</h3>
+            <h3 className="text-sm font-medium text-gray-500">Overall ROI</h3>
           </div>
           <div className="text-2xl font-bold text-purple-700">
-            {formatPercent(data.reduce((sum, row) => sum + row.ROI, 0) / data.length)}
+            {(() => {
+              const totalRevenue = data.reduce((sum, row) => sum + row.revenue, 0);
+              const totalSpend = data.reduce((sum, row) => sum + row.adSpend, 0);
+              return totalSpend > 0 ? formatPercent(((totalRevenue - totalSpend) / totalSpend) * 100) : '0%';
+            })()}
           </div>
         </div>
       </div>
