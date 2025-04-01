@@ -11,26 +11,43 @@ async function processPLData(batchResponse) {
     months.forEach((month, index) => {
       const monthRange = valueRanges[index + 6];
       if (monthRange?.values) {
-        monthlyData[month] = monthRange.values.slice(1).map(row => ({
+        const rows = monthRange.values.slice(1).map(row => ({
           DESCRIPTION: row[0] || '',
           AMOUNT: parseFloat((row[1] || '0').replace(/[$,]/g, '')),
           CATEGORY: row[2] || '',
           'Income/Expense': row[3] || ''
         }));
 
-        const monthData = monthlyData[month];
-        const income = monthData
-          .filter(row => row['Income/Expense'] === 'Income')
-          .reduce((sum, row) => sum + (row.AMOUNT || 0), 0);
-        const expenses = monthData
-          .filter(row => row['Income/Expense'] === 'Expense')
-          .reduce((sum, row) => sum + Math.abs(row.AMOUNT || 0), 0);
+        const expenseData = rows.filter(row => row['Income/Expense'] === 'Expense');
+        const incomeData = rows.filter(row => row['Income/Expense'] === 'Income');
+
+        const totalIncome = incomeData.reduce((sum, row) => sum + (row.AMOUNT || 0), 0);
+        const totalExpenses = expenseData.reduce((sum, row) => sum + Math.abs(row.AMOUNT || 0), 0);
+
+        // Group expenses by category
+        const categories = expenseData.reduce((acc, expense) => {
+          const category = expense.CATEGORY || 'Uncategorized';
+          if (!acc[category]) {
+            acc[category] = [];
+          }
+          acc[category].push(expense);
+          return acc;
+        }, {});
+
+        monthlyData[month] = {
+          expenseData,
+          incomeData,
+          categories,
+          totalIncome,
+          totalExpenses,
+          rows
+        };
 
         summaryData.push({
           Month: month,
-          Income: income,
-          Expenses: expenses,
-          NetProfit: income - expenses
+          Income: totalIncome,
+          Expenses: totalExpenses,
+          NetProfit: totalIncome - totalExpenses
         });
       }
     });
@@ -73,7 +90,7 @@ export default async function handler(req, res) {
         'September!A:D',
         'October!A:D',
         'November!A:D',
-        'Dcember!A:D',
+        'December!A:D',
         'Network Payment Schedule!A:H',
       ],
     });

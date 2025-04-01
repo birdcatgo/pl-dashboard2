@@ -38,8 +38,8 @@ const parseAmount = (amount) => {
 const SummaryTable = ({ summaryData }) => {
   // Helper function to get the year for a month
   const getYearForMonth = (month) => {
-    // January and February are in 2025, all other months are in 2024
-    return ['January', 'February'].includes(month) ? 2025 : 2024;
+    // January, February, and March are in 2025, all other months are in 2024
+    return ['January', 'February', 'March'].includes(month) ? 2025 : 2024;
   };
 
   return (
@@ -63,7 +63,7 @@ const SummaryTable = ({ summaryData }) => {
               {summaryData.map((row, index) => (
                 <tr key={index} className="hover:bg-gray-50">
                   <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                    {`${row.Month} ${getYearForMonth(row.Month)}`}
+                    {row.Month}
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap text-sm text-right text-green-600">{formatCurrency(row.Income)}</td>
                   <td className="px-6 py-4 whitespace-nowrap text-sm text-right text-red-600">{formatCurrency(row.Expenses)}</td>
@@ -85,7 +85,7 @@ const MonthlyDetails = ({ monthData, month }) => {
   if (!monthData) return null;
 
   const { incomeData, categories, totalIncome, totalExpenses } = monthData;
-  const year = ['January', 'February'].includes(month) ? 2025 : 2024;
+  const year = ['January', 'February', 'March'].includes(month) ? 2025 : 2024;
 
   return (
     <div className="grid grid-cols-2 gap-6">
@@ -101,7 +101,9 @@ const MonthlyDetails = ({ monthData, month }) => {
         </CardHeader>
         <CardContent className="pt-6">
           <div className="space-y-3">
-            {incomeData.map((item, index) => (
+            {incomeData
+              .sort((a, b) => parseAmount(b.AMOUNT) - parseAmount(a.AMOUNT))
+              .map((item, index) => (
               <div 
                 key={index} 
                 className="flex justify-between items-center p-3 bg-white hover:bg-gray-50 rounded-lg border"
@@ -133,6 +135,11 @@ const MonthlyDetails = ({ monthData, month }) => {
                 sum + parseAmount(item.AMOUNT), 0
               );
               
+              // Sort items within each category by amount
+              const sortedItems = [...items].sort((a, b) => 
+                parseAmount(b.AMOUNT) - parseAmount(a.AMOUNT)
+              );
+              
               return (
                 <div key={category} className="border rounded-lg shadow-sm">
                   <button
@@ -153,7 +160,7 @@ const MonthlyDetails = ({ monthData, month }) => {
                   {expandedCategory === category && (
                     <div className="border-t p-4 bg-gray-50">
                       <div className="space-y-2">
-                        {items.map((item, index) => (
+                        {sortedItems.map((item, index) => (
                           <div 
                             key={index} 
                             className="flex justify-between items-center p-2 bg-white rounded-md shadow-sm"
@@ -179,7 +186,7 @@ const MonthlyDetails = ({ monthData, month }) => {
 
 const ExpenseCategoriesTrend = ({ monthlyData }) => {
   const getYearForMonth = (month) => {
-    return ['January', 'February'].includes(month) ? 2025 : 2024;
+    return ['January', 'February', 'March'].includes(month) ? 2025 : 2024;
   };
 
   // Define category groupings
@@ -211,7 +218,7 @@ const ExpenseCategoriesTrend = ({ monthlyData }) => {
   }, []).sort();
 
   // Get all months in chronological order and take only the most recent 6
-  const monthOrder = ['June', 'July', 'August', 'September', 'October', 'November', 'December', 'January', 'February'];
+  const monthOrder = ['June', 'July', 'August', 'September', 'October', 'November', 'December', 'January', 'February', 'March'];
   const months = Object.keys(monthlyData)
     .sort((a, b) => monthOrder.indexOf(b) - monthOrder.indexOf(a))
     .slice(0, 6)
@@ -334,8 +341,8 @@ const PLWrapper = ({ plData, monthlyData, selectedMonth, onMonthChange }) => {
   const getMonthWeight = (month) => {
     const monthOrder = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
     const monthIndex = monthOrder.indexOf(month);
-    // For 2025 months (January and February), add 12 to their index
-    const yearOffset = ['January', 'February'].includes(month) ? 12 : 0;
+    // For 2025 months (January, February, and March), add 12 to their index
+    const yearOffset = ['January', 'February', 'March'].includes(month) ? 12 : 0;
     return monthIndex + yearOffset;
   };
 
@@ -368,7 +375,7 @@ const PLWrapper = ({ plData, monthlyData, selectedMonth, onMonthChange }) => {
               {Object.keys(monthlyData)
                 .sort((a, b) => getMonthWeight(b) - getMonthWeight(a))
                 .map(month => {
-                  const year = ['January', 'February'].includes(month) ? '2025' : '2024';
+                  const year = ['January', 'February', 'March'].includes(month) ? '2025' : '2024';
                   return (
                     <SelectItem 
                       key={month} 

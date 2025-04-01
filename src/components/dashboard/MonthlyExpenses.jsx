@@ -4,57 +4,76 @@ import _ from 'lodash';
 
 const formatCurrency = (value) => {
   if (!value) return '$0';
+  const numValue = typeof value === 'string' ? 
+    parseFloat(value.replace(/[^0-9.-]/g, '')) : value;
+  
   return new Intl.NumberFormat('en-US', {
     style: 'currency',
     currency: 'USD',
     minimumFractionDigits: 0,
     maximumFractionDigits: 0
-  }).format(value);
+  }).format(numValue);
 };
 
-const MonthlyExpenses = ({ expensesData }) => {
+const parseAmount = (amount) => {
+  if (!amount) return 0;
+  if (typeof amount === 'number') return amount;
+  if (typeof amount === 'string') {
+    return parseFloat(amount.replace(/[$,]/g, '') || 0);
+  }
+  return 0;
+};
+
+const MonthlyExpenses = ({ monthlyData }) => {
+  // Get the most recent month's data
+  const currentMonth = React.useMemo(() => {
+    if (!monthlyData) return null;
+    
+    const months = Object.keys(monthlyData);
+    if (months.length === 0) return null;
+    
+    // Sort months to get the most recent one
+    const monthOrder = ['March', 'February', 'January', 'December', 'November', 'October', 'September', 'August', 'July', 'June'];
+    const sortedMonths = months.sort((a, b) => monthOrder.indexOf(a) - monthOrder.indexOf(b));
+    
+    return monthlyData[sortedMonths[0]];
+  }, [monthlyData]);
+
   // Debug logging
   React.useEffect(() => {
     console.log('MonthlyExpenses received data:', {
-      hasData: !!expensesData,
-      dataLength: expensesData?.length,
-      sampleData: expensesData?.[0],
-      categories: expensesData ? _.uniq(expensesData.map(e => e.Category)) : []
+      hasData: !!monthlyData,
+      months: monthlyData ? Object.keys(monthlyData) : [],
+      currentMonthData: currentMonth
     });
-  }, [expensesData]);
+  }, [monthlyData, currentMonth]);
 
-  // Group expenses by category
+  // Group expenses by category and sort by amount
   const groupedExpenses = React.useMemo(() => {
-    if (!expensesData?.length) {
+    if (!currentMonth?.categories) {
       console.log('No expenses data available');
       return [];
     }
 
-    const grouped = _.chain(expensesData)
-      .groupBy('Category')
-      .map((expenses, category) => ({
+    return _.chain(Object.entries(currentMonth.categories))
+      .map(([category, expenses]) => ({
         category,
-        expenses,
-        total: _.sumBy(expenses, 'Amount')
+        expenses: expenses.map(expense => ({
+          ...expense,
+          Amount: parseAmount(expense.AMOUNT)
+        })).sort((a, b) => b.Amount - a.Amount), // Sort expenses within category by amount
+        total: _.sumBy(expenses, expense => parseAmount(expense.AMOUNT))
       }))
-      .orderBy(['total'], ['desc'])
+      .orderBy(['total'], ['desc']) // Sort categories by total amount
       .value();
-
-    console.log('Grouped expenses:', {
-      groupCount: grouped.length,
-      categories: grouped.map(g => g.category),
-      totalAmount: _.sumBy(grouped, 'total')
-    });
-
-    return grouped;
-  }, [expensesData]);
+  }, [currentMonth]);
 
   // Calculate total expenses
   const totalExpenses = React.useMemo(() => {
-    return _.sumBy(expensesData, 'Amount');
-  }, [expensesData]);
+    return currentMonth?.totalExpenses || 0;
+  }, [currentMonth]);
 
-  if (!expensesData?.length) {
+  if (!currentMonth?.categories || Object.keys(currentMonth.categories).length === 0) {
     return (
       <Card>
         <CardHeader>
@@ -71,8 +90,9 @@ const MonthlyExpenses = ({ expensesData }) => {
 
   return (
     <Card>
-      <CardHeader>
+      <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
         <CardTitle>Monthly Expenses</CardTitle>
+        <span className="text-xl font-bold text-red-600">{formatCurrency(totalExpenses)}</span>
       </CardHeader>
       <CardContent>
         <div className="overflow-x-auto">
@@ -85,15 +105,15 @@ const MonthlyExpenses = ({ expensesData }) => {
               </tr>
             </thead>
             <tbody className="bg-white divide-y divide-gray-200">
-              {groupedExpenses.map(({ category, expenses }) => (
+              {groupedExpenses.map(({ category, expenses, total }) => (
                 <React.Fragment key={category}>
                   {/* Category Header */}
                   <tr className="bg-gray-50">
                     <td colSpan="2" className="px-6 py-3 text-sm font-medium text-gray-900">
                       {category}
                     </td>
-                    <td className="px-6 py-3 text-sm text-right font-medium text-gray-900">
-                      {formatCurrency(_.sumBy(expenses, 'Amount'))}
+                    <td className="px-6 py-3 text-sm text-right font-medium text-red-600">
+                      {formatCurrency(total)}
                     </td>
                   </tr>
                   {/* Expense Items */}
@@ -101,7 +121,7 @@ const MonthlyExpenses = ({ expensesData }) => {
                     <tr key={index} className="hover:bg-gray-50">
                       <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500"></td>
                       <td className="px-6 py-4 text-sm text-gray-900">
-                        {expense.Description}
+                        {expense.DESCRIPTION || 'No Description'}
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap text-sm text-right text-red-600">
                         {formatCurrency(expense.Amount)}
@@ -111,16 +131,6 @@ const MonthlyExpenses = ({ expensesData }) => {
                 </React.Fragment>
               ))}
             </tbody>
-            <tfoot className="bg-gray-900 text-white">
-              <tr>
-                <td colSpan="2" className="px-6 py-4 text-sm font-medium">
-                  Total Expenses
-                </td>
-                <td className="px-6 py-4 text-sm text-right font-medium">
-                  {formatCurrency(totalExpenses)}
-                </td>
-              </tr>
-            </tfoot>
           </table>
         </div>
       </CardContent>

@@ -4,17 +4,17 @@ import DataTable from '@/components/ui/DataTable';
 import StatusPill from '@/components/ui/StatusPill';
 import { format } from 'date-fns';
 
-const formatCurrency = (value) => {
+  const formatCurrency = (value) => {
   if (!value) return '$0';
-  return new Intl.NumberFormat('en-US', {
-    style: 'currency',
-    currency: 'USD',
-    minimumFractionDigits: 0,
+    return new Intl.NumberFormat('en-US', {
+      style: 'currency',
+      currency: 'USD',
+      minimumFractionDigits: 0,
     maximumFractionDigits: 0
-  }).format(value);
-};
+    }).format(value);
+  };
 
-const formatPercent = (value) => {
+  const formatPercent = (value) => {
   if (!value || isNaN(value)) return '0%';
   return `${Number(value).toFixed(1)}%`;
 };
@@ -421,7 +421,7 @@ const Highlights = ({ performanceData }) => {
       const key = `${row['Media Buyer']}-${normalizedOffer || 'Unknown'}`;
 
       if (!acc[key]) {
-        acc[key] = {
+          acc[key] = {
           mediaBuyer: row['Media Buyer'],
           network: row.Network || 'Unknown',
           offer: normalizedOffer || 'Unknown',
@@ -438,14 +438,14 @@ const Highlights = ({ performanceData }) => {
       acc[key].adSpend += adSpend;
       acc[key].revenue += revenue;
       acc[key].trendData.push(revenue);
-      
-      return acc;
-    }, {});
+
+        return acc;
+      }, {});
 
     // Calculate ROI and Margin
     const finalData = Object.values(groupedData)
-      .map(row => ({
-        ...row,
+          .map(row => ({
+            ...row,
         ROI: row.adSpend ? ((row.revenue - row.adSpend) / row.adSpend) * 100 : 0,
         Margin: row.revenue - row.adSpend
       }))
@@ -658,7 +658,7 @@ const Highlights = ({ performanceData }) => {
               {buyer}
             </button>
           ))}
-        </div>
+                    </div>
         <div className="flex flex-wrap gap-1">
           <button
             onClick={() => setSelectedOffer(null)}

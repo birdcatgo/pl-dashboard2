@@ -282,7 +282,7 @@ const MediaBuyerPL = ({ performanceData }) => {
           <div className="p-6 border-b border-gray-100">
             <div className="flex items-center gap-2">
               <DollarSign className="w-5 h-5 text-green-500" />
-              <h3 className="text-lg font-semibold text-gray-900">Income – March 2024</h3>
+              <h3 className="text-lg font-semibold text-gray-900">Income – {monthlyTotals[0] ? format(monthlyTotals[0].monthStart, 'MMMM yyyy') : ''}</h3>
             </div>
           </div>
           <div className="p-6">
@@ -316,7 +316,7 @@ const MediaBuyerPL = ({ performanceData }) => {
           <div className="p-6 border-b border-gray-100">
             <div className="flex items-center gap-2">
               <Receipt className="w-5 h-5 text-red-500" />
-              <h3 className="text-lg font-semibold text-gray-900">Expenses – March 2024</h3>
+              <h3 className="text-lg font-semibold text-gray-900">Expenses – {monthlyTotals[0] ? format(monthlyTotals[0].monthStart, 'MMMM yyyy') : ''}</h3>
             </div>
           </div>
           <div className="p-6">
