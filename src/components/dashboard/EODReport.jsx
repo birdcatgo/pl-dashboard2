@@ -4,6 +4,7 @@ import { format, startOfMonth, endOfMonth, isSameDay } from 'date-fns';
 import { TrendingUp, DollarSign, Target, ChevronDown, ChevronRight, ChevronDownSquare, ChevronRightSquare, ChevronUpSquare, HelpCircle } from 'lucide-react';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Input } from '../ui/input';
+import { BarChart, Bar, ResponsiveContainer, Tooltip, XAxis } from 'recharts';
 
 const EODReport = ({ performanceData }) => {
   const [expandedDays, setExpandedDays] = useState(new Set());
@@ -276,6 +277,62 @@ const EODReport = ({ performanceData }) => {
           </div>
         </Card>
       </div>
+
+      {/* YTD Profit Trend Graph */}
+      <Card className="p-6">
+        <div className="flex items-center justify-between mb-4">
+          <div>
+            <h3 className="text-lg font-semibold text-gray-900">YTD Profit Trend</h3>
+            <p className="text-sm text-gray-500">Month-over-month profit performance</p>
+          </div>
+          <div className="group relative">
+            <HelpCircle className="w-4 h-4 text-gray-400" />
+            <div className="absolute right-0 bottom-full mb-2 hidden group-hover:block w-64 p-2 bg-gray-900 text-white text-xs rounded shadow-lg">
+              Shows the monthly profit for each month in 2025
+              <div className="absolute right-0 bottom-0 w-2 h-2 bg-gray-900 transform rotate-45"></div>
+            </div>
+          </div>
+        </div>
+        <div className="h-[100px]">
+          <ResponsiveContainer width="100%" height="100%">
+            <BarChart data={yearData
+              .slice()
+              .reverse()
+              .map(month => ({
+                month: format(new Date(month.monthKey + '-01'), 'MMM'),
+                profit: month.totalProfit
+              }))}>
+              <XAxis 
+                dataKey="month"
+                axisLine={false}
+                tickLine={false}
+                tick={{ fontSize: 12, fill: '#6B7280' }}
+                padding={{ left: 20, right: 20 }}
+              />
+              <Bar
+                dataKey="profit"
+                fill="#10B981"
+                radius={[4, 4, 0, 0]}
+              />
+              <Tooltip
+                content={({ active, payload }) => {
+                  if (active && payload && payload.length) {
+                    return (
+                      <div className="bg-white p-2 border rounded shadow-lg">
+                        <p className="text-sm font-medium">{payload[0].payload.month}</p>
+                        <p className="text-sm text-green-600">
+                          {formatCurrency(payload[0].value)}
+                        </p>
+                      </div>
+                    );
+                  }
+                  return null;
+                }}
+              />
+            </BarChart>
+          </ResponsiveContainer>
+        </div>
+      </Card>
 
       {/* Filters */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6 bg-white p-4 rounded-lg border">
