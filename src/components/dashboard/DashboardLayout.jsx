@@ -46,6 +46,7 @@ import StatCard from '@/components/ui/StatCard';
 import DataTable from '@/components/ui/DataTable';
 import ChartContainer from '@/components/ui/ChartContainer';
 import PageHeader from '@/components/ui/PageHeader';
+import { dashboardConfig, getVisibleTabs, mainTabs, moreTabs } from '@/config/dashboardConfig';
 
 export default function DashboardLayout({ 
   performanceData, 
@@ -83,6 +84,10 @@ export default function DashboardLayout({
   const [showMoreMenu, setShowMoreMenu] = useState(false);
   const moreButtonRef = useRef(null);
   const [selectedView, setSelectedView] = useState('overview');
+
+  // Filter visible tabs using the configuration
+  const visibleMainTabs = useMemo(() => getVisibleTabs(mainTabs, 'mainTabs'), []);
+  const visibleMoreTabs = useMemo(() => getVisibleTabs(moreTabs, 'moreTabs'), []);
 
   // Update state when props change
   useEffect(() => {
@@ -147,35 +152,6 @@ export default function DashboardLayout({
     }
     setShowMoreMenu(!showMoreMenu);
   };
-
-  const mainTabs = [
-    { id: 'ai-insights', label: 'AI Insights', icon: Brain },
-    { id: 'media-buyer-pl', label: 'Media Buyer P&L', icon: DollarSign },
-    { id: 'eod-report', label: 'EOD Report', icon: BarChart2 },
-    { id: 'highlights', label: 'Highlights', icon: Target },
-    { id: 'net-profit', label: 'Net Profit', icon: TrendingUp },
-    { id: 'cash-credit', label: 'Credit Line', icon: DollarSign },
-    { id: 'network-caps', label: 'Network Caps', icon: ChartBar },
-    { id: 'thirty-day-challenge', label: '30 Day Challenge', icon: Calendar },
-    { id: 'pl', label: 'Profit & Loss', icon: BarChart2 },
-    { id: 'network', label: 'Offer Performance', icon: Target },
-    { id: 'media-buyers', label: 'Media Buyers', icon: Users }
-  ];
-
-  const moreTabs = [
-    { id: 'overview-v2', label: 'Overview' },
-    { id: 'financial-overview', label: 'Financial Overview' },
-    { id: 'invoices', label: 'Invoices' },
-    { id: 'cash-position', label: 'Cash Position' },
-    { id: 'upcoming-expenses', label: 'Expenses' },
-    { id: 'monthly-expenses', label: 'Monthly Expenses' },
-    { id: 'revenue-flow', label: 'Revenue Flow' },
-    { id: 'cash-flow', label: 'Cash Flow' },
-    { id: 'daily-spend', label: 'Daily Spend' },
-    { id: 'bank-goals', label: 'Profit Distribution' },
-    { id: 'tradeshift', label: 'Tradeshift Cards' },
-    { id: 'breakevenCalculator', label: 'Breakeven Calculator' }
-  ];
 
   const renderTabContent = () => {
     switch (activeTab) {
@@ -479,7 +455,7 @@ export default function DashboardLayout({
           {/* Navigation Tabs */}
           <div className="border-t border-gray-700/50">
             <nav className="flex space-x-8 overflow-x-auto scrollbar-hide">
-              {mainTabs.map((tab) => {
+              {visibleMainTabs.map((tab) => {
                 const Icon = tab.icon;
                 return (
                   <button
@@ -501,49 +477,51 @@ export default function DashboardLayout({
               })}
               
               {/* More dropdown */}
-              <div className="relative flex items-center">
-                <button
-                  ref={moreButtonRef}
-                  onClick={handleMoreClick}
-                  className="whitespace-nowrap py-3 px-1 border-b-2 font-medium text-sm border-transparent text-gray-400 hover:text-gray-200 hover:border-gray-600 flex items-center gap-1 transition-all duration-200"
-                >
-                  More
-                  <ChevronDown className="h-4 w-4" />
-                </button>
-                
-                {showMoreMenu && (
-                  <div 
-                    className="fixed mt-2 w-56 rounded-lg shadow-lg bg-[#1C1F2B] ring-1 ring-black ring-opacity-5 z-50 border border-gray-700/50"
-                    style={{
-                      top: 'var(--menu-top, 64px)',
-                      left: 'var(--menu-left, auto)',
-                      transform: 'translateX(-50%)'
-                    }}
+              {visibleMoreTabs.length > 0 && (
+                <div className="relative flex items-center">
+                  <button
+                    ref={moreButtonRef}
+                    onClick={handleMoreClick}
+                    className="whitespace-nowrap py-3 px-1 border-b-2 font-medium text-sm border-transparent text-gray-400 hover:text-gray-200 hover:border-gray-600 flex items-center gap-1 transition-all duration-200"
                   >
-                    <div className="py-1">
-                      {moreTabs.map((tab) => (
-                        <button
-                          key={tab.id}
-                          onClick={() => {
-                            setActiveTab(tab.id);
-                            setShowMoreMenu(false);
-                          }}
-                          className={`
-                            block w-full text-left px-4 py-2 text-sm transition-all duration-200
-                            ${
-                              activeTab === tab.id
-                                ? 'bg-white/10 text-[#4A90E2]'
-                                : 'text-gray-300 hover:bg-white/5'
-                            }
-                          `}
-                        >
-                          {tab.label}
-                        </button>
-                      ))}
+                    More
+                    <ChevronDown className="h-4 w-4" />
+                  </button>
+                  
+                  {showMoreMenu && (
+                    <div 
+                      className="fixed mt-2 w-56 rounded-lg shadow-lg bg-[#1C1F2B] ring-1 ring-black ring-opacity-5 z-50 border border-gray-700/50"
+                      style={{
+                        top: 'var(--menu-top, 64px)',
+                        left: 'var(--menu-left, auto)',
+                        transform: 'translateX(-50%)'
+                      }}
+                    >
+                      <div className="py-1">
+                        {visibleMoreTabs.map((tab) => (
+                          <button
+                            key={tab.id}
+                            onClick={() => {
+                              setActiveTab(tab.id);
+                              setShowMoreMenu(false);
+                            }}
+                            className={`
+                              block w-full text-left px-4 py-2 text-sm transition-all duration-200
+                              ${
+                                activeTab === tab.id
+                                  ? 'bg-white/10 text-[#4A90E2]'
+                                  : 'text-gray-300 hover:bg-white/5'
+                              }
+                            `}
+                          >
+                            {tab.label}
+                          </button>
+                        ))}
+                      </div>
                     </div>
-                  </div>
-                )}
-              </div>
+                  )}
+                </div>
+              )}
             </nav>
           </div>
         </div>
