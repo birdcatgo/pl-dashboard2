@@ -25,35 +25,89 @@ const MediaBuyerPL = ({ performanceData }) => {
   // Get trend status by comparing current month with previous month
   const getTrendStatus = (monthlyTotals) => {
     if (monthlyTotals.length < 2) return 'stable';
+    
+    // Calculate revenue trend (excluding expenses)
+    const currentRevenue = monthlyTotals[0].totalRevenue;
+    const lastMonthRevenue = monthlyTotals[1].totalRevenue;
+    const revenuePercentChange = ((currentRevenue - lastMonthRevenue) / Math.abs(lastMonthRevenue)) * 100;
+    
+    // Calculate actual profit trend
     const currentProfit = monthlyTotals[0].finalProfitWithDaily;
     const lastMonthProfit = monthlyTotals[1].finalProfitWithDaily;
-    const percentChange = ((currentProfit - lastMonthProfit) / Math.abs(lastMonthProfit)) * 100;
+    const profitPercentChange = ((currentProfit - lastMonthProfit) / Math.abs(lastMonthProfit)) * 100;
     
-    if (percentChange > 5) return 'up';
-    if (percentChange < -5) return 'down';
+    // Determine trend based on revenue
+    if (revenuePercentChange > 5) return 'up';
+    if (revenuePercentChange < -5) return 'down';
     return 'stable';
   };
 
   // Get trend indicator components based on status
-  const getTrendComponents = (status) => {
+  const getTrendComponents = (status, currentProfit, monthlyTotals) => {
+    const currentMonth = monthlyTotals[0];
+    const revenueToDate = currentMonth.totalRevenue;
+    const adSpendToDate = currentMonth.totalAdSpend;
+    const dailyProfit = revenueToDate - adSpendToDate;
+    const dailyROI = adSpendToDate ? (dailyProfit / adSpendToDate) * 100 : 0;
+    
+    // Calculate break-even progress
+    const totalExpenses = currentMonth.mediaBuyerCommission + currentMonth.ringbaExpense + currentMonth.dailyExpenses;
+    const breakEvenPoint = totalExpenses;
+    const progressToBreakEven = (currentProfit / breakEvenPoint) * 100;
+    
+    let statusText = '';
+    let bgGradient = '';
+    
+    if (currentProfit >= 0) {
+      // Already profitable
+      statusText = status === 'up' ? 'Profitable – Up' : 
+                   status === 'down' ? 'Profitable – Down' : 
+                   'Profitable – Stable';
+      bgGradient = 'from-white to-green-50/30';
+    } else {
+      // Not yet profitable
+      if (dailyProfit > 0) {
+        // Positive daily profit
+        if (progressToBreakEven >= 90) {
+          statusText = 'Break Even';
+          bgGradient = 'from-white to-yellow-50/30';
+        } else if (progressToBreakEven >= 50) {
+          statusText = 'On Track For A Profitable Month';
+          bgGradient = 'from-white to-yellow-50/30';
+        } else {
+          statusText = 'On Track to Break Even';
+          bgGradient = 'from-white to-yellow-50/30';
+        }
+      } else {
+        // Negative daily profit
+        statusText = status === 'up' ? 'Revenue Up, Loss MTD' :
+                    status === 'down' ? 'Revenue Down, Loss MTD' :
+                    'Revenue Stable, Loss MTD';
+        bgGradient = 'from-white to-red-50/30';
+      }
+    }
+
     const indicators = {
       up: {
         icon: '✅',
-        text: 'Profitable – Up',
-        bgGradient: 'from-white to-green-50/30',
+        text: statusText,
+        bgGradient: bgGradient,
         lineData: 'M0 15 L100 0',
+        progressToBreakEven: progressToBreakEven
       },
       stable: {
         icon: '🟢',
-        text: 'Profitable – Stable',
-        bgGradient: 'from-white to-gray-50/30',
+        text: statusText,
+        bgGradient: bgGradient,
         lineData: 'M0 10 L100 10',
+        progressToBreakEven: progressToBreakEven
       },
       down: {
-        icon: '⚠️',
-        text: 'Profitable – Down',
-        bgGradient: 'from-white to-yellow-50/30',
+        icon: '📈',
+        text: statusText,
+        bgGradient: bgGradient,
         lineData: 'M0 0 L100 15',
+        progressToBreakEven: progressToBreakEven
       },
     };
     return indicators[status] || indicators.stable;
@@ -220,16 +274,17 @@ const MediaBuyerPL = ({ performanceData }) => {
           <div className="p-6">
             {(() => {
               const trendStatus = getTrendStatus(monthlyTotals);
-              const { icon, text, bgGradient, lineData } = getTrendComponents(trendStatus);
+              const currentProfit = monthlyTotals[0].finalProfitWithDaily;
+              const trendComponents = getTrendComponents(trendStatus, currentProfit, monthlyTotals);
               
               return (
-                <div className={`bg-gradient-to-br ${bgGradient} rounded-xl p-6 transform transition-all duration-200 hover:shadow-lg relative overflow-hidden group`}>
+                <div className={`bg-gradient-to-br ${trendComponents.bgGradient} rounded-xl p-6 transform transition-all duration-200 hover:shadow-lg relative overflow-hidden group`}>
                   {/* Background Line */}
                   <div className="absolute inset-0 opacity-10">
                     <svg className="w-full h-full" preserveAspectRatio="none">
                       <path
-                        d={lineData}
-                        stroke="#28a745"
+                        d={trendComponents.lineData}
+                        stroke={currentProfit >= 0 ? "#28a745" : "#dc2626"}
                         strokeWidth="2"
                         fill="none"
                         className="group-hover:animate-slide-once"
@@ -241,7 +296,7 @@ const MediaBuyerPL = ({ performanceData }) => {
                     {/* Left Column */}
                     <div className="space-y-6">
                       <div>
-                        <div className="text-6xl font-bold text-[#28a745] mb-2">
+                        <div className={`text-6xl font-bold ${currentProfit >= 0 ? 'text-[#28a745]' : 'text-red-600'} mb-2`}>
                           {formatCurrency(monthlyTotals[0].finalProfitWithDaily)}
                         </div>
                         <div className="text-sm font-semibold text-gray-500 uppercase tracking-wider">Profit/Loss</div>
@@ -252,19 +307,55 @@ const MediaBuyerPL = ({ performanceData }) => {
                     <div className="space-y-4">
                       <div>
                         <div className="flex items-center gap-3 mb-2">
-                          <div className="text-4xl font-bold text-[#28a745]">
-                            {formatPercent(monthlyTotals[0].roi)}
+                          <div className="text-4xl font-bold flex items-center gap-2">
+                            <span className={monthlyTotals[0].roi < 0 ? 'text-red-600' : 'text-[#28a745]'}>
+                              {monthlyTotals[0].roi < 0 ? `-${formatPercent(Math.abs(monthlyTotals[0].roi))}` : formatPercent(monthlyTotals[0].roi)}
+                            </span>
+                            <svg 
+                              className={`w-8 h-8 ${monthlyTotals[0].days[0].baseProfit >= 0 ? 'text-[#28a745]' : 'text-red-600'}`} 
+                              fill="none" 
+                              viewBox="0 0 24 24" 
+                              stroke="currentColor"
+                            >
+                              <path 
+                                strokeLinecap="round" 
+                                strokeLinejoin="round" 
+                                strokeWidth={2.5} 
+                                d={monthlyTotals[0].days[0].baseProfit >= 0 ? "M13 7h8m0 0v8m0-8l-8 8-4-4-6 6" : "M13 17h8m0 0v-8m0 8l-8-8-4 4-6-6"} 
+                              />
+                            </svg>
                           </div>
-                          <svg className="w-8 h-8 text-[#28a745]" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6" />
-                          </svg>
                         </div>
                         <div className="text-sm font-semibold text-gray-500 uppercase tracking-wider">ROI</div>
                       </div>
 
+                      {/* Break-even Progress Bar */}
+                      {currentProfit < 0 && (
+                        <div className="space-y-2">
+                          <div className="flex justify-between items-center text-sm">
+                            <span className="text-gray-600">Break-even Progress</span>
+                            <span className="font-medium text-gray-900">{Math.round(trendComponents.progressToBreakEven)}%</span>
+                          </div>
+                          <div className="h-2 bg-gray-100 rounded-full overflow-hidden">
+                            <div 
+                              className={`h-full rounded-full transition-all duration-500 ${
+                                trendComponents.progressToBreakEven >= 90 ? 'bg-green-500' :
+                                trendComponents.progressToBreakEven >= 50 ? 'bg-yellow-500' :
+                                'bg-blue-500'
+                              }`}
+                              style={{ width: `${Math.min(Math.max(trendComponents.progressToBreakEven, 0), 100)}%` }}
+                            />
+                          </div>
+                          <div className="flex justify-between text-xs text-gray-500">
+                            <span>Start</span>
+                            <span>Break-even</span>
+                          </div>
+                        </div>
+                      )}
+
                       <div className="flex items-center gap-2">
-                        <span className="text-xl">{icon}</span>
-                        <span className="text-sm font-medium text-gray-700">{text}</span>
+                        <span className="text-xl">{trendComponents.icon}</span>
+                        <span className="text-sm font-medium text-gray-700">{trendComponents.text}</span>
                       </div>
                     </div>
                   </div>
