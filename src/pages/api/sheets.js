@@ -525,25 +525,34 @@ export default async function handler(req, res) {
       processedData.rawData.invoices = await processInvoiceData(invoicesResponse);
       console.log('Processed invoices:', {
         count: processedData.rawData.invoices.length,
-        sample: processedData.rawData.invoices.slice(0, 3)
+        sample: processedData.rawData.invoices.slice(0, 3),
+        rawResponse: invoicesResponse?.values?.slice(0, 3)
       });
 
       // Calculate outstanding invoices
       const outstandingInvoices = processedData.rawData.invoices.reduce((total, invoice) => {
-        if (!invoice || invoice.length < 6) return total;
+        if (!invoice || !invoice.AmountDue) return total;
         
-        const amount = parseFloat((invoice[5] || '0').replace(/[$,]/g, ''));
-        const status = invoice[4]?.toLowerCase() || '';
+        const amount = parseFloat(invoice.AmountDue.replace(/[$,]/g, ''));
         
         // Only count invoices that are not paid
-        if (status !== 'paid' && !isNaN(amount)) {
+        if (!isNaN(amount)) {
           return total + amount;
         }
         return total;
       }, 0);
 
       processedData.cashFlowData.outstandingInvoices = outstandingInvoices;
-      console.log('Calculated outstanding invoices:', outstandingInvoices);
+      console.log('Calculated outstanding invoices:', {
+        total: outstandingInvoices,
+        invoiceCount: processedData.rawData.invoices.length,
+        sampleInvoices: processedData.rawData.invoices.slice(0, 3).map(inv => ({
+          network: inv.Network,
+          amount: inv.AmountDue,
+          parsedAmount: parseFloat((inv.AmountDue || '0').replace(/[$,]/g, '')),
+          dueDate: inv.DueDate
+        }))
+      });
 
       // Process Tradeshift data
       processedData.tradeshiftData = await processTradeShiftData(tradeshiftResponse);
