@@ -18,43 +18,10 @@ import MultiSelect from '../ui/multi-select';
 import { ChevronDown, ChevronRight, TrendingUp, Award, AlertTriangle, Info, Search, Send } from 'lucide-react';
 import _ from 'lodash';
 import { Checkbox } from '../ui/checkbox';
-import TimePeriodSelector from '@/components/ui/time-period-selector';
-import { startOfDay, endOfDay, subDays, startOfYear, format } from 'date-fns';
+import EnhancedDateSelector from './EnhancedDateSelector';
+import { startOfDay, endOfDay } from 'date-fns';
 
 // Helper functions
-const getDateRangeText = (period) => {
-  const today = new Date();
-  let startDate;
-  let endDate = today;
-
-  switch (period) {
-    case '7d':
-      startDate = subDays(today, 7);
-      break;
-    case '30d':
-      startDate = subDays(today, 30);
-      break;
-    case '90d':
-      startDate = subDays(today, 90);
-      break;
-    case '180d':
-      startDate = subDays(today, 180);
-      break;
-    case '365d':
-      startDate = subDays(today, 365);
-      break;
-    case 'ytd':
-      startDate = startOfYear(today);
-      break;
-    case 'all':
-      return 'all time';
-    default:
-      startDate = subDays(today, 30);
-  }
-
-  return `${format(startDate, 'MMM d')} to ${format(endDate, 'MMM d, yyyy')}`;
-};
-
 const formatCurrency = (value) => {
   return new Intl.NumberFormat('en-US', {
     style: 'currency',
@@ -420,7 +387,6 @@ const OfferPerformance = ({ performanceData, dateRange, onDateChange, latestDate
   const [selectedGraphOffers, setSelectedGraphOffers] = useState(new Set());
   const [showDetails, setShowDetails] = useState({});
   const [searchTerm, setSearchTerm] = useState('');
-  const [selectedPeriod, setSelectedPeriod] = useState('30d');
   
   // Get unique networks and offers for filters
   const { networks, offers } = useMemo(() => {
@@ -562,18 +528,130 @@ const OfferPerformance = ({ performanceData, dateRange, onDateChange, latestDate
 
   return (
     <div className="space-y-6">
-      {/* Time Period Selector */}
-      <div className="flex items-center justify-between">
-        <h2 className="text-lg font-semibold">Offer Performance</h2>
-        <TimePeriodSelector selectedPeriod={selectedPeriod} onPeriodChange={setSelectedPeriod} />
-      </div>
+      <div className="flex flex-col space-y-4">
+        <h2 className="text-2xl font-bold">Offer Performance</h2>
 
-      {/* Performance Content */}
-      <Card className="bg-white shadow-sm border border-gray-100">
-        <div className="p-6">
-          <div className="flex flex-col gap-2 mb-6">
-            <div className="flex items-center justify-between">
-              <h2 className="text-lg font-semibold">Offer Performance</h2>
+        {/* Performance Metrics */}
+        <PerformanceMetrics metrics={metrics} />
+
+        {/* New BI Components */}
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+          <TrendAnalysis data={chartData} timeRange={7} />
+          <TopPerformers data={chartData} period={30} performanceData={performanceData} />
+        </div>
+        
+        {/* Performance Chart */}
+        <Card className="p-6">
+          <h3 className="text-xl font-semibold mb-4">Daily Margin by Network-Offer</h3>
+          
+          {/* Color-coded offer list with checkboxes */}
+          <div className="mb-6 flex flex-wrap gap-2">
+            <div className="w-full mb-2 flex justify-end">
+              <button
+                className="text-sm text-blue-600 hover:text-blue-800 mr-4"
+                onClick={() => setSelectedGraphOffers(new Set(networkOfferCombos))}
+              >
+                Select All
+              </button>
+              <button
+                className="text-sm text-blue-600 hover:text-blue-800"
+                onClick={() => setSelectedGraphOffers(new Set())}
+              >
+                Clear All
+              </button>
+            </div>
+            {networkOfferCombos.map((combo) => (
+              <div
+                key={combo}
+                className="inline-flex items-center px-3 py-1 rounded-full text-sm cursor-pointer"
+                style={{
+                  backgroundColor: selectedGraphOffers.has(combo) ? `${colorScale[combo]}20` : '#f3f4f6',
+                  color: selectedGraphOffers.has(combo) ? colorScale[combo] : '#6b7280',
+                  border: `1px solid ${selectedGraphOffers.has(combo) ? colorScale[combo] : '#e5e7eb'}`
+                }}
+                onClick={() => {
+                  const newSelected = new Set(selectedGraphOffers);
+                  if (newSelected.has(combo)) {
+                    newSelected.delete(combo);
+                  } else {
+                    newSelected.add(combo);
+                  }
+                  setSelectedGraphOffers(newSelected);
+                }}
+              >
+                <Checkbox
+                  checked={selectedGraphOffers.has(combo)}
+                  className="mr-2 h-4 w-4"
+                  style={{
+                    borderColor: selectedGraphOffers.has(combo) ? colorScale[combo] : '#e5e7eb'
+                  }}
+                />
+                {combo}
+              </div>
+            ))}
+          </div>
+
+          <div className="h-[400px]">
+            <ResponsiveContainer width="100%" height="100%">
+              <LineChart data={chartData} margin={{ left: 40, right: 40, bottom: 20 }}>
+                <CartesianGrid strokeDasharray="3 3" />
+                <XAxis 
+                  dataKey="displayDate"
+                  tick={{ fontSize: 12, angle: -45, textAnchor: 'end' }}
+                  height={60}
+                  interval={Math.ceil(chartData.length / 15)}
+                />
+                <YAxis 
+                  tickFormatter={(value) => formatCurrency(value)}
+                />
+                <Tooltip 
+                  formatter={(value) => formatCurrency(value)}
+                  labelFormatter={(label) => `Date: ${label}`}
+                  contentStyle={{
+                    backgroundColor: 'rgba(255, 255, 255, 0.95)',
+                    borderRadius: '6px',
+                    border: '1px solid #ddd',
+                    boxShadow: '0 2px 4px rgba(0,0,0,0.1)'
+                  }}
+                  itemStyle={{ padding: '2px 0' }}
+                />
+                <ReferenceLine 
+                  y={0} 
+                  stroke="red" 
+                  strokeWidth={2}
+                  label={{ 
+                    value: 'Break Even', 
+                    position: 'right',
+                    fill: 'red',
+                    fontSize: 12
+                  }}
+                />
+                {networkOfferCombos
+                  .filter(combo => selectedGraphOffers.has(combo))
+                  .map((combo) => (
+                    <Line 
+                      key={combo}
+                      type="monotone" 
+                      dataKey={combo}
+                      stroke={colorScale[combo]}
+                      name={combo}
+                      strokeWidth={2}
+                      dot={false}
+                    />
+                  ))}
+              </LineChart>
+            </ResponsiveContainer>
+          </div>
+        </Card>
+
+        {/* Detailed Table */}
+        <Card className="p-6">
+          <h3 className="text-xl font-semibold mb-4">Detailed Offer Performance</h3>
+          
+          {/* Filters */}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Networks</label>
               <MultiSelect
                 options={networks}
                 selected={selectedNetworks}
@@ -581,258 +659,124 @@ const OfferPerformance = ({ performanceData, dateRange, onDateChange, latestDate
                 placeholder="Select Networks"
               />
             </div>
-            <div className="text-sm text-gray-500">
-              Showing data from {getDateRangeText(selectedPeriod)}
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Offers</label>
+              <MultiSelect
+                options={offers}
+                selected={selectedOffers}
+                onChange={setSelectedOffers}
+                placeholder="Select Offers"
+              />
             </div>
           </div>
 
-          {/* Performance Metrics */}
-          <PerformanceMetrics metrics={metrics} />
-
-          {/* New BI Components */}
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-            <TrendAnalysis data={chartData} timeRange={7} />
-            <TopPerformers data={chartData} period={30} performanceData={performanceData} />
-          </div>
-          
-          {/* Performance Chart */}
-          <Card className="p-6">
-            <h3 className="text-xl font-semibold mb-4">Daily Margin by Network-Offer</h3>
-            
-            {/* Color-coded offer list with checkboxes */}
-            <div className="mb-6 flex flex-wrap gap-2">
-              <div className="w-full mb-2 flex justify-end">
-                <button
-                  className="text-sm text-blue-600 hover:text-blue-800 mr-4"
-                  onClick={() => setSelectedGraphOffers(new Set(networkOfferCombos))}
-                >
-                  Select All
-                </button>
-                <button
-                  className="text-sm text-blue-600 hover:text-blue-800"
-                  onClick={() => setSelectedGraphOffers(new Set())}
-                >
-                  Clear All
-                </button>
-              </div>
-              {networkOfferCombos.map((combo) => (
-                <div
-                  key={combo}
-                  className="inline-flex items-center px-3 py-1 rounded-full text-sm cursor-pointer"
-                  style={{
-                    backgroundColor: selectedGraphOffers.has(combo) ? `${colorScale[combo]}20` : '#f3f4f6',
-                    color: selectedGraphOffers.has(combo) ? colorScale[combo] : '#6b7280',
-                    border: `1px solid ${selectedGraphOffers.has(combo) ? colorScale[combo] : '#e5e7eb'}`
-                  }}
-                  onClick={() => {
-                    const newSelected = new Set(selectedGraphOffers);
-                    if (newSelected.has(combo)) {
-                      newSelected.delete(combo);
-                    } else {
-                      newSelected.add(combo);
-                    }
-                    setSelectedGraphOffers(newSelected);
-                  }}
-                >
-                  <Checkbox
-                    checked={selectedGraphOffers.has(combo)}
-                    className="mr-2 h-4 w-4"
-                    style={{
-                      borderColor: selectedGraphOffers.has(combo) ? colorScale[combo] : '#e5e7eb'
-                    }}
-                  />
-                  {combo}
-                </div>
-              ))}
-            </div>
-
-            <div className="h-[400px]">
-              <ResponsiveContainer width="100%" height="100%">
-                <LineChart data={chartData} margin={{ left: 40, right: 40, bottom: 20 }}>
-                  <CartesianGrid strokeDasharray="3 3" />
-                  <XAxis 
-                    dataKey="displayDate"
-                    tick={{ fontSize: 12, angle: -45, textAnchor: 'end' }}
-                    height={60}
-                    interval={Math.ceil(chartData.length / 15)}
-                  />
-                  <YAxis 
-                    tickFormatter={(value) => formatCurrency(value)}
-                  />
-                  <Tooltip 
-                    formatter={(value) => formatCurrency(value)}
-                    labelFormatter={(label) => `Date: ${label}`}
-                    contentStyle={{
-                      backgroundColor: 'rgba(255, 255, 255, 0.95)',
-                      borderRadius: '6px',
-                      border: '1px solid #ddd',
-                      boxShadow: '0 2px 4px rgba(0,0,0,0.1)'
-                    }}
-                    itemStyle={{ padding: '2px 0' }}
-                  />
-                  <ReferenceLine 
-                    y={0} 
-                    stroke="red" 
-                    strokeWidth={2}
-                    label={{ 
-                      value: 'Break Even', 
-                      position: 'right',
-                      fill: 'red',
-                      fontSize: 12
-                    }}
-                  />
-                  {networkOfferCombos
-                    .filter(combo => selectedGraphOffers.has(combo))
-                    .map((combo) => (
-                      <Line 
-                        key={combo}
-                        type="monotone" 
-                        dataKey={combo}
-                        stroke={colorScale[combo]}
-                        name={combo}
-                        strokeWidth={2}
-                        dot={false}
-                      />
-                    ))}
-                </LineChart>
-              </ResponsiveContainer>
-            </div>
-          </Card>
-
-          {/* Detailed Table */}
-          <Card className="p-6">
-            <h3 className="text-xl font-semibold mb-4">Detailed Offer Performance</h3>
-            
-            {/* Filters */}
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Networks</label>
-                <MultiSelect
-                  options={networks}
-                  selected={selectedNetworks}
-                  onChange={setSelectedNetworks}
-                  placeholder="Select Networks"
-                />
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Offers</label>
-                <MultiSelect
-                  options={offers}
-                  selected={selectedOffers}
-                  onChange={setSelectedOffers}
-                  placeholder="Select Offers"
-                />
-              </div>
-            </div>
-
-            <div className="overflow-x-auto">
-              <table className="min-w-full divide-y divide-gray-200">
-                <thead className="bg-gray-50">
-                  <tr>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Offer</th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Network</th>
-                    <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase">Revenue</th>
-                    <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase">Spend</th>
-                    <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase">Margin</th>
-                    <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase">ROI</th>
-                  </tr>
-                </thead>
-                <tbody className="bg-white divide-y divide-gray-200">
-                  {chartData.map((offer, index) => (
-                    <React.Fragment key={`${offer.date}-${index}`}>
-                      <tr 
-                        className="hover:bg-gray-50 cursor-pointer"
-                        onClick={() => toggleOffer(offer.date)}
-                      >
-                        <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900 flex items-center">
-                          <span className="mr-2">
-                            {expandedOffers.has(offer.date) ? '▼' : '▶'}
-                          </span>
-                          {offer.date}
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                          {selectedNetworks.includes('all') ? 'All Networks' : selectedNetworks.join(', ')}
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm text-right text-gray-500">
-                          {Object.entries(offer).map(([networkOffer, margin]) => {
-                            if (networkOffer.includes(offer.date)) {
-                              const [network, offer] = networkOffer.split(' - ');
-                              return (
-                                <div key={networkOffer}>
-                                  {network} - {offer}
-                                </div>
-                              );
-                            }
-                            return null;
-                          })}
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm text-right text-gray-500">
-                          {Object.entries(offer).map(([networkOffer, margin]) => {
-                            if (networkOffer.includes(offer.date)) {
-                              const [network, offer] = networkOffer.split(' - ');
-                              return (
-                                <div key={`${networkOffer}-spend`}>
-                                  {formatCurrency(margin)}
-                                </div>
-                              );
-                            }
-                            return null;
-                          })}
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm text-right text-gray-500">
-                          {Object.entries(offer).map(([networkOffer, margin]) => {
-                            if (networkOffer.includes(offer.date)) {
-                              const [network, offer] = networkOffer.split(' - ');
-                              return (
-                                <div key={`${networkOffer}-margin`}>
-                                  {formatCurrency(margin)}
-                                </div>
-                              );
-                            }
-                            return null;
-                          })}
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm text-right text-gray-500">
-                          {Object.entries(offer).map(([networkOffer, margin]) => {
-                            if (networkOffer.includes(offer.date)) {
-                              const [network, offer] = networkOffer.split(' - ');
-                              return (
-                                <div key={`${networkOffer}-roi`}>
-                                  {((margin / offer[`${network} - ${offer} Ad Spend`]) * 100).toFixed(1)}%
-                                </div>
-                              );
-                            }
-                            return null;
-                          })}
-                        </td>
-                      </tr>
-                      {expandedOffers.has(offer.date) && Object.entries(offer).map(([networkOffer, margin]) => {
-                        if (networkOffer.includes(offer.date)) {
-                          const [network, offer] = networkOffer.split(' - ');
-                          return (
-                            <tr 
-                              key={`${networkOffer}-details`}
-                              className="bg-gray-50"
-                            >
-                              <td className="px-6 py-2 whitespace-nowrap text-xs text-gray-500 pl-12">
+          <div className="overflow-x-auto">
+            <table className="min-w-full divide-y divide-gray-200">
+              <thead className="bg-gray-50">
+                <tr>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Offer</th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Network</th>
+                  <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase">Revenue</th>
+                  <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase">Spend</th>
+                  <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase">Margin</th>
+                  <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase">ROI</th>
+                </tr>
+              </thead>
+              <tbody className="bg-white divide-y divide-gray-200">
+                {chartData.map((offer, index) => (
+                  <React.Fragment key={`${offer.date}-${index}`}>
+                    <tr 
+                      className="hover:bg-gray-50 cursor-pointer"
+                      onClick={() => toggleOffer(offer.date)}
+                    >
+                      <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900 flex items-center">
+                        <span className="mr-2">
+                          {expandedOffers.has(offer.date) ? '▼' : '▶'}
+                        </span>
+                        {offer.date}
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                        {selectedNetworks.includes('all') ? 'All Networks' : selectedNetworks.join(', ')}
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-right text-gray-500">
+                        {Object.entries(offer).map(([networkOffer, margin]) => {
+                          if (networkOffer.includes(offer.date)) {
+                            const [network, offer] = networkOffer.split(' - ');
+                            return (
+                              <div key={networkOffer}>
                                 {network} - {offer}
-                              </td>
-                              <td className="px-6 py-2 whitespace-nowrap text-sm text-right text-gray-500">
+                              </div>
+                            );
+                          }
+                          return null;
+                        })}
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-right text-gray-500">
+                        {Object.entries(offer).map(([networkOffer, margin]) => {
+                          if (networkOffer.includes(offer.date)) {
+                            const [network, offer] = networkOffer.split(' - ');
+                            return (
+                              <div key={`${networkOffer}-spend`}>
                                 {formatCurrency(margin)}
-                              </td>
-                            </tr>
-                          );
-                        }
-                        return null;
-                      })}
-                    </React.Fragment>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          </Card>
-        </div>
-      </Card>
+                              </div>
+                            );
+                          }
+                          return null;
+                        })}
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-right text-gray-500">
+                        {Object.entries(offer).map(([networkOffer, margin]) => {
+                          if (networkOffer.includes(offer.date)) {
+                            const [network, offer] = networkOffer.split(' - ');
+                            return (
+                              <div key={`${networkOffer}-margin`}>
+                                {formatCurrency(margin)}
+                              </div>
+                            );
+                          }
+                          return null;
+                        })}
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-right text-gray-500">
+                        {Object.entries(offer).map(([networkOffer, margin]) => {
+                          if (networkOffer.includes(offer.date)) {
+                            const [network, offer] = networkOffer.split(' - ');
+                            return (
+                              <div key={`${networkOffer}-roi`}>
+                                {((margin / offer[`${network} - ${offer} Ad Spend`]) * 100).toFixed(1)}%
+                              </div>
+                            );
+                          }
+                          return null;
+                        })}
+                      </td>
+                    </tr>
+                    {expandedOffers.has(offer.date) && Object.entries(offer).map(([networkOffer, margin]) => {
+                      if (networkOffer.includes(offer.date)) {
+                        const [network, offer] = networkOffer.split(' - ');
+                        return (
+                          <tr 
+                            key={`${networkOffer}-details`}
+                            className="bg-gray-50"
+                          >
+                            <td className="px-6 py-2 whitespace-nowrap text-xs text-gray-500 pl-12">
+                              {network} - {offer}
+                            </td>
+                            <td className="px-6 py-2 whitespace-nowrap text-sm text-right text-gray-500">
+                              {formatCurrency(margin)}
+                            </td>
+                          </tr>
+                        );
+                      }
+                      return null;
+                    })}
+                  </React.Fragment>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </Card>
+      </div>
     </div>
   );
 };

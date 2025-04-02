@@ -14,9 +14,8 @@ import {
 import MultiSelect from '../ui/multi-select';
 import { TrendingUp, TrendingDown, ArrowRight, Activity } from 'lucide-react';
 import { Switch } from "@/components/ui/switch";
-import { format, parseISO, isWithinInterval, subDays, startOfYear } from 'date-fns';
+import { format, parseISO, isWithinInterval } from 'date-fns';
 import { Checkbox } from '../ui/checkbox';
-import TimePeriodSelector from '@/components/ui/time-period-selector';
 
 // Add this helper function for row grouping
 const groupDataByMediaBuyer = (data) => {
@@ -217,50 +216,12 @@ const TrendGraph = ({ data, color = 'blue' }) => {
   );
 };
 
-// Add this helper function for row grouping
-const getDateRangeText = (period) => {
-  const today = new Date();
-  let startDate;
-  let endDate = today;
-
-  switch (period) {
-    case '7d':
-      startDate = subDays(today, 7);
-      break;
-    case '30d':
-      startDate = subDays(today, 30);
-      break;
-    case '90d':
-      startDate = subDays(today, 90);
-      break;
-    case '180d':
-      startDate = subDays(today, 180);
-      break;
-    case '365d':
-      startDate = subDays(today, 365);
-      break;
-    case 'ytd':
-      startDate = startOfYear(today);
-      break;
-    case 'all':
-      return 'all time';
-    default:
-      startDate = subDays(today, 30);
-  }
-
-  return `${format(startDate, 'MMM d')} to ${format(endDate, 'MMM d, yyyy')}`;
-};
-
-const MediaBuyerPerformance = ({ performanceData, dateRange, onDateChange, latestDate }) => {
+const MediaBuyerPerformance = ({ performanceData, dateRange }) => {
   const [selectedBuyers, setSelectedBuyers] = useState(['all']);
   const [selectedNetworks, setSelectedNetworks] = useState(['all']);
   const [expandedBuyers, setExpandedBuyers] = useState(new Set());
   const [isCumulative, setIsCumulative] = useState(false);
   const [selectedOffers, setSelectedOffers] = useState(new Set());
-  const [selectedGraphOffers, setSelectedGraphOffers] = useState(new Set());
-  const [showDetails, setShowDetails] = useState({});
-  const [searchTerm, setSearchTerm] = useState('');
-  const [selectedPeriod, setSelectedPeriod] = useState('30d');
 
   // First filter data by date range - Optimize the date comparison
   const filteredByDate = useMemo(() => {
@@ -723,14 +684,240 @@ const MediaBuyerPerformance = ({ performanceData, dateRange, onDateChange, lates
 
   return (
     <div className="space-y-6">
-      {/* Time Period Selector */}
-      <div className="flex items-center justify-between">
-        <h2 className="text-lg font-semibold">Media Buyer Performance</h2>
-        <TimePeriodSelector selectedPeriod={selectedPeriod} onPeriodChange={setSelectedPeriod} />
+      {/* Performance Metrics - Moved up */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+        <Card className="bg-blue-50/50">
+          <div className="p-6">
+            <div className="text-sm text-blue-600">Total Revenue</div>
+            <div className="text-2xl font-bold text-blue-700">
+              {formatCurrency(processedData.buyerMetrics.reduce((sum, buyer) => sum + buyer.revenue, 0))}
+            </div>
+          </div>
+        </Card>
+        
+        <Card className="bg-red-50/50">
+          <div className="p-6">
+            <div className="text-sm text-red-600">Total Spend</div>
+            <div className="text-2xl font-bold text-red-700">
+              {formatCurrency(processedData.buyerMetrics.reduce((sum, buyer) => sum + buyer.spend, 0))}
+            </div>
+          </div>
+        </Card>
+        
+        <Card className="bg-green-50/50">
+          <div className="p-6">
+            <div className="text-sm text-green-600">Total Margin</div>
+            <div className="text-2xl font-bold text-green-700">
+              {formatCurrency(processedData.buyerMetrics.reduce((sum, buyer) => sum + buyer.margin, 0))}
+            </div>
+          </div>
+        </Card>
+        
+        <Card className="bg-purple-50/50">
+          <div className="p-6">
+            <div className="text-sm text-purple-600">ROI</div>
+            <div className="text-2xl font-bold text-purple-700">
+              {((processedData.buyerMetrics.reduce((sum, buyer) => sum + buyer.margin, 0) / 
+                processedData.buyerMetrics.reduce((sum, buyer) => sum + buyer.spend, 0)) * 100).toFixed(1)}%
+            </div>
+          </div>
+        </Card>
       </div>
 
-      {/* Media Buyer Performance Content */}
-      <Card className="bg-white shadow-sm border border-gray-100">
+      {/* Top Charts Grid */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
+        {/* Top Performers Card */}
+        <Card className="p-3">
+          <div className="flex items-center gap-2 mb-2">
+            <span className="text-lg font-bold">🏆 Top Media Buyers</span>
+          </div>
+          <div className="text-xs text-gray-500 mb-2">
+            {dateRange.startDate && dateRange.endDate ? 
+              `${new Date(dateRange.startDate).toLocaleDateString()} - ${new Date(dateRange.endDate).toLocaleDateString()}` 
+              : 'All Time'}
+          </div>
+          <div className="space-y-2">
+            {processedData.buyerMetrics
+              .filter(buyer => buyer.name !== 'Unknown' && buyer.name !== 'unknown')
+              .sort((a, b) => b.margin - a.margin)
+              .slice(0, 5)
+              .map((buyer, index) => {
+                const consistency = analyzeTrend(filteredByDate, buyer.name);
+                // Get daily margins for the trend graph
+                const dailyMargins = filteredByDate
+                  .filter(entry => entry['Media Buyer'] === buyer.name)
+                  .reduce((acc, entry) => {
+                    const date = entry.Date;
+                    if (!acc[date]) acc[date] = 0;
+                    // Calculate margin as revenue minus spend
+                    const revenue = parseFloat(entry['Total Revenue'] || 0);
+                    const spend = parseFloat(entry['Ad Spend'] || 0);
+                    acc[date] += revenue - spend;
+                    return acc;
+                  }, {});
+                const marginData = Object.values(dailyMargins);
+
+                return (
+                  <div key={buyer.name} className="flex items-center justify-between p-2 bg-gray-50 rounded-lg">
+                    <div className="flex items-center gap-2">
+                      <span className="text-lg">{['🥇', '🥈', '🥉', '4️⃣', '5️⃣'][index]}</span>
+                      <div>
+                        <div className="font-semibold text-sm">{buyer.name}</div>
+                        <div className="text-xs text-gray-500">ROI: {buyer.roi.toFixed(1)}%</div>
+                      </div>
+                    </div>
+                    <div className="text-right">
+                      <div className="text-sm font-bold text-green-600">{formatCurrency(buyer.margin)}</div>
+                      <div className="flex items-center justify-end">
+                        <TrendGraph 
+                          data={marginData} 
+                          color={consistency.type === 'stable' ? 'blue' : 
+                                 consistency.type === 'improving' ? 'green' : 
+                                 consistency.type === 'declining' ? 'red' : 'yellow'} 
+                        />
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
+          </div>
+        </Card>
+
+        {/* Top Network-Offer Combinations Card */}
+        <Card className="p-3">
+          <div className="flex items-center gap-2 mb-2">
+            <span className="text-lg font-bold">🎯 Top Network Offers</span>
+          </div>
+          <div className="text-xs text-gray-500 mb-2">
+            {dateRange.startDate && dateRange.endDate ? 
+              `${new Date(dateRange.startDate).toLocaleDateString()} - ${new Date(dateRange.endDate).toLocaleDateString()}` 
+              : 'All Time'}
+          </div>
+          <div className="space-y-4">
+            {Object.values(
+              filteredByDate
+                .reduce((acc, entry) => {
+                  // Skip unknown media buyers
+                  if (entry['Media Buyer']?.toLowerCase() === 'unknown') return acc;
+
+                  // Normalize ACA entries - both network and media buyer
+                  let network = entry.Network;
+                  let mediaBuyer = entry['Media Buyer'];
+                  let offer = entry.Offer;
+                  
+                  // Normalize all ACA related entries
+                  if (network?.includes('ACA') || network?.includes('Suited')) {
+                    network = 'ACA - ACA';
+                    offer = 'ACA';
+                  }
+
+                  // Create a normalized key that will combine all ACA entries
+                  const key = network === 'ACA - ACA' ? 
+                    `${mediaBuyer} - ACA - ACA - ACA` : 
+                    `${mediaBuyer} - ${network} - ${offer}`;
+                  
+                  if (!acc[key]) {
+                    acc[key] = {
+                      mediaBuyer,
+                      network,
+                      offer,
+                      revenue: 0,
+                      spend: 0,
+                      margin: 0,
+                      dates: new Set()
+                    };
+                  }
+
+                  // Store the date for trend analysis
+                  acc[key].dates.add(entry.Date);
+                  
+                  acc[key].revenue += parseFloat(entry['Total Revenue'] || 0);
+                  acc[key].spend += parseFloat(entry['Ad Spend'] || 0);
+                  acc[key].margin = acc[key].revenue - acc[key].spend;
+                  acc[key].roi = acc[key].spend > 0 ? (acc[key].margin / acc[key].spend) * 100 : 0;
+                  return acc;
+                }, {})
+            )
+              .sort((a, b) => b.margin - a.margin)
+              .slice(0, 5)
+              .map((combo, index) => {
+                // Calculate trend
+                const dates = Array.from(combo.dates).sort();
+                const midPoint = Math.floor(dates.length / 2);
+                const firstHalf = dates.slice(0, midPoint);
+                const secondHalf = dates.slice(midPoint);
+                
+                let trend = {
+                  label: 'Stable',
+                  color: 'text-gray-500'
+                };
+
+                if (firstHalf.length > 0 && secondHalf.length > 0) {
+                  const firstHalfMargin = firstHalf.reduce((sum, date) => {
+                    const entry = filteredByDate.find(e => 
+                      e.Date === date && 
+                      ((e.Network === combo.network) || 
+                       (e.Network === 'Suited - ACA' && combo.network === 'ACA - ACA'))
+                    );
+                    return sum + (entry ? parseFloat(entry['Total Revenue'] || 0) - parseFloat(entry['Ad Spend'] || 0) : 0);
+                  }, 0);
+
+                  const secondHalfMargin = secondHalf.reduce((sum, date) => {
+                    const entry = filteredByDate.find(e => 
+                      e.Date === date && 
+                      ((e.Network === combo.network) || 
+                       (e.Network === 'Suited - ACA' && combo.network === 'ACA - ACA'))
+                    );
+                    return sum + (entry ? parseFloat(entry['Total Revenue'] || 0) - parseFloat(entry['Ad Spend'] || 0) : 0);
+                  }, 0);
+
+                  const growth = ((secondHalfMargin - firstHalfMargin) / Math.abs(firstHalfMargin)) * 100;
+                  
+                  if (growth > 10) {
+                    trend = { label: `+${growth.toFixed(1)}%`, color: 'text-green-500' };
+                  } else if (growth < -10) {
+                    trend = { label: `${growth.toFixed(1)}%`, color: 'text-red-500' };
+                  } else {
+                    trend = { label: 'Flat', color: 'text-gray-500' };
+                  }
+                }
+
+                return (
+                  <div key={`${combo.mediaBuyer}-${combo.network}-${combo.offer}`} className="flex items-center justify-between p-2 bg-gray-50 rounded-lg">
+                    <div className="flex items-center gap-2">
+                      <span className="text-lg">{['🥇', '🥈', '🥉', '4️⃣', '5️⃣'][index]}</span>
+                      <div>
+                        <div className="font-semibold text-sm">{combo.mediaBuyer}</div>
+                        <div className="text-xs text-gray-600">{combo.network} - {combo.offer}</div>
+                        <div className="text-xs text-gray-500">ROI: {combo.roi.toFixed(1)}%</div>
+                      </div>
+                    </div>
+                    <div className="text-right">
+                      <div className="text-sm font-bold text-green-600">{formatCurrency(combo.margin)}</div>
+                      <div className="flex items-center justify-end">
+                        <TrendGraph 
+                          data={Array.from(combo.dates).sort().map(date => {
+                            const entry = filteredByDate.find(e => 
+                              e.Date === date && 
+                              ((e.Network === combo.network) || 
+                               (e.Network === 'Suited - ACA' && combo.network === 'ACA - ACA'))
+                            );
+                            return entry ? parseFloat(entry['Total Revenue'] || 0) - parseFloat(entry['Ad Spend'] || 0) : 0;
+                          })}
+                          color={trend.label.includes('+') ? 'green' : 
+                                 trend.label.includes('-') ? 'red' : 
+                                 'blue'} 
+                        />
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
+          </div>
+        </Card>
+      </div>
+
+      <Card>
         <div className="p-6">
           <div className="flex flex-col gap-2 mb-6">
             <div className="flex justify-between items-center">
@@ -743,142 +930,144 @@ const MediaBuyerPerformance = ({ performanceData, dateRange, onDateChange, lates
               />
             </div>
             <div className="text-sm text-gray-500">
-              Showing data from {getDateRangeText(selectedPeriod)}
+              {dateRange.startDate && dateRange.endDate ? 
+                `${new Date(dateRange.startDate).toLocaleDateString()} - ${new Date(dateRange.endDate).toLocaleDateString()}` 
+                : 'All Time'}
             </div>
           </div>
 
-          <div className="overflow-x-auto">
-            <table className="min-w-full divide-y divide-gray-200">
-              <thead className="bg-gray-50">
-                <tr>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Media Buyer
-                  </th>
-                  <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Spend
-                  </th>
-                  <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Revenue
-                  </th>
-                  <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Margin
-                  </th>
-                  <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    ROI
-                  </th>
-                  <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider bg-blue-50" title="10% of Margin">
-                    MB Comm
-                  </th>
-                  <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider bg-blue-50" title="2% of Revenue for ACA entries, deducted from MB Commission">
-                    Ringba
-                  </th>
-                  <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider bg-blue-50" title="Margin minus MB Commission minus Ringba Costs">
-                    Updated
-                  </th>
-                </tr>
-              </thead>
-              <tbody className="bg-white divide-y divide-gray-200">
-                {processedData.buyerMetrics
-                  .filter(buyer => (selectedBuyers.includes('all') || selectedBuyers.includes(buyer.name)) && 
-                                 buyer.name.toLowerCase() !== 'unknown')
-                  .map((buyer) => {
-                    const commission = buyer.margin > 0 ? buyer.margin * 0.10 : 0;
-                    // Calculate total Ringba costs from all ACA networks (2% of Revenue)
-                    const ringbaCosts = Object.entries(buyer.networkData)
-                      .reduce((total, [network, data]) => {
-                        if (network.includes('ACA')) {
-                          return total + (data.revenue * 0.02);
-                        }
-                        return total;
-                      }, 0);
-                    const adjustedCommission = Math.max(0, commission - ringbaCosts);
-                    const updatedProfit = buyer.margin - adjustedCommission;
-                    const colors = getPerformanceColors(updatedProfit, buyer.spend);
-                    const showCommission = buyer.margin > 0;
-                    
-                    return (
-                      <React.Fragment key={buyer.name}>
-                        <tr 
-                          className={colors.row}
-                          onClick={() => toggleBuyerExpansion(buyer.name)}
-                        >
-                          <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900 flex items-center">
-                            <span className="mr-2">
-                              {expandedBuyers.has(buyer.name) ? '▼' : '▶'}
-                            </span>
-                            <div className="flex items-center">
-                              <span className="text-sm font-medium text-gray-900">{buyer.name}</span>
-                              {buyer.name.includes('ACA') && (
-                                <span className="ml-2 text-xs text-blue-600 bg-blue-50 px-2 py-0.5 rounded-full">
-                                  ACA
-                                </span>
-                              )}
-                            </div>
-                          </td>
-                          <td className="px-6 py-4 whitespace-nowrap text-sm text-right text-gray-900">
-                            {formatCurrency(buyer.spend)}
-                          </td>
-                          <td className="px-6 py-4 whitespace-nowrap text-sm text-right text-gray-900">
-                            {formatCurrency(buyer.revenue)}
-                          </td>
-                          <td className="px-6 py-4 whitespace-nowrap text-sm text-right text-gray-900">
-                            {formatCurrency(buyer.margin)}
-                          </td>
-                          <td className="px-6 py-4 whitespace-nowrap text-sm text-right text-gray-900">
-                            {buyer.roi.toFixed(1)}%
-                          </td>
-                          <td className="px-6 py-4 whitespace-nowrap text-sm text-right bg-blue-50">
-                            {showCommission ? formatCurrency(commission) : '-'}
-                          </td>
-                          <td className="px-6 py-4 whitespace-nowrap text-sm text-right bg-blue-50">
-                            {showCommission ? formatCurrency(ringbaCosts) : '-'}
-                          </td>
-                          <td className={`px-6 py-4 whitespace-nowrap text-sm text-right bg-blue-50 ${colors.text} font-medium`}>
-                            {showCommission ? formatCurrency(updatedProfit) : '-'}
-                          </td>
-                        </tr>
-                        {expandedBuyers.has(buyer.name) && Object.entries(buyer.networkData).map(([network, data]) => {
-                          const networkCommission = data.margin > 0 ? data.margin * 0.10 : 0;
-                          const networkRingbaCosts = network.includes('ACA') ? data.revenue * 0.02 : 0;
-                          const networkAdjustedCommission = Math.max(0, networkCommission - networkRingbaCosts);
-                          const networkUpdatedProfit = data.margin - networkAdjustedCommission;
-                          const showNetworkCommission = data.margin > 0;
-                          return (
-                            <tr key={`${buyer.name}-${network}`} className="bg-gray-50">
-                              <td className="px-6 py-2 whitespace-nowrap text-xs text-gray-500 pl-12">
-                                {network}
-                              </td>
-                              <td className="px-6 py-2 whitespace-nowrap text-xs text-right text-gray-500">
-                                {formatCurrency(data.spend)}
-                              </td>
-                              <td className="px-6 py-2 whitespace-nowrap text-xs text-right text-gray-500">
-                                {formatCurrency(data.revenue)}
-                              </td>
-                              <td className="px-6 py-2 whitespace-nowrap text-xs text-right text-gray-500">
-                                {formatCurrency(data.margin)}
-                              </td>
-                              <td className="px-6 py-2 whitespace-nowrap text-xs text-right text-gray-500">
-                                {formatPercent(data.spend ? ((data.revenue / data.spend) - 1) * 100 : 0)}
-                              </td>
-                              <td className="px-6 py-2 whitespace-nowrap text-xs text-right text-gray-500 bg-blue-50/50">
-                                {showNetworkCommission ? formatCurrency(networkCommission) : '-'}
-                              </td>
-                              <td className="px-6 py-2 whitespace-nowrap text-xs text-right text-gray-500 bg-blue-50/50">
-                                {showNetworkCommission ? formatCurrency(networkRingbaCosts) : '-'}
-                              </td>
-                              <td className="px-6 py-2 whitespace-nowrap text-xs text-right text-gray-500 bg-blue-50/50">
-                                {showNetworkCommission ? formatCurrency(networkUpdatedProfit) : '-'}
-                              </td>
-                            </tr>
-                          );
-                        })}
-                      </React.Fragment>
-                    );
-                  })}
-              </tbody>
-            </table>
-          </div>
+        <div className="overflow-x-auto">
+          <table className="min-w-full divide-y divide-gray-200">
+            <thead className="bg-gray-50">
+              <tr>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  Media Buyer
+                </th>
+                <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  Spend
+                </th>
+                <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  Revenue
+                </th>
+                <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  Margin
+                </th>
+                <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  ROI
+                </th>
+                <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider bg-blue-50" title="10% of Margin">
+                  MB Comm
+                </th>
+                <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider bg-blue-50" title="2% of Revenue for ACA entries, deducted from MB Commission">
+                  Ringba
+                </th>
+                <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider bg-blue-50" title="Margin minus MB Commission minus Ringba Costs">
+                  Updated
+                </th>
+              </tr>
+            </thead>
+            <tbody className="bg-white divide-y divide-gray-200">
+              {processedData.buyerMetrics
+                .filter(buyer => (selectedBuyers.includes('all') || selectedBuyers.includes(buyer.name)) && 
+                               buyer.name.toLowerCase() !== 'unknown')
+                .map((buyer) => {
+                  const commission = buyer.margin > 0 ? buyer.margin * 0.10 : 0;
+                  // Calculate total Ringba costs from all ACA networks (2% of Revenue)
+                  const ringbaCosts = Object.entries(buyer.networkData)
+                    .reduce((total, [network, data]) => {
+                      if (network.includes('ACA')) {
+                        return total + (data.revenue * 0.02);
+                      }
+                      return total;
+                    }, 0);
+                  const adjustedCommission = Math.max(0, commission - ringbaCosts);
+                  const updatedProfit = buyer.margin - adjustedCommission;
+                  const colors = getPerformanceColors(updatedProfit, buyer.spend);
+                  const showCommission = buyer.margin > 0;
+                  
+                  return (
+                    <React.Fragment key={buyer.name}>
+                      <tr 
+                        className={colors.row}
+                        onClick={() => toggleBuyerExpansion(buyer.name)}
+                      >
+                        <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900 flex items-center">
+                          <span className="mr-2">
+                            {expandedBuyers.has(buyer.name) ? '▼' : '▶'}
+                          </span>
+                          <div className="flex items-center">
+                            <span className="text-sm font-medium text-gray-900">{buyer.name}</span>
+                            {buyer.name.includes('ACA') && (
+                              <span className="ml-2 text-xs text-blue-600 bg-blue-50 px-2 py-0.5 rounded-full">
+                                ACA
+                              </span>
+                            )}
+                          </div>
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap text-sm text-right text-gray-900">
+                          {formatCurrency(buyer.spend)}
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap text-sm text-right text-gray-900">
+                          {formatCurrency(buyer.revenue)}
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap text-sm text-right text-gray-900">
+                          {formatCurrency(buyer.margin)}
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap text-sm text-right text-gray-900">
+                          {buyer.roi.toFixed(1)}%
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap text-sm text-right bg-blue-50">
+                          {showCommission ? formatCurrency(commission) : '-'}
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap text-sm text-right bg-blue-50">
+                          {showCommission ? formatCurrency(ringbaCosts) : '-'}
+                        </td>
+                        <td className={`px-6 py-4 whitespace-nowrap text-sm text-right bg-blue-50 ${colors.text} font-medium`}>
+                          {showCommission ? formatCurrency(updatedProfit) : '-'}
+                        </td>
+                      </tr>
+                      {expandedBuyers.has(buyer.name) && Object.entries(buyer.networkData).map(([network, data]) => {
+                        const networkCommission = data.margin > 0 ? data.margin * 0.10 : 0;
+                        const networkRingbaCosts = network.includes('ACA') ? data.revenue * 0.02 : 0;
+                        const networkAdjustedCommission = Math.max(0, networkCommission - networkRingbaCosts);
+                        const networkUpdatedProfit = data.margin - networkAdjustedCommission;
+                        const showNetworkCommission = data.margin > 0;
+                        return (
+                          <tr key={`${buyer.name}-${network}`} className="bg-gray-50">
+                            <td className="px-6 py-2 whitespace-nowrap text-xs text-gray-500 pl-12">
+                              {network}
+                            </td>
+                            <td className="px-6 py-2 whitespace-nowrap text-xs text-right text-gray-500">
+                              {formatCurrency(data.spend)}
+                            </td>
+                            <td className="px-6 py-2 whitespace-nowrap text-xs text-right text-gray-500">
+                              {formatCurrency(data.revenue)}
+                            </td>
+                            <td className="px-6 py-2 whitespace-nowrap text-xs text-right text-gray-500">
+                              {formatCurrency(data.margin)}
+                            </td>
+                            <td className="px-6 py-2 whitespace-nowrap text-xs text-right text-gray-500">
+                              {formatPercent(data.spend ? ((data.revenue / data.spend) - 1) * 100 : 0)}
+                            </td>
+                            <td className="px-6 py-2 whitespace-nowrap text-xs text-right text-gray-500 bg-blue-50/50">
+                              {showNetworkCommission ? formatCurrency(networkCommission) : '-'}
+                            </td>
+                            <td className="px-6 py-2 whitespace-nowrap text-xs text-right text-gray-500 bg-blue-50/50">
+                              {showNetworkCommission ? formatCurrency(networkRingbaCosts) : '-'}
+                            </td>
+                            <td className="px-6 py-2 whitespace-nowrap text-xs text-right text-gray-500 bg-blue-50/50">
+                              {showNetworkCommission ? formatCurrency(networkUpdatedProfit) : '-'}
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </React.Fragment>
+                  );
+                })}
+            </tbody>
+          </table>
         </div>
+      </div>
       </Card>
 
       {/* Daily Revenue Graph */}

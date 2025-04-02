@@ -10,7 +10,6 @@ import {
   SelectTrigger,
   SelectValue,
 } from '../ui/select';
-import { DollarSign, Receipt } from 'lucide-react';
 
 const PLDashboard = ({ plData, selectedMonth }) => {
   const [monthlyData, setMonthlyData] = useState({
@@ -147,11 +146,11 @@ const PLDashboard = ({ plData, selectedMonth }) => {
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
         {/* Revenue Breakdown */}
         <Card className="p-6">
-          <div className="p-6 border-b border-gray-100">
-            <div className="flex items-center gap-2">
-              <DollarSign className="w-5 h-5 text-green-500" />
-              <h3 className="text-lg font-semibold text-gray-900">Income – {selectedMonth}</h3>
-            </div>
+          <div className="flex justify-between items-center mb-6">
+            <h2 className="text-xl font-semibold">Revenue Breakdown - {selectedMonth}</h2>
+            <span className="text-xl font-semibold text-green-600">
+              Total: {formatCurrency(monthlyData.monthlyRows.find(row => row.label === 'Income')?.value)}
+            </span>
           </div>
 
           <div className="space-y-6">
@@ -170,11 +169,11 @@ const PLDashboard = ({ plData, selectedMonth }) => {
 
         {/* Monthly Expense Breakdown */}
         <Card className="p-6">
-          <div className="p-6 border-b border-gray-100">
-            <div className="flex items-center gap-2">
-              <Receipt className="w-5 h-5 text-red-500" />
-              <h3 className="text-lg font-semibold text-gray-900">Expenses – {selectedMonth}</h3>
-            </div>
+          <div className="flex justify-between items-center mb-6">
+            <h2 className="text-xl font-semibold">Expense Breakdown - {selectedMonth}</h2>
+            <span className="text-xl font-semibold text-red-600">
+              Total: {formatCurrency(monthlyData.monthlyRows.find(row => row.label === 'Expenses')?.value)}
+            </span>
           </div>
 
           <div className="space-y-6">

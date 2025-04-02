@@ -294,6 +294,9 @@ const NetProfit = ({ performanceData, dateRange, cashFlowData }) => {
                   ))}
                 </tbody>
               </table>
+              <div className="mt-4 text-sm text-gray-500 italic">
+                Note: This view shows revenue earned from ad spend (regardless of when payment is received) minus ad spend for the month. This differs from the Profit & Loss view which tracks actual money received and spent within each month.
+              </div>
             </div>
           </div>
         </div>

@@ -9,22 +9,8 @@ async function processPLData(batchResponse) {
 
     // Process monthly detail sheets more efficiently
     const monthSheets = batchResponse.data.valueRanges.filter(range => 
-      /^(June|July|August|September|October|November|December|January|February|March)!/.test(range.range)
+      /^(June|July|August|September|October|November|December|January|February)!/.test(range.range)
     );
-
-    // Define the correct year for each month
-    const monthYears = {
-      'June': '2024',
-      'July': '2024',
-      'August': '2024',
-      'September': '2024',
-      'October': '2024',
-      'November': '2024',
-      'December': '2024',
-      'January': '2025',
-      'February': '2025',
-      'March': '2025'
-    };
 
     // Process all months in parallel
     await Promise.all(monthSheets.map(async monthSheet => {
@@ -71,12 +57,8 @@ async function processPLData(batchResponse) {
         const netProfit = totalIncome - totalExpenses;
         const netPercent = totalIncome > 0 ? (netProfit / totalIncome) * 100 : 0;
 
-        // Determine the correct year based on the month
-        const year = monthYears[monthName];
-        const formattedMonth = `${monthName} ${year}`;
-
         summaryData.push({
-          Month: formattedMonth,
+          Month: monthName,
           Income: totalIncome,
           Expenses: totalExpenses,
           NetProfit: netProfit,
@@ -84,19 +66,6 @@ async function processPLData(batchResponse) {
         });
       }
     }));
-
-    // Sort the summary data by date
-    summaryData.sort((a, b) => {
-      const months = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
-      const monthA = a.Month.split(' ')[0];
-      const monthB = b.Month.split(' ')[0];
-      const yearA = parseInt(a.Month.split(' ')[1]);
-      const yearB = parseInt(b.Month.split(' ')[1]);
-      
-      // Reverse the comparison to show most recent first
-      if (yearA !== yearB) return yearB - yearA;
-      return months.indexOf(monthB) - months.indexOf(monthA);
-    });
 
     const result = { summary: summaryData, monthly: monthlyData };
 
@@ -325,7 +294,6 @@ export default async function handler(req, res) {
       "'Summary'!A:U",
       "'Bank Structure'!A:M",
       "'Network Payment Schedule'!A:H",
-      "'March'!A:D",
       "'February'!A:D",
       "'January'!A:D",
       "'December'!A:D",
@@ -406,7 +374,6 @@ export default async function handler(req, res) {
       summaryResponse,
       bankStructureResponse,
       networkPaymentsResponse,
-      marchResponse,
       februaryResponse,
       januaryResponse,
       decemberResponse,
@@ -558,16 +525,15 @@ export default async function handler(req, res) {
       const plData = await processPLData({
         data: {
           valueRanges: [
-            juneResponse,
-            julyResponse,
-            augustResponse,
-            septemberResponse,
-            octoberResponse,
-            novemberResponse,
-            decemberResponse,
-            januaryResponse,
             februaryResponse,
-            marchResponse
+            januaryResponse,
+            decemberResponse,
+            novemberResponse,
+            octoberResponse,
+            septemberResponse,
+            augustResponse,
+            julyResponse,
+            juneResponse
           ]
         }
       });
