@@ -243,6 +243,38 @@ async function processNetworkTermsData(response) {
   }
 }
 
+async function processInvoiceData(response) {
+  if (!response?.values || response.values.length < 2) {
+    console.log('No valid invoice data found');
+    return [];
+  }
+
+  try {
+    // Skip header row and process data
+    const rows = response.values.slice(1).map(row => {
+      if (!row || row.length < 6) {
+        console.log('Invalid invoice row:', row);
+        return null;
+      }
+
+      return {
+        Network: row[0]?.trim() || '',
+        PeriodStart: row[1]?.trim() || '',
+        PeriodEnd: row[2]?.trim() || '',
+        DueDate: row[3]?.trim() || '',
+        AmountDue: row[4]?.trim() || '0',
+        InvoiceNumber: row[5]?.trim() || ''
+      };
+    }).filter(Boolean); // Remove any null entries
+
+    console.log('Processed invoice rows:', rows.length);
+    return rows;
+  } catch (error) {
+    console.error('Error processing invoice data:', error);
+    return [];
+  }
+}
+
 export default async function handler(req, res) {
   try {
     if (req.method !== 'GET') {
@@ -490,7 +522,7 @@ export default async function handler(req, res) {
       });
 
       // Process invoices
-      processedData.rawData.invoices = invoicesResponse?.values?.slice(1) || [];
+      processedData.rawData.invoices = await processInvoiceData(invoicesResponse);
       console.log('Processed invoices:', {
         count: processedData.rawData.invoices.length,
         sample: processedData.rawData.invoices.slice(0, 3)

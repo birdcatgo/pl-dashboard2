@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
-import { RefreshCw, ChevronDown, Brain, TrendingUp, DollarSign, Target, Calendar, ChartBar, BarChart2, Users } from 'lucide-react';
+import { RefreshCw, ChevronDown, Brain, TrendingUp, DollarSign, Target, Calendar, ChartBar, BarChart2, Users, Receipt } from 'lucide-react';
 import { debounce } from 'lodash';
 import EnhancedDateSelector from './EnhancedDateSelector';
 import CashSituation from './CashSituation';
@@ -156,6 +156,7 @@ export default function DashboardLayout({
     { id: 'net-profit', label: 'Net Profit', icon: TrendingUp },
     { id: 'cash-credit', label: 'Credit Line', icon: DollarSign },
     { id: 'network-caps', label: 'Network Caps', icon: ChartBar },
+    { id: 'invoices', label: 'Invoices', icon: Receipt },
     { id: 'thirty-day-challenge', label: '30 Day Challenge', icon: Calendar },
     { id: 'pl', label: 'Profit & Loss', icon: BarChart2 },
     { id: 'network', label: 'Offer Performance', icon: Target },
@@ -165,7 +166,6 @@ export default function DashboardLayout({
   const moreTabs = [
     { id: 'overview-v2', label: 'Overview' },
     { id: 'financial-overview', label: 'Financial Overview' },
-    { id: 'invoices', label: 'Invoices' },
     { id: 'cash-position', label: 'Cash Position' },
     { id: 'upcoming-expenses', label: 'Expenses' },
     { id: 'monthly-expenses', label: 'Monthly Expenses' },
