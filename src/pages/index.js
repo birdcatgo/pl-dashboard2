@@ -55,7 +55,10 @@ export default function DashboardPage() {
       }));
       
       // Set all the data
-      setPerformanceData(transformedPerformanceData);
+      setPerformanceData({
+        data: transformedPerformanceData,
+        commissions: data.commissions || []
+      });
       setInvoicesData(data.rawData?.invoices || []);
       setPayrollData(data.rawData?.payroll || []);
       setCashFlowData(data.cashFlowData || {});

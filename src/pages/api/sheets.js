@@ -275,6 +275,29 @@ async function processInvoiceData(response) {
   }
 }
 
+const SHEET_CONFIG = {
+  performance: {
+    name: 'Performance',
+    range: 'A:Z',
+    requiredColumns: ['Date', 'Network', 'Total Revenue', 'Ad Spend']
+  },
+  invoices: {
+    name: 'Invoices',
+    range: 'A:Z',
+    requiredColumns: ['Network', 'Invoice #', 'Amount Due', 'Due Date', 'Status']
+  },
+  networkCaps: {
+    name: 'Network Caps',
+    range: 'A:Z',
+    requiredColumns: ['Network', 'Cap Amount', 'Current Spend']
+  },
+  commissions: {
+    name: 'Commissions',
+    range: 'A:Z',
+    requiredColumns: ['Media Buyer', 'Commission Rates', 'February 2025 Estimated', 'February 2025 Confirmed', 'February 2025 Commission', 'March 2025 Estimated', 'March 2025 Confirmed', 'March 2025 Commission']
+  }
+};
+
 export default async function handler(req, res) {
   try {
     if (req.method !== 'GET') {
@@ -338,7 +361,8 @@ export default async function handler(req, res) {
       "'Network Terms'!A:J",
       "'Invoices'!A:F",
       "'Tradeshift Check'!A:E",
-      "'Monthly Expenses'!A:D"
+      "'Monthly Expenses'!A:D",
+      "'Commissions'!A:H"
     ];
 
     console.log('Fetching sheets data with ranges:', ranges);
@@ -346,9 +370,9 @@ export default async function handler(req, res) {
     let batchResponse;
     try {
       batchResponse = await sheets.spreadsheets.values.batchGet({
-        spreadsheetId: SHEET_ID,
-        ranges: ranges
-      });
+      spreadsheetId: SHEET_ID,
+      ranges: ranges
+    });
       console.log('Successfully fetched sheets data:', {
         valueRangesCount: batchResponse.data.valueRanges?.length,
         ranges: batchResponse.data.valueRanges?.map(range => ({
@@ -384,7 +408,8 @@ export default async function handler(req, res) {
         payroll: []
       },
       plData: null,
-      tradeshiftData: []
+      tradeshiftData: [],
+      commissions: []
     };
 
     // Log all sheet names and their responses
@@ -418,7 +443,8 @@ export default async function handler(req, res) {
       networkTermsResponse,
       invoicesResponse,
       tradeshiftResponse,
-      monthlyExpensesResponse
+      monthlyExpensesResponse,
+      commissionsResponse
     ] = batchResponse.data.valueRanges;
 
     // Add specific logging for Network Terms sheet
@@ -487,15 +513,15 @@ export default async function handler(req, res) {
             resourcesCount: processedData.cashFlowData?.financialResources?.length,
             resources: processedData.cashFlowData?.financialResources
           });
-        } catch (error) {
+    } catch (error) {
           console.error('Error processing cash flow data:', error);
           processedData.cashFlowData = {
-            availableCash: 0,
-            creditAvailable: 0,
-            totalAvailable: 0,
-            financialResources: []
-          };
-        }
+        availableCash: 0,
+        creditAvailable: 0,
+        totalAvailable: 0,
+        financialResources: []
+      };
+    }
       }
 
       // Process payroll data
@@ -580,6 +606,67 @@ export default async function handler(req, res) {
       });
       processedData.plData = plData;
       console.log('Processed P&L data:', !!processedData.plData);
+
+      // Process commissions data
+      if (commissionsResponse?.values && commissionsResponse.values.length > 1) {
+        console.log('Raw Commission Data:', {
+          headerRow: commissionsResponse.values[0],
+          firstDataRow: commissionsResponse.values[1],
+          rowCount: commissionsResponse.values.length - 1,
+          allRows: commissionsResponse.values
+        });
+
+        processedData.commissions = commissionsResponse.values.slice(1).map((row, index) => {
+          // Log the raw row data for debugging
+          console.log(`Raw Commission Row ${index + 1}:`, {
+            mediaBuyer: row[0],
+            commissionRate: row[1],
+            status: row[2],
+            confirmed: row[3],
+            marchConfirmed: row[4],
+            marchCommission: row[5],
+            februaryConfirmed: row[6],
+            februaryCommission: row[7],
+            rowLength: row.length
+          });
+
+          const commission = {
+            mediaBuyer: row[0] || '',
+            commissionRate: parseFloat((row[1] || '0').replace('%', '')) / 100,
+            status: row[2] || '',
+            Confirmed: row[3] || '',
+            march2025: {
+              confirmed: row[4] || '0',
+              commission: row[5] || '0'
+            },
+            february2025: {
+              confirmed: row[6] || '0',
+              commission: row[7] || '0'
+            }
+          };
+
+          // Log each processed row for debugging
+          console.log(`Processed Commission Row ${index + 1}:`, {
+            mediaBuyer: commission.mediaBuyer,
+            march2025: commission.march2025,
+            february2025: commission.february2025
+          });
+
+          return commission;
+        });
+
+        console.log('Final Commission Data:', {
+          count: processedData.commissions.length,
+          sample: processedData.commissions[0],
+          allCommissions: processedData.commissions
+        });
+      } else {
+        console.log('No Commission Data Found:', {
+          hasResponse: !!commissionsResponse,
+          hasValues: !!commissionsResponse?.values,
+          valuesLength: commissionsResponse?.values?.length
+        });
+      }
 
     } catch (processingError) {
       console.error('Error processing data:', processingError);

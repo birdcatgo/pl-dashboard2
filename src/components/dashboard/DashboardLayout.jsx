@@ -46,6 +46,8 @@ import StatCard from '@/components/ui/StatCard';
 import DataTable from '@/components/ui/DataTable';
 import ChartContainer from '@/components/ui/ChartContainer';
 import PageHeader from '@/components/ui/PageHeader';
+import { format } from 'date-fns';
+import CommissionPayments from './CommissionPayments';
 
 export default function DashboardLayout({ 
   performanceData, 
@@ -95,10 +97,10 @@ export default function DashboardLayout({
 
   // Set up initial data
   useEffect(() => {
-    if (performanceData && invoiceData && expenseData && cashFlowData) {
+    if (performanceData?.data && invoiceData && expenseData && cashFlowData) {
       console.log('Setting up dashboard with data:', {
-        hasPerformanceData: !!performanceData,
-        performanceDataLength: performanceData?.length,
+        hasPerformanceData: !!performanceData?.data,
+        performanceDataLength: performanceData?.data?.length,
         hasCashFlowData: !!cashFlowData,
         hasInvoiceData: !!invoiceData,
         hasExpenseData: !!expenseData,
@@ -110,7 +112,7 @@ export default function DashboardLayout({
     } else {
       setError('Missing required data. Please refresh the page.');
     }
-  }, [performanceData, invoiceData, expenseData, cashFlowData, tradeshiftData, plData]);
+  }, [performanceData?.data, invoiceData, expenseData, cashFlowData, tradeshiftData, plData]);
 
   // Monitor Tradeshift data changes
   useEffect(() => {
@@ -160,7 +162,8 @@ export default function DashboardLayout({
     { id: 'thirty-day-challenge', label: '30 Day Challenge', icon: Calendar },
     { id: 'pl', label: 'Profit & Loss', icon: BarChart2 },
     { id: 'network', label: 'Offer Performance', icon: Target },
-    { id: 'media-buyers', label: 'Media Buyers', icon: Users }
+    { id: 'media-buyers', label: 'Media Buyers', icon: Users },
+    { id: 'commissions', label: 'Commission Payments', icon: DollarSign }
   ];
 
   const moreTabs = [
@@ -188,7 +191,7 @@ export default function DashboardLayout({
               icon={Brain}
             />
             <AIInsightsPage
-              performanceData={performanceData}
+              performanceData={performanceData?.data || []}
               invoicesData={invoiceData}
               expenseData={expenseData}
               cashFlowData={cashFlowData}
@@ -203,7 +206,7 @@ export default function DashboardLayout({
               subtitle="Performance and profitability analysis"
               icon={DollarSign}
             />
-            <MediaBuyerPL performanceData={performanceData} />
+            <MediaBuyerPL performanceData={performanceData?.data || []} />
           </div>
         );
       case 'eod-report':
@@ -214,12 +217,12 @@ export default function DashboardLayout({
               subtitle="End of day performance summary"
               icon={BarChart2}
             />
-            <EODReport performanceData={performanceData} />
+            <EODReport performanceData={performanceData?.data || []} />
           </div>
         );
       case 'net-profit':
         console.log('Net Profit tab data:', {
-          performanceData: performanceData?.length,
+          performanceData: performanceData?.data?.length,
           dateRange,
           cashFlowData,
           networkTerms: networkTermsData,
@@ -227,7 +230,7 @@ export default function DashboardLayout({
         return (
           <div className="space-y-6">
             <NetProfit
-              performanceData={performanceData}
+              performanceData={performanceData?.data || []}
               dateRange={dateRange}
               cashFlowData={{
                 ...cashFlowData,
@@ -263,7 +266,7 @@ export default function DashboardLayout({
         return (
           <CreditLine 
             data={{
-              performanceData,
+              performanceData: performanceData?.data || [],
               invoicesData: invoiceData,
               cashFlowData,
               payrollData: expenseData
@@ -284,7 +287,7 @@ export default function DashboardLayout({
         return (
           <DailySpendCalculatorTab 
             cashManagementData={cashFlowData}
-            performanceData={performanceData}
+            performanceData={performanceData?.data || []}
             offerCaps={networkTermsData || []}
           />
         );
@@ -316,7 +319,7 @@ export default function DashboardLayout({
         return (
           <div className="space-y-6">
             <OfferPerformance 
-              performanceData={performanceData}
+              performanceData={performanceData?.data || []}
               dateRange={dateRange}
             />
           </div>
@@ -326,7 +329,7 @@ export default function DashboardLayout({
         return (
           <div className="space-y-6">
             <MediaBuyerPerformance 
-              performanceData={performanceData}
+              performanceData={performanceData?.data || []}
               dateRange={dateRange}
             />
           </div>
@@ -372,14 +375,14 @@ export default function DashboardLayout({
       case 'highlights':
         return (
           <div className="space-y-6">
-            <Highlights performanceData={performanceData} />
+            <Highlights performanceData={performanceData?.data || []} />
           </div>
         );
   
       case 'revenue-flow':
         return (
           <RevenueFlowAnalysis 
-            performanceData={performanceData}
+            performanceData={performanceData?.data || []}
             networkTerms={networkTermsData}
             invoicesData={invoiceData}
             plData={plData}
@@ -402,8 +405,8 @@ export default function DashboardLayout({
       case 'thirty-day-challenge':
         return (
           <div className="space-8">
-            <ThirtyDayChallenge performanceData={performanceData} />
-            <MediaBuyerProgress performanceData={performanceData} />
+            <ThirtyDayChallenge performanceData={performanceData?.data || []} />
+            <MediaBuyerProgress performanceData={performanceData?.data || []} />
           </div>
         );
   
@@ -415,7 +418,19 @@ export default function DashboardLayout({
         );
   
       case 'breakevenCalculator':
-        return <BreakevenCalculator data={performanceData} />;
+        return <BreakevenCalculator data={performanceData?.data || []} />;
+  
+      case 'commissions':
+        return (
+          <div className="space-y-6">
+            <PageHeader 
+              title="Commission Payments" 
+              subtitle="Media buyer commission calculations and payments"
+              icon={DollarSign}
+            />
+            <CommissionPayments commissions={performanceData?.commissions || []} />
+          </div>
+        );
   
       default:
         return null;
@@ -433,8 +448,8 @@ export default function DashboardLayout({
         return new Date(year, month - 1, day);
       })
       .filter(Boolean);
-    
-    return dates.length ? new Date(Math.max(...dates)) : new Date('2025-03-29');
+
+    return new Date(Math.max(...dates.map(d => d.getTime())));
   };
 
   return (
@@ -470,7 +485,7 @@ export default function DashboardLayout({
               </button>
               {lastUpdated && (
                 <div className="text-sm text-gray-400 bg-white/5 px-3 py-1 rounded-md">
-                  Last Updated: {lastUpdated.toLocaleString()}
+                  Last Updated: {format(lastUpdated, 'MMM d, yyyy h:mm a')}
                 </div>
               )}
             </div>
@@ -572,7 +587,7 @@ export default function DashboardLayout({
                   onDateChange={handleDateChange}
                   selectedPeriod={dateRange.period}
                   defaultRange="last7"
-                  latestDate={getLatestDataDate(performanceData)}
+                  latestDate={getLatestDataDate(performanceData?.data)}
                 />
               </div>
             )}
