@@ -363,15 +363,41 @@ const CreditLine = ({ data, loading, error }) => {
               <tr className="bg-gray-50">
                 <td colSpan="5" className="px-4 py-2 text-sm font-bold text-gray-700">AMEX Cards</td>
               </tr>
-              {amexCards.map((account, index) => (
-                <tr key={index} className="hover:bg-gray-50">
-                  <td className="px-4 py-2 text-sm">{account.account}</td>
-                  <td className="px-4 py-2 text-sm text-right">{formatCurrency(account.available)}</td>
-                  <td className="px-4 py-2 text-sm text-right">{formatCurrency(account.owing)}</td>
-                  <td className="px-4 py-2 text-sm text-right">{formatCurrency(account.limit)}</td>
-                  <td className="px-4 py-2 text-sm text-right">{calculateUtilization(account.owing, account.limit)}</td>
-                </tr>
-              ))}
+              {amexCards.map((account, index) => {
+                // Add business name notes for specific cards
+                let businessNote = '';
+                if (account.account.includes('1003') || account.account.includes('1011')) {
+                  businessNote = 'Convert 2 Freedom Tradeshift Account';
+                } else if (account.account.includes('2006')) {
+                  businessNote = 'Torson Enterprises Tradeshift Account';
+                } else if (account.account.includes('1004')) {
+                  businessNote = 'Rightway Marketing Tradeshift Account';
+                } else if (account.account.includes('2007')) {
+                  businessNote = 'Q9to5 Tradeshift Account';
+                }
+
+                return (
+                  <tr key={index} className="hover:bg-gray-50">
+                    <td className="px-4 py-2 text-sm">
+                      <div className="flex items-center">
+                        {account.account}
+                        {businessNote && (
+                          <span className="ml-2 flex items-center text-xs text-blue-600 bg-blue-50 px-2 py-1 rounded">
+                            <svg xmlns="http://www.w3.org/2000/svg" className="h-3 w-3 mr-1" viewBox="0 0 20 20" fill="currentColor">
+                              <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clipRule="evenodd" />
+                            </svg>
+                            {businessNote}
+                          </span>
+                        )}
+                      </div>
+                    </td>
+                    <td className="px-4 py-2 text-sm text-right">{formatCurrency(account.available)}</td>
+                    <td className="px-4 py-2 text-sm text-right">{formatCurrency(account.owing)}</td>
+                    <td className="px-4 py-2 text-sm text-right">{formatCurrency(account.limit)}</td>
+                    <td className="px-4 py-2 text-sm text-right">{calculateUtilization(account.owing, account.limit)}</td>
+                  </tr>
+                );
+              })}
 
               {/* Chase Cards */}
               <tr className="bg-gray-50">

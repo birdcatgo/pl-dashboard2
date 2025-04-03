@@ -4,17 +4,26 @@ import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
 const UpcomingExpensesTable = ({ data = [] }) => {
   console.log('Raw Expenses Data:', data); // Debug log
 
-  // Ensure data is an array and has content
-  const expenses = Array.isArray(data) ? data : [];
+  // Transform array data into objects with named properties
+  const expenses = useMemo(() => {
+    if (!Array.isArray(data)) return [];
+    
+    return data.map(row => ({
+      Category: row[0],
+      Description: row[1],
+      Amount: parseFloat((row[2] || '0').replace(/[$,]/g, '')),
+      Date: row[3]
+    }));
+  }, [data]);
 
   // Calculate metrics
   const metrics = useMemo(() => {
     return expenses.reduce((acc, expense) => {
       const amount = parseFloat(expense.Amount || 0);
-      if (expense.Type === 'payroll') {
+      if (expense.Category?.toLowerCase().includes('payroll')) {
         acc.totalPayroll += amount;
         acc.payrollCount++;
-      } else if (expense.Type === 'credit') {
+      } else if (expense.Category?.toLowerCase().includes('credit')) {
         acc.totalCredit += amount;
         acc.creditCount++;
       }
@@ -38,11 +47,11 @@ const UpcomingExpensesTable = ({ data = [] }) => {
     }).format(value);
   };
 
-  // Sort expenses by due date (most recent first)
+  // Sort expenses by date (soonest to latest)
   const sortedExpenses = useMemo(() => {
     return [...expenses].sort((a, b) => {
-      const dateA = new Date(a.DueDate);
-      const dateB = new Date(b.DueDate);
+      const dateA = new Date(a.Date);
+      const dateB = new Date(b.Date);
       return dateA - dateB;
     });
   }, [expenses]);
@@ -115,9 +124,9 @@ const UpcomingExpensesTable = ({ data = [] }) => {
             <table className="min-w-full divide-y divide-gray-200">
               <thead className="bg-gray-50">
                 <tr>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Type</th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Category</th>
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Description</th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Due Date</th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Date</th>
                   <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase">Amount</th>
                 </tr>
               </thead>
@@ -126,18 +135,18 @@ const UpcomingExpensesTable = ({ data = [] }) => {
                   <tr key={index} className="hover:bg-gray-50">
                     <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
                       <span className={`px-2 py-1 inline-flex text-xs leading-5 font-semibold rounded-full ${
-                        expense.Type === 'payroll' 
+                        expense.Category?.toLowerCase().includes('payroll') 
                           ? 'bg-red-100 text-red-800' 
                           : 'bg-blue-100 text-blue-800'
                       }`}>
-                        {expense.Type === 'payroll' ? 'Payroll' : 'Credit Card'}
+                        {expense.Category}
                       </span>
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
                       {expense.Description || 'N/A'}
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                      {formatDate(expense.DueDate)}
+                      {formatDate(expense.Date)}
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-right text-gray-900">
                       {formatCurrency(expense.Amount)}

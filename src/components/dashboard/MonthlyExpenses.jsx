@@ -13,52 +13,30 @@ const formatCurrency = (value) => {
 };
 
 const MonthlyExpenses = ({ expensesData }) => {
-  // Debug logging
-  React.useEffect(() => {
-    console.log('MonthlyExpenses received data:', {
-      hasData: !!expensesData,
-      dataLength: expensesData?.length,
-      sampleData: expensesData?.[0],
-      categories: expensesData ? _.uniq(expensesData.map(e => e.Category)) : []
-    });
+  // Transform array data into objects with named properties
+  const processedExpenses = React.useMemo(() => {
+    if (!expensesData?.length) return [];
+    
+    return expensesData.map(row => ({
+      Category: row[0],
+      Description: row[1],
+      Amount: parseFloat((row[2] || '0').replace(/[$,]/g, '')),
+      Date: row[3]
+    }));
   }, [expensesData]);
 
-  // Group expenses by category
-  const groupedExpenses = React.useMemo(() => {
-    if (!expensesData?.length) {
-      console.log('No expenses data available');
-      return [];
-    }
+  // Sort expenses by date (soonest to latest)
+  const sortedExpenses = React.useMemo(() => {
+    if (!processedExpenses?.length) return [];
+    
+    return _.orderBy(processedExpenses, ['Date'], ['asc']);
+  }, [processedExpenses]);
 
-    const grouped = _.chain(expensesData)
-      .groupBy('Category')
-      .map((expenses, category) => ({
-        category,
-        expenses,
-        total: _.sumBy(expenses, 'Amount')
-      }))
-      .orderBy(['total'], ['desc'])
-      .value();
-
-    console.log('Grouped expenses:', {
-      groupCount: grouped.length,
-      categories: grouped.map(g => g.category),
-      totalAmount: _.sumBy(grouped, 'total')
-    });
-
-    return grouped;
-  }, [expensesData]);
-
-  // Calculate total expenses
-  const totalExpenses = React.useMemo(() => {
-    return _.sumBy(expensesData, 'Amount');
-  }, [expensesData]);
-
-  if (!expensesData?.length) {
+  if (!processedExpenses?.length) {
     return (
       <Card>
         <CardHeader>
-          <CardTitle>Monthly Expenses</CardTitle>
+          <CardTitle>Upcoming Expenses</CardTitle>
         </CardHeader>
         <CardContent>
           <div className="text-center text-gray-500 py-8">
@@ -72,7 +50,7 @@ const MonthlyExpenses = ({ expensesData }) => {
   return (
     <Card>
       <CardHeader>
-        <CardTitle>Monthly Expenses</CardTitle>
+        <CardTitle>Upcoming Expenses</CardTitle>
       </CardHeader>
       <CardContent>
         <div className="overflow-x-auto">
@@ -81,46 +59,28 @@ const MonthlyExpenses = ({ expensesData }) => {
               <tr>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Category</th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Description</th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Date</th>
                 <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Amount</th>
               </tr>
             </thead>
             <tbody className="bg-white divide-y divide-gray-200">
-              {groupedExpenses.map(({ category, expenses }) => (
-                <React.Fragment key={category}>
-                  {/* Category Header */}
-                  <tr className="bg-gray-50">
-                    <td colSpan="2" className="px-6 py-3 text-sm font-medium text-gray-900">
-                      {category}
-                    </td>
-                    <td className="px-6 py-3 text-sm text-right font-medium text-gray-900">
-                      {formatCurrency(_.sumBy(expenses, 'Amount'))}
-                    </td>
-                  </tr>
-                  {/* Expense Items */}
-                  {expenses.map((expense, index) => (
-                    <tr key={index} className="hover:bg-gray-50">
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500"></td>
-                      <td className="px-6 py-4 text-sm text-gray-900">
-                        {expense.Description}
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-right text-red-600">
-                        {formatCurrency(expense.Amount)}
-                      </td>
-                    </tr>
-                  ))}
-                </React.Fragment>
+              {sortedExpenses.map((expense, index) => (
+                <tr key={index} className="hover:bg-gray-50">
+                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                    {expense.Category}
+                  </td>
+                  <td className="px-6 py-4 text-sm text-gray-900">
+                    {expense.Description}
+                  </td>
+                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                    {expense.Date}
+                  </td>
+                  <td className="px-6 py-4 whitespace-nowrap text-sm text-right text-red-600">
+                    {formatCurrency(expense.Amount)}
+                  </td>
+                </tr>
               ))}
             </tbody>
-            <tfoot className="bg-gray-900 text-white">
-              <tr>
-                <td colSpan="2" className="px-6 py-4 text-sm font-medium">
-                  Total Expenses
-                </td>
-                <td className="px-6 py-4 text-sm text-right font-medium">
-                  {formatCurrency(totalExpenses)}
-                </td>
-              </tr>
-            </tfoot>
           </table>
         </div>
       </CardContent>
