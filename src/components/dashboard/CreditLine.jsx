@@ -401,7 +401,7 @@ const CreditLine = ({ data, loading, error }) => {
 
               {/* Chase Cards */}
               <tr className="bg-gray-50">
-                <td colSpan="5" className="px-4 py-2 text-sm font-medium text-gray-700">Chase Cards</td>
+                <td colSpan="5" className="px-4 py-2 text-sm font-bold text-gray-700">Chase Cards</td>
               </tr>
               {chaseCards.map((account, index) => (
                 <tr key={index} className="hover:bg-gray-50">
@@ -415,7 +415,7 @@ const CreditLine = ({ data, loading, error }) => {
 
               {/* Capital One Cards */}
               <tr className="bg-gray-50">
-                <td colSpan="5" className="px-4 py-2 text-sm font-medium text-gray-700">Capital One Cards</td>
+                <td colSpan="5" className="px-4 py-2 text-sm font-bold text-gray-700">Capital One Cards</td>
               </tr>
               {capitalOneCards.map((account, index) => (
                 <tr key={index} className="hover:bg-gray-50">
@@ -429,7 +429,7 @@ const CreditLine = ({ data, loading, error }) => {
 
               {/* Other Cards */}
               <tr className="bg-gray-50">
-                <td colSpan="5" className="px-4 py-2 text-sm font-medium text-gray-700">Other Cards</td>
+                <td colSpan="5" className="px-4 py-2 text-sm font-bold text-gray-700">Other Cards</td>
               </tr>
               {otherCards.map((account, index) => (
                 <tr key={index} className="hover:bg-gray-50">
