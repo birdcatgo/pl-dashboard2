@@ -30,43 +30,82 @@ const EODReport = ({ performanceData }) => {
     const networks = new Set();
     const offers = new Set();
     const mediaBuyers = new Set();
+    const eduOffers = new Set();
 
     performanceData.forEach(entry => {
-      if (Array.isArray(entry)) {
-        networks.add(entry[1]); // Network is at index 1
-        offers.add(entry[2]); // Offer is at index 2
-        mediaBuyers.add(entry[3]); // Media Buyer is at index 3
+      // Check if the entry is from 2025
+      if (!entry.Date) return;
+      const [month, day, year] = entry.Date.split('/');
+      const entryDate = new Date(year, month - 1, day);
+      if (entryDate < new Date('2025-01-01') || entryDate > new Date('2025-12-31')) return;
+
+      const parseValue = (value) => {
+        if (typeof value === 'string') {
+          return parseFloat(value.replace(/[$,]/g, ''));
+        }
+        return typeof value === 'number' ? value : 0;
+      };
+
+      // Only add to filters if there's activity (revenue or spend)
+      const hasActivity = (
+        (entry['Total Revenue'] && parseValue(entry['Total Revenue']) !== 0) ||
+        (entry['Ad Spend'] && parseValue(entry['Ad Spend']) !== 0)
+      );
+
+      if (!hasActivity) return;
+
+      if (entry && entry.Network) {
+        networks.add(entry.Network);
+      }
+      if (entry && entry.Offer) {
+        offers.add(entry.Offer);
+        // Collect EDU offers separately
+        if (entry.Offer.toUpperCase().includes('EDU')) {
+          eduOffers.add(entry.Offer);
+        }
+      }
+      if (entry && entry['Media Buyer']) {
+        mediaBuyers.add(entry['Media Buyer']);
       }
     });
 
+    // Add EDU as a special filter if we have any EDU offers
+    const offersList = Array.from(offers).sort();
+    if (eduOffers.size > 0) {
+      offersList.unshift('EDU');
+    }
+
     return {
       networks: Array.from(networks).sort(),
-      offers: Array.from(offers).sort(),
+      offers: offersList,
       mediaBuyers: Array.from(mediaBuyers).sort()
     };
   }, [performanceData]);
 
   // Get 2025 data with filters
   const yearData = useMemo(() => {
-    const year2025Start = new Date(2025, 0, 1);
-    const year2025End = new Date(2025, 11, 31);
+    if (!performanceData || !Array.isArray(performanceData)) {
+      return [];
+    }
+
+    // Filter the data based on selected filters
+    const filteredData = performanceData.filter(entry => {
+      const matchesNetwork = networkFilter === 'all' || entry.Network === networkFilter;
+      const matchesOffer = offerFilter === 'all' || 
+        (offerFilter === 'EDU' ? entry.Offer.toUpperCase().includes('EDU') : entry.Offer === offerFilter);
+      const matchesMediaBuyer = mediaBuyerFilter === 'all' || entry['Media Buyer'] === mediaBuyerFilter;
+      return matchesNetwork && matchesOffer && matchesMediaBuyer;
+    });
 
     // First, group by date
-    const dailyData = performanceData.reduce((acc, entry) => {
-      // Apply filters
-      if (
-        (networkFilter && networkFilter !== 'all' && entry.Network !== networkFilter) ||
-        (offerFilter && offerFilter !== 'all' && entry.Offer !== offerFilter) ||
-        (mediaBuyerFilter && mediaBuyerFilter !== 'all' && entry['Media Buyer'] !== mediaBuyerFilter)
-      ) {
-        return acc;
-      }
-
+    const dailyData = filteredData.reduce((acc, entry) => {
       // Parse date in MM/DD/YYYY format
+      if (!entry.Date) return acc;
+
       const [month, day, year] = entry.Date.split('/');
       const entryDate = new Date(year, month - 1, day);
       
-      if (entryDate >= year2025Start && entryDate <= year2025End) {
+      if (entryDate >= new Date('2025-01-01') && entryDate <= new Date('2025-12-31')) {
         const dateKey = format(entryDate, 'yyyy-MM-dd');
         const monthKey = format(entryDate, 'yyyy-MM');
         
@@ -90,8 +129,18 @@ const EODReport = ({ performanceData }) => {
           };
         }
         
-        const revenue = entry['Total Revenue'] || 0;
-        const spend = entry['Ad Spend'] || 0;
+        const revenue = typeof entry['Total Revenue'] === 'string' 
+          ? parseFloat(entry['Total Revenue'].replace(/[$,]/g, '')) 
+          : typeof entry['Total Revenue'] === 'number' 
+            ? entry['Total Revenue'] 
+            : 0;
+
+        const spend = typeof entry['Ad Spend'] === 'string'
+          ? parseFloat(entry['Ad Spend'].replace(/[$,]/g, ''))
+          : typeof entry['Ad Spend'] === 'number'
+            ? entry['Ad Spend']
+            : 0;
+
         const profit = revenue - spend;
         
         // Update month totals
@@ -338,53 +387,89 @@ const EODReport = ({ performanceData }) => {
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6 bg-white p-4 rounded-lg border">
         <div className="space-y-2">
           <label className="text-sm font-medium text-gray-700">Network</label>
-          <Select value={networkFilter} onValueChange={setNetworkFilter}>
-            <SelectTrigger className="w-full bg-white border-gray-200">
-              <SelectValue placeholder="All Networks" />
-            </SelectTrigger>
-            <SelectContent className="bg-white border shadow-lg">
-              <SelectItem value="all" className="hover:bg-gray-100">All Networks</SelectItem>
-              {filters.networks.map(network => (
-                <SelectItem key={network} value={network} className="hover:bg-gray-100">
-                  {network}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+          <div className="relative">
+            <Select value={networkFilter} onValueChange={setNetworkFilter}>
+              <SelectTrigger className="w-full bg-white border-gray-200">
+                <SelectValue placeholder="All Networks" />
+              </SelectTrigger>
+              <SelectContent className="bg-white border shadow-lg max-h-[200px] overflow-y-auto">
+                <SelectItem value="all" className="hover:bg-gray-100">All Networks</SelectItem>
+                {filters.networks.map(network => (
+                  <SelectItem key={network} value={network} className="hover:bg-gray-100">
+                    {network}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            {networkFilter !== 'all' && (
+              <button
+                onClick={() => setNetworkFilter('all')}
+                className="absolute right-8 top-1/2 -translate-y-1/2 p-1 hover:bg-gray-100 rounded-full"
+              >
+                <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 text-gray-500" viewBox="0 0 20 20" fill="currentColor">
+                  <path fillRule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clipRule="evenodd" />
+                </svg>
+              </button>
+            )}
+          </div>
         </div>
 
         <div className="space-y-2">
           <label className="text-sm font-medium text-gray-700">Offer</label>
-          <Select value={offerFilter} onValueChange={setOfferFilter}>
-            <SelectTrigger className="w-full bg-white border-gray-200">
-              <SelectValue placeholder="All Offers" />
-            </SelectTrigger>
-            <SelectContent className="bg-white border shadow-lg">
-              <SelectItem value="all" className="hover:bg-gray-100">All Offers</SelectItem>
-              {filters.offers.map(offer => (
-                <SelectItem key={offer} value={offer} className="hover:bg-gray-100">
-                  {offer}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+          <div className="relative">
+            <Select value={offerFilter} onValueChange={setOfferFilter}>
+              <SelectTrigger className="w-full bg-white border-gray-200">
+                <SelectValue placeholder="All Offers" />
+              </SelectTrigger>
+              <SelectContent className="bg-white border shadow-lg max-h-[200px] overflow-y-auto">
+                <SelectItem value="all" className="hover:bg-gray-100">All Offers</SelectItem>
+                {filters.offers.map(offer => (
+                  <SelectItem key={offer} value={offer} className="hover:bg-gray-100">
+                    {offer}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            {offerFilter !== 'all' && (
+              <button
+                onClick={() => setOfferFilter('all')}
+                className="absolute right-8 top-1/2 -translate-y-1/2 p-1 hover:bg-gray-100 rounded-full"
+              >
+                <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 text-gray-500" viewBox="0 0 20 20" fill="currentColor">
+                  <path fillRule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clipRule="evenodd" />
+                </svg>
+              </button>
+            )}
+          </div>
         </div>
 
         <div className="space-y-2">
           <label className="text-sm font-medium text-gray-700">Media Buyer</label>
-          <Select value={mediaBuyerFilter} onValueChange={setMediaBuyerFilter}>
-            <SelectTrigger className="w-full bg-white border-gray-200">
-              <SelectValue placeholder="All Media Buyers" />
-            </SelectTrigger>
-            <SelectContent className="bg-white border shadow-lg">
-              <SelectItem value="all" className="hover:bg-gray-100">All Media Buyers</SelectItem>
-              {filters.mediaBuyers.map(buyer => (
-                <SelectItem key={buyer} value={buyer} className="hover:bg-gray-100">
-                  {buyer}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+          <div className="relative">
+            <Select value={mediaBuyerFilter} onValueChange={setMediaBuyerFilter}>
+              <SelectTrigger className="w-full bg-white border-gray-200">
+                <SelectValue placeholder="All Media Buyers" />
+              </SelectTrigger>
+              <SelectContent className="bg-white border shadow-lg max-h-[200px] overflow-y-auto">
+                <SelectItem value="all" className="hover:bg-gray-100">All Media Buyers</SelectItem>
+                {filters.mediaBuyers.map(buyer => (
+                  <SelectItem key={buyer} value={buyer} className="hover:bg-gray-100">
+                    {buyer}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            {mediaBuyerFilter !== 'all' && (
+              <button
+                onClick={() => setMediaBuyerFilter('all')}
+                className="absolute right-8 top-1/2 -translate-y-1/2 p-1 hover:bg-gray-100 rounded-full"
+              >
+                <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 text-gray-500" viewBox="0 0 20 20" fill="currentColor">
+                  <path fillRule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clipRule="evenodd" />
+                </svg>
+              </button>
+            )}
+          </div>
         </div>
       </div>
 
