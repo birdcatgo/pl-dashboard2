@@ -2,7 +2,6 @@ import React, { useMemo, useState, useEffect } from 'react';
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
 import { format, subMonths, format as formatDate } from 'date-fns';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, BarChart, Bar, Legend, ComposedChart, Area, ReferenceLine } from 'recharts';
-import FinancialSnapshot from './FinancialSnapshot';
 
 const SLACK_WEBHOOK_URL = process.env.NEXT_PUBLIC_SLACK_WEBHOOK_URL;
 
@@ -343,9 +342,9 @@ const ExpenseCategory = ({ title, monthlyData, plData }) => {
     if (title.toLowerCase().includes('subscription')) {
       // Get the most recent month's data
       const mostRecentMonth = Object.entries(plData.monthly)
-        .filter(([month]) => ['February', 'January', 'December'].includes(month))
+        .filter(([month]) => ['March', 'February', 'January'].includes(month))
         .sort(([monthA], [monthB]) => {
-          const monthOrder = { 'February': 3, 'January': 2, 'December': 1 };
+          const monthOrder = { 'March': 3, 'February': 2, 'January': 1 };
           return monthOrder[monthB] - monthOrder[monthA];
         })[0];
 
@@ -366,11 +365,11 @@ const ExpenseCategory = ({ title, monthlyData, plData }) => {
     return `${title} ${trend > 0 ? 'increased' : 'decreased'} by ${formatCurrency(difference)} (${Math.abs(trend)}%) compared to ${monthDisplay}`;
   };
 
-  // Ensure data is in chronological order (Feb, Jan, Dec)
+  // Ensure data is in chronological order (March, Feb, Jan)
   const orderedData = [
+    monthlyData.find(d => d.month === 'March 2025'),
     monthlyData.find(d => d.month === 'February 2025'),
-    monthlyData.find(d => d.month === 'January 2025'),
-    monthlyData.find(d => d.month === 'December 2024')
+    monthlyData.find(d => d.month === 'January 2025')
   ].filter(Boolean);
 
   return (
@@ -388,6 +387,7 @@ const ExpenseCategory = ({ title, monthlyData, plData }) => {
           {orderedData.map((data, index) => {
             const nextMonth = orderedData[index + 1];
             const trend = nextMonth ? calculateTrend(data.amount, nextMonth.amount) : 0;
+            const isRevenue = title.toLowerCase().includes('revenue');
 
             return (
               <div key={index} className="bg-white rounded-lg p-4 shadow-sm">
@@ -396,7 +396,11 @@ const ExpenseCategory = ({ title, monthlyData, plData }) => {
                   <div className="text-lg font-semibold">{formatCurrency(data.amount)}</div>
                   {index === 0 && nextMonth && (
                     <div className="relative group">
-                      <div className={`text-sm ${trend > 0 ? 'text-red-600' : 'text-green-600'}`}>
+                      <div className={`text-sm ${
+                        isRevenue
+                          ? trend < 0 ? 'text-red-600' : 'text-green-600'
+                          : trend > 0 ? 'text-red-600' : 'text-green-600'
+                      }`}>
                         {trend > 0 ? '↑' : '↓'}{Math.abs(trend)}%
                       </div>
                       <div className="absolute bottom-full right-0 mb-2 hidden group-hover:block w-64 p-2 bg-gray-800 text-white text-xs rounded shadow-lg z-50">
@@ -440,7 +444,7 @@ const ExpenseCategory = ({ title, monthlyData, plData }) => {
 const ExportModal = ({ onClose, monthlyData, plData }) => {
   const exportToCSV = () => {
     // Prepare the data
-    const headers = ['Category', 'Description', 'November 2024', 'December 2024', 'January 2025'];
+    const headers = ['Category', 'Description', 'November 2024', 'December 2024', 'January 2025', 'February 2025', 'March 2025'];
     const rows = [];
 
     // Helper function to get month's amount
@@ -453,7 +457,7 @@ const ExportModal = ({ onClose, monthlyData, plData }) => {
       rows.push([category, '', '', '', '']); // Category header
 
       // Get expenses for this category
-      const monthExpenses = plData.monthly['January']?.expenseData.filter(e => {
+      const monthExpenses = plData.monthly['March']?.expenseData.filter(e => {
         const expenseCategory = e.CATEGORY?.toLowerCase() || '';
         if (category === 'Payroll') {
           return expenseCategory.includes('payroll') || expenseCategory.includes('salary');
@@ -532,15 +536,16 @@ const ExportModal = ({ onClose, monthlyData, plData }) => {
               <tr>
                 <th>Category</th>
                 <th>Description</th>
-                <th>November 2024</th>
                 <th>December 2024</th>
                 <th>January 2025</th>
+                <th>February 2025</th>
+                <th>March 2025</th> 
               </tr>
             </thead>
             <tbody>
               ${['Payroll', 'Advertising', 'Subscriptions', 'Miscellaneous']
                 .map(category => {
-                  const expenses = plData.monthly['January']?.expenseData
+                const expenses = plData.monthly['March']?.expenseData
                     .filter(e => e.CATEGORY?.toLowerCase().includes(category.toLowerCase())) || [];
                   
                   return `
@@ -1209,18 +1214,25 @@ const ExpenseComparisonTable = ({ monthlyData, plData }) => {
 
             {expandedCategory === category && (
               <div className="divide-y divide-gray-200">
-                {expenses.map((expense, index) => (
-                  <div key={index} className="px-4 py-3 hover:bg-gray-50">
-                    <div className="flex justify-between items-center">
-                      <span>{expense.name}</span>
-                      <div className="space-x-4">
-                        {Object.entries(expense.amounts).map(([month, amount]) => (
-                          <span key={month} className="text-gray-600">
-                            {formatCurrency(amount)}
-                          </span>
-                        ))}
-                      </div>
+                <div className="grid grid-cols-4 gap-4 px-4 py-2 bg-gray-50">
+                  <div className="text-xs font-medium text-gray-500 uppercase">Description</div>
+                  {monthlyData.map(({ month }) => (
+                    <div key={month} className="text-xs font-medium text-gray-500 uppercase text-right">
+                      {format(month, 'MMM yyyy')}
                     </div>
+                  ))}
+                </div>
+                {expenses.map((expense, index) => (
+                  <div key={index} className="grid grid-cols-4 gap-4 px-4 py-3 hover:bg-gray-50">
+                    <div className="font-medium">{expense.name}</div>
+                    {monthlyData.map(({ month }) => {
+                      const monthName = format(month, 'MMMM');
+                      return (
+                        <div key={month} className="text-right text-gray-600">
+                          {formatCurrency(expense.amounts[monthName] || 0)}
+                        </div>
+                      );
+                    })}
                   </div>
                 ))}
               </div>
@@ -1545,7 +1557,7 @@ const ProfitTrendChart = ({ plData }) => {
   const profitTrendData = useMemo(() => {
     if (!plData?.monthly) return [];
 
-    const monthOrder = ['June', 'July', 'August', 'September', 'October', 'November', 'December', 'January'];
+    const monthOrder = ['July', 'August', 'September', 'October', 'November', 'December', 'January', 'February', 'March'];
     
     return monthOrder.map(month => {
       const data = plData.monthly[month];
@@ -1839,18 +1851,19 @@ const processMonthlyData = (monthlyData) => {
       return description.includes('investment') || description.includes('injection') ? sum + amount : sum;
     }, 0);
 
-    // Update year assignment
-    const year = month === 'January' || month === 'February' ? '2025' : '2024';
+    // Update year assignment for March
+    const year = month === 'January' || month === 'February' || month === 'March' ? '2025' : '2024';
     
     return {
       month: `${month} ${year}`,
       revenue,
-      cashInjections,
-      ...expensesByCategory,
+      expenses,
       profit,
-      profitMargin
+      profitMargin,
+      ...expensesByCategory,
+      cashInjections
     };
-  }).filter(Boolean);
+  });
 };
 
 // Update the network revenue processing
@@ -1876,7 +1889,7 @@ const processNetworkRevenue = (monthIncome) => {
   return networkRevenue;
 };
 
-const FinancialOverview = ({ plData, cashFlowData, invoicesData, networkTerms }) => {
+const ExpenseOverview = ({ plData, cashFlowData, invoicesData, networkTerms }) => {
   // Add loading state
   const [isRefreshing, setIsRefreshing] = useState(false);
 
@@ -1962,7 +1975,7 @@ const FinancialOverview = ({ plData, cashFlowData, invoicesData, networkTerms })
       .map(item => ({
         name: item.Month,
         date: new Date(`${item.Month} 1, ${
-          ['January', 'February'].includes(item.Month) ? '2025' : '2024'
+          ['January', 'February', 'March'].includes(item.Month) ? '2025' : '2024'
         }`),
         order: monthOrder[item.Month]
       }))
@@ -1973,7 +1986,7 @@ const FinancialOverview = ({ plData, cashFlowData, invoicesData, networkTerms })
         if (yearA !== yearB) return yearB - yearA;
         
         // If same year, compare months
-        return b.order - a.order;
+        return monthOrder[a.name] - monthOrder[b.name];
       })
       .slice(0, 3); // Get only the most recent 3 months
 
@@ -1987,9 +2000,27 @@ const FinancialOverview = ({ plData, cashFlowData, invoicesData, networkTerms })
       return null;
     }
 
-    return lastThreeMonths.map(({ name, date }) => {
-      const monthData = plData.monthly[name];
-      console.log(`Processing month ${name}:`, monthData);
+    // Define the months we want to show in order
+    const targetMonths = ['March 2025', 'February 2025', 'January 2025'];
+
+    // Add debug logging
+    console.log('Processing monthly data:', {
+      availableMonths: Object.keys(plData.monthly),
+      hasMarchData: !!plData.monthly['March'],
+      marchData: plData.monthly['March']
+    });
+
+    return targetMonths.map(monthStr => {
+      const [month, year] = monthStr.split(' ');
+      const monthData = plData.monthly[month];
+      
+      // Enhanced debug logging for each month
+      console.log(`Processing ${monthStr}:`, {
+        hasData: !!monthData,
+        totalIncome: monthData?.totalIncome,
+        totalExpenses: monthData?.totalExpenses,
+        rawData: monthData
+      });
 
       // Calculate revenue first
       const monthlyRevenue = parseAmount(monthData?.totalIncome) || 0;
@@ -2056,7 +2087,7 @@ const FinancialOverview = ({ plData, cashFlowData, invoicesData, networkTerms })
       }, 0) || 0;
 
       const monthSummary = {
-        month: date,
+        month: new Date(`${month} 1, ${year}`),
         revenue: monthlyRevenue,
         payroll,
         adSpend,
@@ -2065,13 +2096,14 @@ const FinancialOverview = ({ plData, cashFlowData, invoicesData, networkTerms })
         total: payroll + adSpend + subscriptions + miscellaneous
       };
 
-      console.log(`Month ${name} summary:`, monthSummary);
+      // Log the final summary for this month
+      console.log(`${monthStr} summary:`, monthSummary);
       return monthSummary;
     });
-  }, [plData, lastThreeMonths]);
+  }, [plData]);
 
   if (!processedData) {
-    return <div>Loading financial overview...</div>;
+    return <div>Loading expense overview...</div>;
   }
 
   const monthlyData = processMonthlyData(plData.monthly);
@@ -2080,7 +2112,7 @@ const FinancialOverview = ({ plData, cashFlowData, invoicesData, networkTerms })
     <div className="p-6">
       {/* Add refresh button at the top */}
       <div className="flex justify-between items-center mb-6">
-        <h1 className="text-2xl font-bold text-gray-900">Financial Overview</h1>
+        <h1 className="text-2xl font-bold text-gray-900">Expense Overview</h1>
         <button
           onClick={handleRefresh}
           disabled={isRefreshing}
@@ -2108,20 +2140,10 @@ const FinancialOverview = ({ plData, cashFlowData, invoicesData, networkTerms })
       </div>
 
       <Card>
-        <CardHeader>
-          <CardTitle>Financial Overview</CardTitle>
-        </CardHeader>
         <CardContent>
           <div className="space-y-8">
-            {/* Current Financial Position */}
-            <FinancialSnapshot 
-              cashFlowData={cashFlowData}
-              invoicesData={invoicesData}
-              networkTerms={networkTerms}
-            />
-
             {/* Historical Analysis Section */}
-            <div className="border-t pt-8">
+            <div className="pt-8">
               <div className="mb-6">
                 <h2 className="text-2xl font-bold text-gray-900">Historical Performance Analysis</h2>
                 <p className="text-sm text-gray-500 mt-1">
@@ -2204,4 +2226,4 @@ const FinancialOverview = ({ plData, cashFlowData, invoicesData, networkTerms })
   );
 };
 
-export default FinancialOverview; 
+export default ExpenseOverview; 

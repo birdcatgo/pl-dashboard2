@@ -54,7 +54,8 @@ export default function RevenueFlowAnalysis({ performanceData, networkTerms, inv
       .sort((a, b) => {
         const monthOrder = {
           'June': 6, 'July': 7, 'August': 8, 'September': 9,
-          'October': 10, 'November': 11, 'December': 12, 'January': 13
+          'October': 10, 'November': 11, 'December': 12, 
+          'January': 13, 'February': 14, 'March': 15
         };
         return monthOrder[a[0]] - monthOrder[b[0]];
       })
@@ -110,7 +111,8 @@ export default function RevenueFlowAnalysis({ performanceData, networkTerms, inv
       .sort((a, b) => {
         const monthOrder = {
           'June': 6, 'July': 7, 'August': 8, 'September': 9,
-          'October': 10, 'November': 11, 'December': 12, 'January': 13
+          'October': 10, 'November': 11, 'December': 12, 
+          'January': 13, 'February': 14, 'March': 15
         };
         return monthOrder[a[0]] - monthOrder[b[0]];
       })

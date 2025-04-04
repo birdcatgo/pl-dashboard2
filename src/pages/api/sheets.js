@@ -9,7 +9,7 @@ async function processPLData(batchResponse) {
 
     // Process monthly detail sheets more efficiently
     const monthSheets = batchResponse.data.valueRanges.filter(range => 
-      /^(June|July|August|September|October|November|December|January|February)!/.test(range.range)
+      /^(March|February|January|December|November|October|September|August|July|June)!/.test(range.range)
     );
 
     // Process all months in parallel
@@ -346,9 +346,10 @@ export default async function handler(req, res) {
       "'Financial Resources'!A:D",
       "'Payroll'!A:D",
       "'Media Buyer Spend'!A:B",
-      "'Summary'!A:U",
+      "'Summary'!A:V",
       "'Bank Structure'!A:M",
       "'Network Payment Schedule'!A:H",
+      "'March'!A:D",
       "'February'!A:D",
       "'January'!A:D",
       "'December'!A:D",
@@ -431,6 +432,7 @@ export default async function handler(req, res) {
       summaryResponse,
       bankStructureResponse,
       networkPaymentsResponse,
+      marchResponse,
       februaryResponse,
       januaryResponse,
       decemberResponse,
@@ -592,6 +594,7 @@ export default async function handler(req, res) {
       const plData = await processPLData({
         data: {
           valueRanges: [
+            marchResponse,
             februaryResponse,
             januaryResponse,
             decemberResponse,

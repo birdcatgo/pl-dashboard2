@@ -38,8 +38,8 @@ const parseAmount = (amount) => {
 const SummaryTable = ({ summaryData }) => {
   // Helper function to get the year for a month
   const getYearForMonth = (month) => {
-    // January and February are in 2025, all other months are in 2024
-    return ['January', 'February'].includes(month) ? 2025 : 2024;
+    // January, February, and March are in 2025, all other months are in 2024
+    return ['January', 'February', 'March'].includes(month) ? 2025 : 2024;
   };
 
   return (

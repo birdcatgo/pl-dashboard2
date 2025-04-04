@@ -49,13 +49,6 @@ const CommissionPayments = ({ commissions }) => {
 
   // Get the data for the selected month
   const getMonthData = (commission) => {
-    console.log('Getting Month Data:', {
-      selectedMonth,
-      commission,
-      marchData: commission.march2025,
-      februaryData: commission.february2025
-    });
-
     if (selectedMonth === 'march2025') {
       return {
         amount: commission.march2025?.confirmed || '0',

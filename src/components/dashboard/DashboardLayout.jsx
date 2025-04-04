@@ -28,14 +28,13 @@ import PLDashboard from '@/components/dashboard/PLDashboard';
 import CashFlowProjection from './CashFlowProjection';
 import ImprovedPLDashboard from './ImprovedPLDashboard';
 import Highlights from './Highlights';
-import FinancialOverview from './FinancialOverview';
+import ExpenseOverview from './ExpenseOverview';
 import RevenueFlowAnalysis from './RevenueFlowAnalysis';
 import TradeshiftOverview from './TradeshiftOverview';
 import CreditCardLimits from './CreditCardLimits';
 import ThirtyDayChallenge from './ThirtyDayChallenge';
 import MediaBuyerProgress from './MediaBuyerProgress';
 import CreditLineManager from './CreditLineManager';
-import FinancialOverviewBox from './FinancialOverviewBox';
 import AIInsightsPage from './AIInsightsPage';
 import MediaBuyerPL from './MediaBuyerPL';
 import MonthlyExpenses from './MonthlyExpenses';
@@ -165,9 +164,7 @@ export default function DashboardLayout({
     { id: 'media-buyers', label: 'Media Buyers', icon: Users },
     { id: 'commissions', label: 'Commission Payments', icon: DollarSign },
     { id: 'upcoming-expenses', label: 'Upcoming Expenses', icon: Receipt },
-    { id: 'financial-overview', label: 'Financial Overview', icon: BarChart2 },
-    { id: 'cash-position', label: 'Cash Position', icon: DollarSign },
-    { id: 'monthly-expenses', label: 'Monthly Expenses', icon: Receipt }
+    { id: 'expense-overview', label: 'Expense Overview', icon: BarChart2 }
   ];
 
   const renderTabContent = () => {
@@ -350,10 +347,10 @@ export default function DashboardLayout({
           />
         );
   
-      case 'financial-overview':
+      case 'expense-overview':
         return (
           <div className="space-y-6">
-            <FinancialOverview 
+            <ExpenseOverview 
               plData={plData}
               cashFlowData={cashFlowData}
               invoicesData={invoiceData}
