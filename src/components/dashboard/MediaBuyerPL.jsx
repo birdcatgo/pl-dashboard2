@@ -1,7 +1,7 @@
 import React, { useState, useMemo } from 'react';
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
-import { format, parseISO, startOfMonth, endOfMonth } from 'date-fns';
-import { ChevronDown, ChevronRight, HelpCircle, TrendingUp, TrendingDown, DollarSign, Receipt, BarChart2, Percent } from 'lucide-react';
+import { format, parseISO, startOfMonth, endOfMonth, addDays } from 'date-fns';
+import { ChevronDown, ChevronRight, HelpCircle, TrendingUp, TrendingDown, DollarSign, Receipt, BarChart2, Percent, Calendar } from 'lucide-react';
 import _ from 'lodash';
 
 const formatCurrency = (value) => {
@@ -187,7 +187,12 @@ const MediaBuyerPL = ({ performanceData }) => {
 
         const baseProfit = totalRevenue - totalAdSpend;
         const mediaBuyerCommission = baseProfit * 0.10; // 10% of profit
-        const ringbaExpense = acaRevenue * 0.02; // 2% of ACA-ACA revenue
+        
+        // Only exclude Ringba expense for dates April 2024 and later
+        const date = new Date(dateKey);
+        const cutoffDate = new Date('2024-04-01');
+        const ringbaExpense = date >= cutoffDate ? 0 : acaRevenue * 0.02; // 2% of ACA-ACA revenue before April 2024
+        
         const dailyExpenses = 2819.81; // Fixed daily expenses amount (Payroll and General $59,217) / 21 working days
         const totalExpenses = mediaBuyerCommission + ringbaExpense; // Removed dailyExpenses from daily breakdown
 
@@ -277,6 +282,9 @@ const MediaBuyerPL = ({ performanceData }) => {
               const currentProfit = monthlyTotals[0].finalProfitWithDaily;
               const trendComponents = getTrendComponents(trendStatus, currentProfit, monthlyTotals);
               
+              // Calculate total expenses for the current month
+              const totalExpenses = (monthlyTotals[0]?.mediaBuyerCommission || 0) + (monthlyTotals[0]?.dailyExpenses || 0);
+
               return (
                 <div className={`bg-gradient-to-br ${trendComponents.bgGradient} rounded-xl p-6 transform transition-all duration-200 hover:shadow-lg relative overflow-hidden group`}>
                   {/* Background Line */}
@@ -294,68 +302,89 @@ const MediaBuyerPL = ({ performanceData }) => {
 
                   <div className="grid grid-cols-2 gap-8">
                     {/* Left Column */}
-                    <div className="space-y-6">
+                    <div className="space-y-4">
                       <div>
-                        <div className={`text-6xl font-bold ${currentProfit >= 0 ? 'text-[#28a745]' : 'text-red-600'} mb-2`}>
-                          {formatCurrency(monthlyTotals[0].finalProfitWithDaily)}
+                        <div className="flex flex-col">
+                          <div className="text-4xl font-bold text-[#28a745]">
+                            +{formatCurrency(monthlyTotals[0].baseProfit)}
+                          </div>
+                          <div className="text-sm text-gray-500">this month</div>
+                          <div className="text-sm text-gray-400 uppercase tracking-wider mt-1">Current Month Profit</div>
                         </div>
-                        <div className="text-sm font-semibold text-gray-500 uppercase tracking-wider">Profit/Loss</div>
+                        
+                        {/* Progress to Profitability */}
+                        <div className="mt-6">
+                          <div className="text-sm text-gray-500">Progress to Break-even</div>
+                          <div className="relative h-2 bg-gray-100 rounded-full overflow-visible mt-2">
+                            {/* Break-even point marker (middle line) */}
+                            <div className="absolute left-1/2 top-0 h-full w-0.5 bg-gray-300 z-10">
+                              {/* Amount to go label */}
+                              <div className="absolute -top-6 left-1/2 transform -translate-x-1/2 whitespace-nowrap">
+                                <span className="font-medium text-gray-700 text-sm">
+                                  {formatCurrency(Math.abs(currentProfit))} to go
+                                </span>
+                              </div>
+                            </div>
+                            
+                            {/* Progress bar */}
+                            <div 
+                              className="h-full transition-all duration-500 rounded-l-full"
+                              style={{ 
+                                width: `${currentProfit >= 0 ? '50%' : (50 * (1 + currentProfit/Math.abs(totalExpenses)))}%`,
+                                backgroundColor: currentProfit >= 0 ? '#28a745' : '#dc2626'
+                              }}
+                            />
+                            
+                            {/* Current Position Marker */}
+                            <div 
+                              className="absolute top-1/2 -translate-y-1/2 w-3 h-3 bg-white border-2 rounded-full shadow-sm z-20"
+                              style={{ 
+                                left: `${currentProfit >= 0 ? '50%' : (50 * (1 + currentProfit/Math.abs(totalExpenses)))}%`,
+                                transform: 'translate(-50%, -50%)',
+                                borderColor: currentProfit >= 0 ? '#28a745' : '#dc2626'
+                              }}
+                            />
+                          </div>
+                          <div className="flex justify-between text-xs mt-1">
+                            <span className="text-red-500">Loss (-{formatCurrency(Math.abs(totalExpenses))})</span>
+                            <span className="text-gray-500">Break-even ($0)</span>
+                            <span className="text-[#28a745]">Target (+{formatCurrency(totalExpenses)})</span>
+                          </div>
+                        </div>
                       </div>
                     </div>
 
                     {/* Right Column */}
-                    <div className="space-y-4">
+                    <div className="space-y-6">
                       <div>
-                        <div className="flex items-center gap-3 mb-2">
-                          <div className="text-4xl font-bold flex items-center gap-2">
-                            <span className={monthlyTotals[0].roi < 0 ? 'text-red-600' : 'text-[#28a745]'}>
-                              {monthlyTotals[0].roi < 0 ? `-${formatPercent(Math.abs(monthlyTotals[0].roi))}` : formatPercent(monthlyTotals[0].roi)}
-                            </span>
-                            <svg 
-                              className={`w-8 h-8 ${monthlyTotals[0].days[0].baseProfit >= 0 ? 'text-[#28a745]' : 'text-red-600'}`} 
-                              fill="none" 
-                              viewBox="0 0 24 24" 
-                              stroke="currentColor"
-                            >
-                              <path 
-                                strokeLinecap="round" 
-                                strokeLinejoin="round" 
-                                strokeWidth={2.5} 
-                                d={monthlyTotals[0].days[0].baseProfit >= 0 ? "M13 7h8m0 0v8m0-8l-8 8-4-4-6 6" : "M13 17h8m0 0v-8m0 8l-8-8-4 4-6-6"} 
-                              />
-                            </svg>
+                        {/* Average Daily Profit & Break-even Projection */}
+                        <div className="space-y-4">
+                          <div>
+                            <div className="text-sm text-gray-500">Average Daily Profit</div>
+                            <div className={`text-2xl font-semibold ${monthlyTotals[0].days[0].baseProfit >= 0 ? 'text-[#28a745]' : 'text-red-600'}`}>
+                              {formatCurrency(monthlyTotals[0].days[0].baseProfit)}
+                            </div>
                           </div>
+                          {monthlyTotals[0].days[0].baseProfit > 0 && currentProfit < 0 && (
+                            <div>
+                              <div className="text-sm text-gray-500">Projected Break-even Date</div>
+                              <div className="flex items-center gap-2">
+                                <Calendar className="w-5 h-5 text-blue-500" />
+                                <div className="text-xl font-semibold text-gray-800">
+                                  {format(
+                                    addDays(new Date(), Math.ceil(Math.abs(currentProfit) / monthlyTotals[0].days[0].baseProfit)),
+                                    'MMM d, yyyy'
+                                  )}
+                                </div>
+                              </div>
+                            </div>
+                          )}
                         </div>
-                        <div className="text-sm font-semibold text-gray-500 uppercase tracking-wider">ROI</div>
                       </div>
-
-                      {/* Break-even Progress Bar */}
-                      {currentProfit < 0 && (
-                        <div className="space-y-2">
-                          <div className="flex justify-between items-center text-sm">
-                            <span className="text-gray-600">Break-even Progress</span>
-                            <span className="font-medium text-gray-900">{Math.round(trendComponents.progressToBreakEven)}%</span>
-                          </div>
-                          <div className="h-2 bg-gray-100 rounded-full overflow-hidden">
-                            <div 
-                              className={`h-full rounded-full transition-all duration-500 ${
-                                trendComponents.progressToBreakEven >= 90 ? 'bg-green-500' :
-                                trendComponents.progressToBreakEven >= 50 ? 'bg-yellow-500' :
-                                'bg-blue-500'
-                              }`}
-                              style={{ width: `${Math.min(Math.max(trendComponents.progressToBreakEven, 0), 100)}%` }}
-                            />
-                          </div>
-                          <div className="flex justify-between text-xs text-gray-500">
-                            <span>Start</span>
-                            <span>Break-even</span>
-                          </div>
-                        </div>
-                      )}
 
                       <div className="flex items-center gap-2">
                         <span className="text-xl">{trendComponents.icon}</span>
-                        <span className="text-sm font-medium text-gray-700">{trendComponents.text}</span>
+                        <span className="text-sm font-medium text-gray-600">{trendComponents.text}</span>
                       </div>
                     </div>
                   </div>
@@ -420,12 +449,6 @@ const MediaBuyerPL = ({ performanceData }) => {
                 <span className="text-sm text-gray-600">Media Buyer Commission</span>
                 <span className="text-sm font-medium text-red-600">
                   {formatCurrency(monthlyTotals[0]?.mediaBuyerCommission || 0)}
-                </span>
-              </div>
-              <div className="flex justify-between items-center">
-                <span className="text-sm text-gray-600">Ringba Cost</span>
-                <span className="text-sm font-medium text-red-600">
-                  {formatCurrency(monthlyTotals[0]?.ringbaExpense || 0)}
                 </span>
               </div>
               <div className="flex justify-between items-center">
@@ -502,12 +525,6 @@ const MediaBuyerPL = ({ performanceData }) => {
                   <th className="px-3 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider bg-orange-50">
                     <div className="flex items-center justify-end gap-1">
                       <Receipt className="w-4 h-4" />
-                      Ringba Cost
-                    </div>
-                  </th>
-                  <th className="px-3 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider bg-orange-50">
-                    <div className="flex items-center justify-end gap-1">
-                      <Receipt className="w-4 h-4" />
                       Daily Exp
                     </div>
                   </th>
@@ -555,9 +572,6 @@ const MediaBuyerPL = ({ performanceData }) => {
                         {formatCurrency(month.mediaBuyerCommission)}*
                       </td>
                       <td className="px-3 py-4 whitespace-nowrap text-sm text-right text-orange-600 bg-orange-50">
-                        {formatCurrency(month.ringbaExpense)}**
-                      </td>
-                      <td className="px-3 py-4 whitespace-nowrap text-sm text-right text-orange-600 bg-orange-50">
                         {formatCurrency(month.dailyExpenses)}***
                       </td>
                       <td className="px-3 py-4 whitespace-nowrap text-sm text-right font-medium bg-green-50">
@@ -579,7 +593,7 @@ const MediaBuyerPL = ({ performanceData }) => {
               </tbody>
             </table>
             <div className="mt-4 text-sm text-gray-500 italic">
-              * MB Comm based on 10% of base profit | ** Ringba Cost based on 2% of ACA revenue | *** Daily Exp total $59,217 per month (prorated for current month based on days of data)
+              * MB Comm based on 10% of base profit | ** Daily Exp total $59,217 per month (prorated for current month based on days of data)
             </div>
           </div>
         </div>
@@ -643,19 +657,7 @@ const MediaBuyerPL = ({ performanceData }) => {
                                 </div>
                               </div>
                             </th>
-                            <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
-                              <div className="flex items-center justify-end gap-1">
-                                Ringba Cost
-                                <div className="group relative">
-                                  <HelpCircle className="h-4 w-4 text-gray-400" />
-                                  <div className="absolute right-0 bottom-full mb-2 hidden group-hover:block w-64 p-2 bg-gray-900 text-white text-xs rounded shadow-lg">
-                                    Ringba Cost: 2% of ACA revenue
-                                  </div>
-                                </div>
-                              </div>
-                            </th>
                             <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Final Profit</th>
-                            <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">ROI</th>
                           </tr>
                         </thead>
                         <tbody className="bg-white divide-y divide-gray-200">
@@ -676,14 +678,8 @@ const MediaBuyerPL = ({ performanceData }) => {
                               <td className="px-6 py-4 whitespace-nowrap text-sm text-right text-orange-600">
                                 {formatCurrency(day.mediaBuyerCommission)}
                               </td>
-                              <td className="px-6 py-4 whitespace-nowrap text-sm text-right text-orange-600">
-                                {formatCurrency(day.ringbaExpense)}
-                              </td>
                               <td className="px-6 py-4 whitespace-nowrap text-sm text-right font-medium">
                                 {formatCurrency(day.finalProfit)}
-                              </td>
-                              <td className="px-6 py-4 whitespace-nowrap text-sm text-right">
-                                {formatPercent(day.roi)}
                               </td>
                             </tr>
                           ))}
@@ -703,14 +699,8 @@ const MediaBuyerPL = ({ performanceData }) => {
                             <td className="px-6 py-4 whitespace-nowrap text-sm text-right text-orange-600 font-medium">
                               {formatCurrency(month.mediaBuyerCommission)}*
                             </td>
-                            <td className="px-6 py-4 whitespace-nowrap text-sm text-right text-orange-600 font-medium">
-                              {formatCurrency(month.ringbaExpense)}**
-                            </td>
                             <td className="px-6 py-4 whitespace-nowrap text-sm text-right font-medium">
                               {formatCurrency(month.finalProfitWithoutDaily)}
-                            </td>
-                            <td className="px-6 py-4 whitespace-nowrap text-sm text-right font-medium">
-                              {formatPercent(month.roi)}
                             </td>
                           </tr>
                         </tfoot>
