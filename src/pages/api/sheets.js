@@ -83,34 +83,6 @@ async function processPLData(batchResponse) {
   }
 }
 
-async function processBankStructureData(bankStructureResponse) {
-  try {
-    if (!bankStructureResponse?.values || bankStructureResponse.values.length < 2) {
-      console.log('Bank Structure Response:', bankStructureResponse?.values);
-      return null;
-    }
-
-    // Skip header row and get data row
-    const data = bankStructureResponse.values[1];
-    console.log('Bank Structure Data Row:', data);
-    
-    const processed = {
-      operatingMin: parseFloat((data[2] || '0').replace(/[$,]/g, '')),
-      operatingIdeal: parseFloat((data[3] || '0').replace(/[$,]/g, '')),
-      taxReservePercent: 0.25,
-      emergencyMin: parseFloat((data[4] || '0').replace(/[$,]/g, '')),
-      emergencyIdeal: parseFloat((data[5] || '0').replace(/[$,]/g, '')),
-      growthFundPercent: 0.30
-    };
-
-    console.log('Processed Bank Structure:', processed);
-    return processed;
-  } catch (error) {
-    console.error('Error processing bank structure data:', error);
-    return null;
-  }
-}
-
 async function processTradeShiftData(response) {
   console.log('Processing Tradeshift response:', response); // Debug log
 
@@ -347,7 +319,6 @@ export default async function handler(req, res) {
       "'Payroll'!A:D",
       "'Media Buyer Spend'!A:B",
       "'Summary'!A:V",
-      "'Bank Structure'!A:M",
       "'Network Payment Schedule'!A:H",
       "'March'!A:D",
       "'February'!A:D",
@@ -430,7 +401,6 @@ export default async function handler(req, res) {
       payrollResponse,
       mediaBuyerResponse,
       summaryResponse,
-      bankStructureResponse,
       networkPaymentsResponse,
       marchResponse,
       februaryResponse,
@@ -662,8 +632,8 @@ export default async function handler(req, res) {
           count: processedData.commissions.length,
           sample: processedData.commissions[0],
           allCommissions: processedData.commissions
-        });
-      } else {
+      });
+    } else {
         console.log('No Commission Data Found:', {
           hasResponse: !!commissionsResponse,
           hasValues: !!commissionsResponse?.values,
