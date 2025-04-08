@@ -686,20 +686,20 @@ const MediaBuyerPL = ({ performanceData }) => {
                         </tbody>
                         <tfoot className="bg-gray-50">
                           <tr>
-                            <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">Monthly Totals</td>
-                            <td className="px-6 py-4 whitespace-nowrap text-sm text-right text-green-600 font-medium">
+                            <td className="px-6 py-4 whitespace-nowrap text-sm font-bold">Monthly Totals</td>
+                            <td className="px-6 py-4 whitespace-nowrap text-sm text-right text-green-600 font-bold">
                               {formatCurrency(month.totalRevenue)}
                             </td>
-                            <td className="px-6 py-4 whitespace-nowrap text-sm text-right text-red-600 font-medium">
+                            <td className="px-6 py-4 whitespace-nowrap text-sm text-right text-red-600 font-bold">
                               {formatCurrency(month.totalAdSpend)}
                             </td>
-                            <td className="px-6 py-4 whitespace-nowrap text-sm text-right font-medium">
+                            <td className="px-6 py-4 whitespace-nowrap text-sm text-right font-bold">
                               {formatCurrency(month.baseProfit)}
                             </td>
-                            <td className="px-6 py-4 whitespace-nowrap text-sm text-right text-orange-600 font-medium">
+                            <td className="px-6 py-4 whitespace-nowrap text-sm text-right text-orange-600 font-bold">
                               {formatCurrency(month.mediaBuyerCommission)}*
                             </td>
-                            <td className="px-6 py-4 whitespace-nowrap text-sm text-right font-medium">
+                            <td className="px-6 py-4 whitespace-nowrap text-sm text-right font-bold">
                               {formatCurrency(month.finalProfitWithoutDaily)}
                             </td>
                           </tr>
