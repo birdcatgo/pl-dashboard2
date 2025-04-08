@@ -29,10 +29,10 @@ const AIInsightsPage = ({ performanceData, invoiceData, expenseData, cashFlowDat
 
   // Media Buyer Categories
   const mediaBuyerCategories = {
-    new: ['Ishaan', 'Edwin', 'Gagan', 'Nick N', 'Jose/Matt'],
+    new: ['Ishaan', 'Edwin', 'Gagan', 'Nick N', 'Jose/Matt', 'Isha', 'Mike C'],
     active: ['Aakash', 'Mike', 'Zel'],
     unknown: ['Unknown'],
-    inactive: ['Dave', 'Asheesh', 'Isha']
+    inactive: ['Dave', 'Asheesh']
   };
 
   // Helper function to get media buyer category
