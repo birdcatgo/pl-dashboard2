@@ -2,35 +2,26 @@ import React, { useEffect, useState, useMemo } from 'react';
 import { format } from 'date-fns';
 import { ChevronUp, ChevronDown, ChevronRight } from 'lucide-react';
 
-const STORAGE_KEY = 'pl-dashboard-invoice-notes';
-
 const InvoicesTable = ({ data }) => {
   const [invoices, setInvoices] = useState([]);
   const [expandedNetworks, setExpandedNetworks] = useState(new Set());
-  const [notes, setNotes] = useState(() => {
-    // Initialize notes from localStorage
-    try {
-      const savedNotes = localStorage.getItem(STORAGE_KEY);
-      return savedNotes ? JSON.parse(savedNotes) : {};
-    } catch (error) {
-      console.error('Error loading initial notes:', error);
-      return {};
-    }
-  });
+  const [notes, setNotes] = useState({});
   const [sortConfig, setSortConfig] = useState({
-    key: null,
-    direction: 'asc'
+    key: 'Overdue',
+    direction: 'desc'
   });
 
-  // Save notes to localStorage whenever they change
+  // Load notes from localStorage when component mounts
   useEffect(() => {
-    try {
-      console.log('Saving notes:', notes);
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(notes));
-    } catch (error) {
-      console.error('Error saving notes:', error);
+    const savedNotes = localStorage.getItem('invoiceNotes');
+    if (savedNotes) {
+      try {
+        setNotes(JSON.parse(savedNotes));
+      } catch (error) {
+        console.error('Error loading notes:', error);
+      }
     }
-  }, [notes]);
+  }, []);
 
   useEffect(() => {
     console.log('InvoicesTable received data:', {
@@ -46,15 +37,10 @@ const InvoicesTable = ({ data }) => {
   }, [data]);
 
   const handleNoteChange = (network, note) => {
-    try {
-      console.log('Updating note for network:', network, 'New value:', note);
-      setNotes(prevNotes => {
-        const newNotes = { ...prevNotes, [network]: note };
-        return newNotes;
-      });
-    } catch (error) {
-      console.error('Error updating note:', error);
-    }
+    const newNotes = { ...notes, [network]: note };
+    setNotes(newNotes);
+    // Save to localStorage whenever notes change
+    localStorage.setItem('invoiceNotes', JSON.stringify(newNotes));
   };
 
   const formatCurrency = (value) => {
@@ -173,6 +159,11 @@ const InvoicesTable = ({ data }) => {
     let direction = 'asc';
     if (sortConfig.key === key && sortConfig.direction === 'asc') {
       direction = 'desc';
+    } else if (sortConfig.key === key && sortConfig.direction === 'desc') {
+      direction = 'asc';
+    } else {
+      // For a new key, use descending by default for amounts
+      direction = (key === 'Network') ? 'asc' : 'desc';
     }
     setSortConfig({ key, direction });
   };
@@ -296,12 +287,14 @@ const InvoicesTable = ({ data }) => {
               {sortedNetworks.map(({ network, invoices: networkInvoices, summary }) => {
                 const isExpanded = expandedNetworks.has(network);
                 const hasOverdue = summary.overdueCount > 0;
+                const overdueAmount = summary.overdueTotal;
+                const rowColorClass = hasOverdue
+                  ? (overdueAmount < 500 ? 'bg-orange-50 hover:bg-orange-100' : 'bg-red-50 hover:bg-red-100')
+                  : 'hover:bg-gray-50';
 
                 return (
                   <React.Fragment key={network}>
-                    <tr 
-                      className={`hover:bg-gray-50 ${hasOverdue ? 'bg-red-50' : ''}`}
-                    >
+                    <tr className={rowColorClass}>
                       <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
                         <div className="flex items-center gap-2 cursor-pointer" onClick={() => toggleNetwork(network)}>
                           {isExpanded ? <ChevronDown className="w-4 h-4" /> : <ChevronRight className="w-4 h-4" />}
@@ -330,7 +323,7 @@ const InvoicesTable = ({ data }) => {
                     </tr>
                     {isExpanded && (
                       <tr>
-                        <td colSpan="4" className="px-6 py-4 bg-gray-50">
+                        <td colSpan="5" className="px-6 py-4 bg-gray-50">
                           <table className="min-w-full divide-y divide-gray-200">
                             <thead>
                               <tr>
@@ -339,15 +332,22 @@ const InvoicesTable = ({ data }) => {
                                 <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Due Date</th>
                                 <th className="px-4 py-2 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Amount Due</th>
                                 <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Invoice Number</th>
-          </tr>
-        </thead>
-        <tbody className="bg-white divide-y divide-gray-200">
+                              </tr>
+                            </thead>
+                            <tbody className="bg-white divide-y divide-gray-200">
                               {networkInvoices.map((invoice, index) => {
                                 const isOverdueInvoice = isOverdue(invoice.DueDate);
+                                const amount = typeof invoice.AmountDue === 'string'
+                                  ? parseFloat(invoice.AmountDue.replace(/[$,]/g, ''))
+                                  : invoice.AmountDue || 0;
+                                const rowClass = isOverdueInvoice
+                                  ? (amount < 500 ? 'bg-orange-50' : 'bg-red-50')
+                                  : '';
+
                                 return (
                                   <tr 
                                     key={index}
-                                    className={`hover:bg-gray-50 ${isOverdueInvoice ? 'bg-red-50' : ''}`}
+                                    className={`${rowClass} hover:bg-gray-50`}
                                   >
                                     <td className="px-4 py-2 whitespace-nowrap text-sm text-gray-900">
                                       {formatDate(invoice.PeriodStart)}
@@ -355,7 +355,7 @@ const InvoicesTable = ({ data }) => {
                                     <td className="px-4 py-2 whitespace-nowrap text-sm text-gray-900">
                                       {formatDate(invoice.PeriodEnd)}
                                     </td>
-                                    <td className={`px-4 py-2 whitespace-nowrap text-sm ${isOverdueInvoice ? 'text-red-600 font-medium' : 'text-gray-900'}`}>
+                                    <td className={`px-4 py-2 whitespace-nowrap text-sm ${isOverdueInvoice ? (amount < 500 ? 'text-orange-600' : 'text-red-600') : 'text-gray-900'}`}>
                                       {formatDate(invoice.DueDate)}
                                     </td>
                                     <td className="px-4 py-2 whitespace-nowrap text-sm text-right text-gray-900">
@@ -370,13 +370,13 @@ const InvoicesTable = ({ data }) => {
                             </tbody>
                           </table>
                         </td>
-            </tr>
+                      </tr>
                     )}
                   </React.Fragment>
                 );
               })}
-        </tbody>
-      </table>
+            </tbody>
+          </table>
         </div>
       </div>
     </div>
