@@ -2,26 +2,35 @@ import React, { useEffect, useState, useMemo } from 'react';
 import { format } from 'date-fns';
 import { ChevronUp, ChevronDown, ChevronRight } from 'lucide-react';
 
+const STORAGE_KEY = 'pl-dashboard-invoice-notes';
+
 const InvoicesTable = ({ data }) => {
   const [invoices, setInvoices] = useState([]);
   const [expandedNetworks, setExpandedNetworks] = useState(new Set());
-  const [notes, setNotes] = useState({});
+  const [notes, setNotes] = useState(() => {
+    // Initialize notes from localStorage
+    try {
+      const savedNotes = localStorage.getItem(STORAGE_KEY);
+      return savedNotes ? JSON.parse(savedNotes) : {};
+    } catch (error) {
+      console.error('Error loading initial notes:', error);
+      return {};
+    }
+  });
   const [sortConfig, setSortConfig] = useState({
     key: null,
     direction: 'asc'
   });
 
-  // Load notes from localStorage when component mounts
+  // Save notes to localStorage whenever they change
   useEffect(() => {
-    const savedNotes = localStorage.getItem('invoiceNotes');
-    if (savedNotes) {
-      try {
-        setNotes(JSON.parse(savedNotes));
-      } catch (error) {
-        console.error('Error loading notes:', error);
-      }
+    try {
+      console.log('Saving notes:', notes);
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(notes));
+    } catch (error) {
+      console.error('Error saving notes:', error);
     }
-  }, []);
+  }, [notes]);
 
   useEffect(() => {
     console.log('InvoicesTable received data:', {
@@ -37,10 +46,15 @@ const InvoicesTable = ({ data }) => {
   }, [data]);
 
   const handleNoteChange = (network, note) => {
-    const newNotes = { ...notes, [network]: note };
-    setNotes(newNotes);
-    // Save to localStorage whenever notes change
-    localStorage.setItem('invoiceNotes', JSON.stringify(newNotes));
+    try {
+      console.log('Updating note for network:', network, 'New value:', note);
+      setNotes(prevNotes => {
+        const newNotes = { ...prevNotes, [network]: note };
+        return newNotes;
+      });
+    } catch (error) {
+      console.error('Error updating note:', error);
+    }
   };
 
   const formatCurrency = (value) => {
@@ -202,33 +216,7 @@ const InvoicesTable = ({ data }) => {
       const dueDate = new Date(invoice.DueDate);
       const today = new Date();
       return dueDate < today;
-    }).length,
-    // Add new calculations for under-threshold overdue invoices
-    underThresholdOverdue: invoices.reduce((acc, invoice) => {
-      if (!invoice.DueDate || !invoice.Network) return acc;
-      const dueDate = new Date(invoice.DueDate);
-      const today = new Date();
-      const amount = typeof invoice.AmountDue === 'string'
-        ? parseFloat(invoice.AmountDue.replace(/[$,]/g, ''))
-        : invoice.AmountDue || 0;
-
-      if (dueDate < today) {
-        if (!acc.networks[invoice.Network]) {
-          acc.networks[invoice.Network] = 0;
-        }
-        acc.networks[invoice.Network] += amount;
-      }
-      return acc;
-    }, { networks: {} }),
-  };
-
-  // Calculate networks under threshold
-  const networksUnderThreshold = Object.entries(overallSummary.underThresholdOverdue.networks)
-    .filter(([_, amount]) => amount < 500);
-  
-  const underThresholdSummary = {
-    count: networksUnderThreshold.length,
-    total: networksUnderThreshold.reduce((sum, [_, amount]) => sum + amount, 0)
+    }).length
   };
 
   return (
@@ -241,7 +229,7 @@ const InvoicesTable = ({ data }) => {
             Last updated: {format(new Date(), 'MMM d, yyyy h:mm a')}
           </div>
         </div>
-        <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
+        <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
           <div className="bg-gray-50 rounded-lg p-4">
             <div className="text-sm text-gray-500">Total Outstanding</div>
             <div className="text-2xl font-semibold text-gray-900 mt-1">
@@ -265,16 +253,6 @@ const InvoicesTable = ({ data }) => {
             <div className="text-2xl font-semibold text-orange-600 mt-1">
               {overallSummary.overdueCount}
             </div>
-          </div>
-          <div className="bg-yellow-50 rounded-lg p-4">
-            <div className="text-sm text-yellow-600">Under Threshold Overdue</div>
-            <div className="text-2xl font-semibold text-yellow-700 mt-1">
-              {underThresholdSummary.count}
-              <span className="text-base font-normal ml-2">
-                ({formatCurrency(underThresholdSummary.total)})
-              </span>
-            </div>
-            <div className="text-xs text-yellow-600 mt-1">Networks under $500</div>
           </div>
         </div>
       </div>
