@@ -337,8 +337,8 @@ const PLWrapper = ({ plData, monthlyData, selectedMonth, onMonthChange }) => {
   const getMonthWeight = (month) => {
     const monthOrder = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
     const monthIndex = monthOrder.indexOf(month);
-    // For 2025 months (January and February), add 12 to their index
-    const yearOffset = ['January', 'February'].includes(month) ? 12 : 0;
+    // For 2025 months (January, February, and March), add 12 to their index
+    const yearOffset = ['January', 'February', 'March'].includes(month) ? 12 : 0;
     return monthIndex + yearOffset;
   };
 
@@ -371,7 +371,7 @@ const PLWrapper = ({ plData, monthlyData, selectedMonth, onMonthChange }) => {
               {Object.keys(monthlyData)
                 .sort((a, b) => getMonthWeight(b) - getMonthWeight(a))
                 .map(month => {
-                  const year = ['January', 'February'].includes(month) ? '2025' : '2024';
+                  const year = ['January', 'February', 'March'].includes(month) ? '2025' : '2024';
                   return (
                     <SelectItem 
                       key={month} 
