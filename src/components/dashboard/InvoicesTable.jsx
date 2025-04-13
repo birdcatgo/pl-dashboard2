@@ -1,5 +1,5 @@
 import React, { useEffect, useState, useMemo } from 'react';
-import { format } from 'date-fns';
+import { format, addDays, isSameDay, isToday, startOfMonth, endOfMonth, eachDayOfInterval, isSameMonth } from 'date-fns';
 import { ChevronUp, ChevronDown, ChevronRight } from 'lucide-react';
 
 const InvoicesTable = ({ data }) => {
@@ -7,9 +7,10 @@ const InvoicesTable = ({ data }) => {
   const [expandedNetworks, setExpandedNetworks] = useState(new Set());
   const [notes, setNotes] = useState({});
   const [sortConfig, setSortConfig] = useState({
-    key: 'Overdue',
-    direction: 'desc'
+    key: null,
+    direction: 'asc'
   });
+  const [selectedDate, setSelectedDate] = useState(null);
 
   // Load notes from localStorage when component mounts
   useEffect(() => {
@@ -159,11 +160,6 @@ const InvoicesTable = ({ data }) => {
     let direction = 'asc';
     if (sortConfig.key === key && sortConfig.direction === 'asc') {
       direction = 'desc';
-    } else if (sortConfig.key === key && sortConfig.direction === 'desc') {
-      direction = 'asc';
-    } else {
-      // For a new key, use descending by default for amounts
-      direction = (key === 'Network') ? 'asc' : 'desc';
     }
     setSortConfig({ key, direction });
   };
@@ -172,6 +168,56 @@ const InvoicesTable = ({ data }) => {
     if (sortConfig.key !== key) return null;
     return sortConfig.direction === 'asc' ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />;
   };
+
+  const getCalendarDays = useMemo(() => {
+    const today = new Date();
+    const start = startOfMonth(today);
+    const end = endOfMonth(today);
+    return eachDayOfInterval({ start, end });
+  }, []);
+
+  const getUpcomingPayments = useMemo(() => {
+    const today = new Date();
+    const thirtyDaysFromNow = addDays(today, 30);
+    const sevenDaysAgo = addDays(today, -7);
+    
+    const paymentsByDate = invoices.reduce((acc, invoice) => {
+      if (!invoice.DueDate) return acc;
+      
+      const dueDate = new Date(invoice.DueDate);
+      if (dueDate > thirtyDaysFromNow || dueDate < sevenDaysAgo) return acc;
+      
+      const dateKey = format(dueDate, 'yyyy-MM-dd');
+      const amount = typeof invoice.AmountDue === 'string' 
+        ? parseFloat(invoice.AmountDue.replace(/[$,]/g, '')) 
+        : invoice.AmountDue || 0;
+      
+      if (!acc[dateKey]) {
+        acc[dateKey] = {
+          date: dueDate,
+          total: 0,
+          invoices: []
+        };
+      }
+      
+      acc[dateKey].total += amount;
+      acc[dateKey].invoices.push(invoice);
+      
+      return acc;
+    }, {});
+    
+    return Object.values(paymentsByDate)
+      .sort((a, b) => a.date - b.date);
+  }, [invoices]);
+
+  const getPaymentsForMonth = useMemo(() => {
+    const paymentsByDate = {};
+    getUpcomingPayments.forEach(day => {
+      const dateKey = format(day.date, 'yyyy-MM-dd');
+      paymentsByDate[dateKey] = day;
+    });
+    return paymentsByDate;
+  }, [getUpcomingPayments]);
 
   if (!invoices || invoices.length === 0) {
     return (
@@ -287,14 +333,19 @@ const InvoicesTable = ({ data }) => {
               {sortedNetworks.map(({ network, invoices: networkInvoices, summary }) => {
                 const isExpanded = expandedNetworks.has(network);
                 const hasOverdue = summary.overdueCount > 0;
-                const overdueAmount = summary.overdueTotal;
-                const rowColorClass = hasOverdue
-                  ? (overdueAmount < 500 ? 'bg-orange-50 hover:bg-orange-100' : 'bg-red-50 hover:bg-red-100')
-                  : 'hover:bg-gray-50';
+                const isOverdueUnder500 = hasOverdue && summary.overdueTotal < 500;
 
                 return (
                   <React.Fragment key={network}>
-                    <tr className={rowColorClass}>
+                    <tr 
+                      className={`hover:bg-gray-50 ${
+                        hasOverdue 
+                          ? isOverdueUnder500
+                            ? 'bg-orange-50'
+                            : 'bg-red-50'
+                          : ''
+                      }`}
+                    >
                       <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
                         <div className="flex items-center gap-2 cursor-pointer" onClick={() => toggleNetwork(network)}>
                           {isExpanded ? <ChevronDown className="w-4 h-4" /> : <ChevronRight className="w-4 h-4" />}
@@ -304,7 +355,13 @@ const InvoicesTable = ({ data }) => {
                       <td className="px-6 py-4 whitespace-nowrap text-sm text-right text-gray-900">
                         {formatCurrency(summary.total)}
                       </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-right text-red-600">
+                      <td className={`px-6 py-4 whitespace-nowrap text-sm text-right ${
+                        hasOverdue 
+                          ? isOverdueUnder500
+                            ? 'text-orange-600'
+                            : 'text-red-600'
+                          : 'text-gray-900'
+                      }`}>
                         {formatCurrency(summary.overdueTotal)}
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap text-sm text-right text-gray-900">
@@ -323,7 +380,7 @@ const InvoicesTable = ({ data }) => {
                     </tr>
                     {isExpanded && (
                       <tr>
-                        <td colSpan="5" className="px-6 py-4 bg-gray-50">
+                        <td colSpan="4" className="px-6 py-4 bg-gray-50">
                           <table className="min-w-full divide-y divide-gray-200">
                             <thead>
                               <tr>
@@ -340,14 +397,18 @@ const InvoicesTable = ({ data }) => {
                                 const amount = typeof invoice.AmountDue === 'string'
                                   ? parseFloat(invoice.AmountDue.replace(/[$,]/g, ''))
                                   : invoice.AmountDue || 0;
-                                const rowClass = isOverdueInvoice
-                                  ? (amount < 500 ? 'bg-orange-50' : 'bg-red-50')
-                                  : '';
+                                const isOverdueUnder500 = isOverdueInvoice && amount < 500;
 
                                 return (
                                   <tr 
                                     key={index}
-                                    className={`${rowClass} hover:bg-gray-50`}
+                                    className={`hover:bg-gray-50 ${
+                                      isOverdueInvoice 
+                                        ? isOverdueUnder500
+                                          ? 'bg-orange-50'
+                                          : 'bg-red-50'
+                                        : ''
+                                    }`}
                                   >
                                     <td className="px-4 py-2 whitespace-nowrap text-sm text-gray-900">
                                       {formatDate(invoice.PeriodStart)}
@@ -355,7 +416,13 @@ const InvoicesTable = ({ data }) => {
                                     <td className="px-4 py-2 whitespace-nowrap text-sm text-gray-900">
                                       {formatDate(invoice.PeriodEnd)}
                                     </td>
-                                    <td className={`px-4 py-2 whitespace-nowrap text-sm ${isOverdueInvoice ? (amount < 500 ? 'text-orange-600' : 'text-red-600') : 'text-gray-900'}`}>
+                                    <td className={`px-4 py-2 whitespace-nowrap text-sm ${
+                                      isOverdueInvoice 
+                                        ? isOverdueUnder500
+                                          ? 'text-orange-600 font-medium'
+                                          : 'text-red-600 font-medium'
+                                        : 'text-gray-900'
+                                    }`}>
                                       {formatDate(invoice.DueDate)}
                                     </td>
                                     <td className="px-4 py-2 whitespace-nowrap text-sm text-right text-gray-900">
@@ -377,6 +444,73 @@ const InvoicesTable = ({ data }) => {
               })}
             </tbody>
           </table>
+        </div>
+      </div>
+
+      {/* Condensed Calendar View */}
+      <div className="bg-white rounded-lg shadow-sm border border-gray-100 p-4">
+        <h2 className="text-lg font-semibold text-gray-900 mb-3">Upcoming Payments</h2>
+        <div className="grid grid-cols-7 gap-1 text-center">
+          {['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map(day => (
+            <div key={day} className="text-xs font-medium text-gray-500 py-1">
+              {day}
+            </div>
+          ))}
+          {getCalendarDays.map((day, index) => {
+            const dateKey = format(day, 'yyyy-MM-dd');
+            const payment = getPaymentsForMonth[dateKey];
+            const isCurrentDay = isToday(day);
+            const isCurrentMonth = isSameMonth(day, new Date());
+            const isOverdue = payment && payment.date < new Date();
+            const isSelected = selectedDate === dateKey;
+            const isOverdueUnder500 = isOverdue && payment && payment.total < 500;
+
+            return (
+              <div
+                key={dateKey}
+                className={`relative p-1 min-h-[60px] border rounded cursor-pointer ${
+                  isCurrentDay
+                    ? 'bg-blue-50 border-blue-200'
+                    : isOverdueUnder500
+                    ? 'bg-orange-50 border-orange-200'
+                    : isOverdue
+                    ? 'bg-red-50 border-red-200'
+                    : 'border-gray-200'
+                } ${!isCurrentMonth ? 'bg-gray-50' : ''} ${
+                  isSelected ? 'ring-2 ring-blue-500' : ''
+                }`}
+                onClick={() => setSelectedDate(isSelected ? null : dateKey)}
+              >
+                <div className={`text-xs font-medium ${
+                  isCurrentDay ? 'text-blue-700' : isOverdueUnder500 ? 'text-orange-700' : isOverdue ? 'text-red-700' : 'text-gray-900'
+                }`}>
+                  {format(day, 'd')}
+                </div>
+                {payment && (
+                  <div className="mt-1">
+                    <div className={`text-xs font-medium ${
+                      isOverdueUnder500 ? 'text-orange-600' : isOverdue ? 'text-red-600' : 'text-gray-900'
+                    }`}>
+                      {formatCurrency(payment.total)}
+                    </div>
+                    <div className="text-[10px] text-gray-500">
+                      {payment.invoices.length} {payment.invoices.length === 1 ? 'invoice' : 'invoices'}
+                    </div>
+                  </div>
+                )}
+                {isSelected && payment && (
+                  <div className="absolute z-10 mt-2 w-48 bg-white rounded-md shadow-lg border border-gray-200 p-2">
+                    <div className="text-xs font-medium text-gray-900 mb-1">Due Invoices:</div>
+                    {payment.invoices.map((invoice, idx) => (
+                      <div key={idx} className="text-xs text-gray-600">
+                        {invoice.Network}: {formatCurrency(invoice.AmountDue)}
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            );
+          })}
         </div>
       </div>
     </div>
