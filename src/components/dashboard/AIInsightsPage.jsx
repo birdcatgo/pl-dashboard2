@@ -1,12 +1,23 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { Card } from '../ui/card';
 import { TrendingUp, DollarSign, Search } from 'lucide-react';
-import { format, startOfMonth, endOfMonth, subDays, subMonths } from 'date-fns';
+import { format, startOfMonth, endOfMonth, subDays, subMonths, parseISO, isWithinInterval, addDays } from 'date-fns';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Sparkline } from '../ui/sparkline';
 import { Input } from '../ui/input';
+import InvoicesTable from './InvoicesTable';
+import UpcomingExpensesTable from './UpcomingExpensesTable';
 
 const AIInsightsPage = ({ performanceData, invoiceData, expenseData, cashFlowData }) => {
+  // Debug logging for invoice data
+  console.log('AIInsightsPage received invoiceData:', {
+    exists: !!invoiceData,
+    isArray: Array.isArray(invoiceData),
+    length: invoiceData?.length,
+    sample: invoiceData?.slice(0, 2),
+    type: typeof invoiceData
+  });
+  
   const [dateRange, setDateRange] = useState('mtd');
   const [selectedQuestion, setSelectedQuestion] = useState(null);
   const [answer, setAnswer] = useState(null);
@@ -355,19 +366,21 @@ const formatCurrency = (value) => {
   // Group questions by category
   const questionCategories = {
     topPerformers: [
-      { id: 'top-offers-week', text: 'Show Top Offers From Last Week', color: 'text-green-500' },
-      { id: 'best-buyers-month', text: 'Show Best Media Buyers This Month', color: 'text-green-500' },
-      { id: 'top-offers-30', text: 'Show Top Performing Offers Last 30 Days', color: 'text-green-500' },
+      { id: 'top-buyers', text: 'Show Top Media Buyers', color: 'text-green-500' },
+      { id: 'top-offers', text: 'Show Top Performing Offers', color: 'text-green-500' },
       { id: 'highest-roi-mtd', text: 'Show Highest ROI Offers MTD', color: 'text-green-500' },
       { id: 'best-buyers-margin', text: 'Show Best Media Buyers By Margin', color: 'text-green-500' },
       { id: 'buyers-30-challenge', text: 'Show Media Buyers 30 Day Challenge', color: 'text-green-500' }
     ],
     underperforming: [
-      { id: 'struggling-buyers', text: 'Show Struggling Media Buyers', color: 'text-red-500' },
-      { id: 'worst-offers-week', text: 'Show Worst Performing Offers This Week', color: 'text-red-500' },
-      { id: 'low-roi-offers', text: 'Show Offers Below 15% ROI', color: 'text-red-500' },
-      { id: 'negative-margin', text: 'Show Negative Margin Offers', color: 'text-red-500' },
-      { id: 'cumulative-losses', text: 'Show All Media Buyers Cumulative Losses', color: 'text-red-500' }
+      { id: 'lowest-roi', text: 'Show Lowest ROI Offers', color: 'text-red-500' },
+      { id: 'worst-buyers', text: 'Show Underperforming Media Buyers', color: 'text-red-500' },
+      { id: 'negative-margin', text: 'Show Offers With Negative Margin', color: 'text-red-500' },
+      { id: 'declining-performance', text: 'Show Declining Performance', color: 'text-red-500' }
+    ],
+    upcoming: [
+      { id: 'upcoming-invoices', text: 'Show Upcoming Invoices', color: 'text-blue-500' },
+      { id: 'upcoming-expenses', text: 'Show Upcoming Expenses', color: 'text-blue-500' }
     ]
   };
 
@@ -1942,12 +1955,12 @@ const formatCurrency = (value) => {
             return dueDate >= today;
           })
           .map(invoice => ({
-            Network: invoice.Network,
-            InvoiceNumber: invoice['Invoice Number'],
-            AmountDue: parseFloat(invoice['Amount Due']?.replace(/[$,]/g, '') || 0),
-            DueDate: new Date(invoice['Due Date']),
-            PeriodStart: new Date(invoice['Period Start']),
-            PeriodEnd: new Date(invoice['Period End'])
+            Network: invoice.Network || invoice['Network'] || '',
+            InvoiceNumber: invoice['Invoice Number'] || invoice.InvoiceNumber || '',
+            AmountDue: parseFloat((invoice['Amount Due'] || invoice.AmountDue || invoice.Amount || '0').toString().replace(/[$,]/g, '')),
+            DueDate: new Date(invoice['Due Date'] || invoice.DueDate || today),
+            PeriodStart: new Date(invoice['Period Start'] || invoice.PeriodStart || subDays(today, 30)),
+            PeriodEnd: new Date(invoice['Period End'] || invoice.PeriodEnd || subDays(today, 1))
           }))
           .sort((a, b) => a.DueDate - b.DueDate) || [];
 
@@ -2017,13 +2030,177 @@ const formatCurrency = (value) => {
         );
       }
 
+      case 'upcoming-invoices': {
+        const today = new Date();
+        
+        console.log('Raw invoiceData in upcoming-invoices case:', invoiceData);
+        
+        // Check if invoiceData exists and has proper structure
+        if (!invoiceData || (Array.isArray(invoiceData) && invoiceData.length === 0)) {
+          console.log('No invoice data available, generating sample data for demonstration');
+          
+          // If no data is available, create sample data for demonstration
+          const sampleInvoices = [
+            {
+              Network: 'Sample Network 1',
+              InvoiceNumber: 'INV-001',
+              AmountDue: 1250.00,
+              DueDate: addDays(today, 5),
+              PeriodStart: subDays(today, 25),
+              PeriodEnd: subDays(today, 10)
+            },
+            {
+              Network: 'Sample Network 2',
+              InvoiceNumber: 'INV-002',
+              AmountDue: 3450.00,
+              DueDate: addDays(today, 12),
+              PeriodStart: subDays(today, 20),
+              PeriodEnd: subDays(today, 5)
+            },
+            {
+              Network: 'Sample Network 3',
+              InvoiceNumber: 'INV-003',
+              AmountDue: 780.00,
+              DueDate: subDays(today, 2), // Overdue
+              PeriodStart: subDays(today, 35),
+              PeriodEnd: subDays(today, 20)
+            }
+          ];
+          
+          return (
+            <div className="space-y-4">
+              <div className="flex justify-between items-center mb-4">
+                <h3 className="font-medium">Upcoming Invoices (Sample Data)</h3>
+                <p className="text-sm text-gray-500">
+                  Next 30 Days
+                </p>
+              </div>
+              <div className="bg-yellow-50 p-4 rounded-md mb-4 text-sm text-yellow-700">
+                Note: Displaying sample data for demonstration. No actual invoice data is available.
+              </div>
+              <InvoicesTable data={sampleInvoices} />
+            </div>
+          );
+        }
+        
+        // Determine data format and transform accordingly
+        let formattedInvoices = [];
+        
+        if (Array.isArray(invoiceData)) {
+          formattedInvoices = invoiceData.map(invoice => ({
+            Network: invoice.Network || invoice['Network'] || '',
+            InvoiceNumber: invoice['Invoice Number'] || invoice.InvoiceNumber || '',
+            AmountDue: parseFloat((invoice['Amount Due'] || invoice.AmountDue || invoice.Amount || '0').toString().replace(/[$,]/g, '')),
+            DueDate: new Date(invoice['Due Date'] || invoice.DueDate || today),
+            PeriodStart: new Date(invoice['Period Start'] || invoice.PeriodStart || subDays(today, 30)),
+            PeriodEnd: new Date(invoice['Period End'] || invoice.PeriodEnd || subDays(today, 1))
+          }));
+        } else if (invoiceData?.rawData?.invoices) {
+          formattedInvoices = invoiceData.rawData.invoices;
+        }
+        
+        console.log('Formatted Invoices for InvoicesTable:', formattedInvoices);
+        
+        return (
+          <div className="space-y-4">
+            <div className="flex justify-between items-center mb-4">
+              <h3 className="font-medium">Upcoming Invoices</h3>
+              <p className="text-sm text-gray-500">
+                Next 30 Days
+              </p>
+            </div>
+            <InvoicesTable data={formattedInvoices} />
+          </div>
+        );
+      }
+
+      case 'upcoming-expenses': {
+        // Log the expense data to see what format it's in
+        console.log('Raw expenseData in upcoming-expenses case:', expenseData);
+        
+        // Check if expenseData exists and has proper structure
+        if (!expenseData || (Array.isArray(expenseData) && expenseData.length === 0)) {
+          console.log('No expense data available, generating sample data for demonstration');
+          
+          // Create sample data for demonstration
+          const sampleExpenses = [
+            [
+              'Payroll', 'Employee Salaries', '35000', format(addDays(new Date(), 3), 'MM/dd/yyyy')
+            ],
+            [
+              'Credit Card', 'American Express', '12500', format(addDays(new Date(), 8), 'MM/dd/yyyy')
+            ],
+            [
+              'Rent', 'Office Space', '8500', format(addDays(new Date(), 15), 'MM/dd/yyyy')
+            ],
+            [
+              'Utilities', 'Electricity & Internet', '1200', format(addDays(new Date(), 10), 'MM/dd/yyyy')
+            ],
+            [
+              'Software', 'SaaS Subscriptions', '3500', format(addDays(new Date(), 21), 'MM/dd/yyyy')
+            ]
+          ];
+          
+          return (
+            <div className="space-y-4">
+              <div className="flex justify-between items-center mb-4">
+                <h3 className="font-medium">Upcoming Expenses (Sample Data)</h3>
+                <p className="text-sm text-gray-500">
+                  Next 30 Days
+                </p>
+              </div>
+              <div className="bg-yellow-50 p-4 rounded-md mb-4 text-sm text-yellow-700">
+                Note: Displaying sample data for demonstration. No actual expense data is available.
+              </div>
+              <UpcomingExpensesTable data={sampleExpenses} />
+            </div>
+          );
+        }
+        
+        // Determine data format and transform accordingly
+        let formattedExpenses = [];
+        
+        if (Array.isArray(expenseData)) {
+          // If the data is already an array of arrays, use it directly
+          if (Array.isArray(expenseData[0])) {
+            formattedExpenses = expenseData;
+          } 
+          // If it's an array of objects, convert to the format expected by UpcomingExpensesTable
+          else {
+            formattedExpenses = expenseData.map(expense => [
+              expense.Category || expense.category || '',
+              expense.Description || expense.description || '',
+              expense.Amount?.toString() || expense.amount?.toString() || '0',
+              expense.Date || expense.date || format(new Date(), 'MM/dd/yyyy')
+            ]);
+          }
+        } else if (expenseData?.rawData) {
+          formattedExpenses = expenseData.rawData;
+        }
+        
+        console.log('Formatted Expenses for UpcomingExpensesTable:', formattedExpenses);
+        
+        return (
+          <div className="space-y-4">
+            <div className="flex justify-between items-center mb-4">
+              <h3 className="font-medium">Upcoming Expenses</h3>
+              <p className="text-sm text-gray-500">
+                Next 30 Days
+              </p>
+            </div>
+            <UpcomingExpensesTable data={formattedExpenses} />
+          </div>
+        );
+      }
+
       // Update the default case to show the selected question
       default:
         return (
           <div className="space-y-4">
             <h2 className="text-xl font-semibold mb-4">
               {questionCategories.topPerformers.find(q => q.id === questionId)?.text ||
-               questionCategories.underperforming.find(q => q.id === questionId)?.text}
+               questionCategories.underperforming.find(q => q.id === questionId)?.text ||
+               questionCategories.upcoming.find(q => q.id === questionId)?.text}
             </h2>
             <p className="text-gray-500">Analysis coming soon...</p>
       </div>
@@ -2041,13 +2218,13 @@ const formatCurrency = (value) => {
       {/* Questions Section */}
       <div className="space-y-4">
         <h2 className="text-lg font-semibold">Shortcuts</h2>
-        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-2">
+        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
           {getFilteredQuestions(questionCategories.topPerformers).map((question) => (
                     <button
               key={question.id}
               onClick={() => handleQuestionClick(question.id)}
-              className={`text-left hover:text-blue-600 transition-colors text-sm font-medium ${
-                selectedQuestion === question.id ? 'text-blue-600 font-bold' : ''
+              className={`text-left px-3 py-2 border rounded-md hover:bg-blue-50 transition-colors text-sm font-medium ${
+                selectedQuestion === question.id ? 'text-blue-600 border-blue-500 bg-blue-50' : 'border-gray-200'
               }`}
             >
               {question.text}
@@ -2057,8 +2234,19 @@ const formatCurrency = (value) => {
                     <button
               key={question.id}
               onClick={() => handleQuestionClick(question.id)}
-              className={`text-left hover:text-blue-600 transition-colors text-sm font-medium ${
-                selectedQuestion === question.id ? 'text-blue-600 font-bold' : ''
+              className={`text-left px-3 py-2 border rounded-md hover:bg-blue-50 transition-colors text-sm font-medium ${
+                selectedQuestion === question.id ? 'text-blue-600 border-blue-500 bg-blue-50' : 'border-gray-200'
+              }`}
+            >
+              {question.text}
+                    </button>
+                  ))}
+          {getFilteredQuestions(questionCategories.upcoming).map((question) => (
+                    <button
+              key={question.id}
+              onClick={() => handleQuestionClick(question.id)}
+              className={`text-left px-3 py-2 border rounded-md hover:bg-blue-50 transition-colors text-sm font-medium ${
+                selectedQuestion === question.id ? 'text-blue-600 border-blue-500 bg-blue-50' : 'border-gray-200'
               }`}
             >
               {question.text}
@@ -2071,7 +2259,8 @@ const formatCurrency = (value) => {
             <div className="flex justify-between items-center mb-4">
               <h2 className="text-xl font-semibold">
                 {questionCategories.topPerformers.find(q => q.id === selectedQuestion)?.text ||
-                 questionCategories.underperforming.find(q => q.id === selectedQuestion)?.text}
+                 questionCategories.underperforming.find(q => q.id === selectedQuestion)?.text ||
+                 questionCategories.upcoming.find(q => q.id === selectedQuestion)?.text}
               </h2>
                     <button
                 onClick={() => {
@@ -2084,8 +2273,8 @@ const formatCurrency = (value) => {
                     </button>
                 </div>
             <div className="answer-content">
-              {React.cloneElement(answer, { hideTitle: true })}
-              </div>
+              {answer}
+            </div>
             </div>
         )}
           </div>

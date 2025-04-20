@@ -179,7 +179,7 @@ export default function DashboardLayout({
             />
             <AIInsightsPage
               performanceData={performanceData?.data || []}
-              invoicesData={invoiceData}
+              invoiceData={invoiceData}
               expenseData={expenseData}
               cashFlowData={cashFlowData}
             />

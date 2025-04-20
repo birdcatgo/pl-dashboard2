@@ -1,6 +1,7 @@
 import React, { useMemo } from 'react';
 import { Card, CardHeader, CardTitle, CardContent } from '../ui/card';
 import { RefreshCw, DollarSign, CreditCard, ArrowUpRight, ArrowDownRight } from 'lucide-react';
+import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip, Legend } from 'recharts';
 
 const MONTHLY_EXPENSES = 65000;
 const DAILY_EXPENSE_BUFFER = MONTHLY_EXPENSES / 30; // Daily expense consideration
@@ -55,14 +56,21 @@ const CreditLine = ({ data, loading, error }) => {
       const dates = performanceData
         .map(entry => {
           try {
-            const [month, day, year] = entry.Date.split('/').map(Number);
-            return new Date(year, month - 1, day);
+            if (!entry.Date) return null;
+            // Try MM/DD/YYYY format first
+            const parts = entry.Date.split('/');
+            if (parts.length === 3) {
+              const [month, day, year] = parts.map(Number);
+              return new Date(year, month - 1, day);
+            }
+            // If that fails, try direct parsing
+            return new Date(entry.Date);
           } catch (e) {
             console.error('Error parsing date:', entry.Date, e);
             return null;
           }
         })
-        .filter(date => date !== null)
+        .filter(date => date !== null && !isNaN(date.getTime()))
         .sort((a, b) => b - a);
 
       console.log('Sorted dates:', dates.map(d => d.toISOString()));
@@ -80,21 +88,65 @@ const CreditLine = ({ data, loading, error }) => {
           spend: entry['Ad Spend']
         })));
         
-        // Calculate spend for the last date
-        const matchingEntries = performanceData.filter(entry => entry.Date === lastDateStr);
+        // Calculate spend for the last date - try multiple date formats
+        let matchingEntries = performanceData.filter(entry => {
+          // Try exact match first
+          if (entry.Date === lastDateStr) return true;
+          
+          // Try to parse and compare dates
+          try {
+            if (!entry.Date) return false;
+            const entryParts = entry.Date.split('/');
+            if (entryParts.length === 3) {
+              const [entryMonth, entryDay, entryYear] = entryParts.map(Number);
+              const entryDate = new Date(entryYear, entryMonth - 1, entryDay);
+              return entryDate.getTime() === lastDate.getTime();
+            }
+            return false;
+          } catch {
+            return false;
+          }
+        });
+
+        // If no entries found, use the date object to find entries from the most recent date
+        if (matchingEntries.length === 0) {
+          console.log('No exact matches found, trying date object comparison');
+          matchingEntries = performanceData.filter(entry => {
+            try {
+              if (!entry.Date) return false;
+              const parts = entry.Date.split('/');
+              if (parts.length === 3) {
+                const [month, day, year] = parts.map(Number);
+                const entryDate = new Date(year, month - 1, day);
+                // Compare just the date parts
+                return entryDate.getFullYear() === lastDate.getFullYear() && 
+                       entryDate.getMonth() === lastDate.getMonth() && 
+                       entryDate.getDate() === lastDate.getDate();
+              }
+              return false;
+            } catch {
+              return false;
+            }
+          });
+        }
+        
         console.log('Matching entries:', matchingEntries);
         
-        lastDaySpend = matchingEntries.reduce((sum, entry) => {
-          try {
-            const spend = typeof entry['Ad Spend'] === 'string' 
-              ? parseFloat(entry['Ad Spend'].replace(/[^0-9.-]+/g, ''))
-              : parseFloat(entry['Ad Spend'] || 0);
-            return sum + (isNaN(spend) ? 0 : spend);
-          } catch (e) {
-            console.error('Error parsing spend:', entry['Ad Spend'], e);
-            return sum;
-          }
-        }, 0);
+        if (matchingEntries.length > 0) {
+          lastDaySpend = matchingEntries.reduce((sum, entry) => {
+            try {
+              const spend = typeof entry['Ad Spend'] === 'string' 
+                ? parseFloat(entry['Ad Spend'].replace(/[^0-9.-]+/g, ''))
+                : parseFloat(entry['Ad Spend'] || 0);
+              return sum + (isNaN(spend) ? 0 : spend);
+            } catch (e) {
+              console.error('Error parsing spend:', entry['Ad Spend'], e);
+              return sum;
+            }
+          }, 0);
+        } else {
+          console.log('No matching entries found for the most recent date');
+        }
 
         console.log('Last day calculation:', {
           lastDate: lastDate?.toISOString(),
@@ -260,6 +312,69 @@ const CreditLine = ({ data, loading, error }) => {
   const totalOwing = financialResources.reduce((sum, account) => sum + account.owing, 0);
   const totalCreditLimit = financialResources.reduce((sum, account) => sum + account.limit, 0);
 
+  // Calculate credit card metrics by issuer
+  const creditCardData = useMemo(() => {
+    const amexTotal = {
+      name: 'Amex',
+      limit: amexCards.reduce((sum, card) => sum + card.limit, 0),
+      owing: amexCards.reduce((sum, card) => sum + card.owing, 0),
+      available: amexCards.reduce((sum, card) => sum + card.available, 0),
+    };
+    
+    const chaseTotal = {
+      name: 'Chase',
+      limit: chaseCards.reduce((sum, card) => sum + card.limit, 0),
+      owing: chaseCards.reduce((sum, card) => sum + card.owing, 0),
+      available: chaseCards.reduce((sum, card) => sum + card.available, 0),
+    };
+    
+    const capitalOneTotal = {
+      name: 'Capital One',
+      limit: capitalOneCards.reduce((sum, card) => sum + card.limit, 0),
+      owing: capitalOneCards.reduce((sum, card) => sum + card.owing, 0),
+      available: capitalOneCards.reduce((sum, card) => sum + card.available, 0),
+    };
+    
+    const otherTotal = {
+      name: 'Other',
+      limit: otherCards.reduce((sum, card) => sum + card.limit, 0),
+      owing: otherCards.reduce((sum, card) => sum + card.owing, 0),
+      available: otherCards.reduce((sum, card) => sum + card.available, 0),
+    };
+
+    return [amexTotal, chaseTotal, capitalOneTotal, otherTotal].filter(item => item.limit > 0);
+  }, [amexCards, chaseCards, capitalOneCards, otherCards]);
+
+  // Data for utilization pie chart
+  const utilizationData = useMemo(() => {
+    return creditCardData.map(card => ({
+      name: card.name,
+      value: card.limit > 0 ? (card.owing / card.limit) * 100 : 0
+    }));
+  }, [creditCardData]);
+
+  // Chart colors
+  const COLORS = ['#0088FE', '#00C49F', '#FFBB28', '#FF8042'];
+
+  // Custom tooltip for pie charts
+  const CustomTooltip = ({ active, payload }) => {
+    if (active && payload && payload.length) {
+      const data = payload[0];
+      const value = data.value;
+      const dataKey = data.dataKey;
+      
+      return (
+        <div className="bg-white p-2 border border-gray-200 shadow-md rounded text-sm">
+          <p className="font-medium">{data.payload.name}</p>
+          <p>
+            {dataKey === "value" ? `${value.toFixed(1)}%` : formatCurrency(value)}
+          </p>
+        </div>
+      );
+    }
+    return null;
+  };
+
   return (
     <Card>
       <CardHeader>
@@ -328,6 +443,101 @@ const CreditLine = ({ data, loading, error }) => {
                 {formatCurrency(financialMetrics.dailyExpenseBuffer)}
               </p>
               <p className="text-xs text-gray-500 mt-1">Monthly expenses / 30</p>
+            </div>
+          </div>
+        )}
+
+        {/* Credit Card Allocation Charts */}
+        {creditCardData.length > 0 && (
+          <div className="mb-8">
+            <h3 className="text-lg font-semibold mb-4">Credit Card Allocation</h3>
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+              {/* Credit Limit Distribution */}
+              <div className="bg-white rounded-lg border shadow-sm p-4">
+                <h4 className="text-sm font-medium text-gray-700 mb-2">Credit Limit Distribution</h4>
+                <div className="h-64">
+                  <ResponsiveContainer width="100%" height="100%">
+                    <PieChart>
+                      <Pie
+                        data={creditCardData}
+                        cx="50%"
+                        cy="50%"
+                        labelLine={false}
+                        outerRadius={80}
+                        fill="#8884d8"
+                        dataKey="limit"
+                      >
+                        {creditCardData.map((entry, index) => (
+                          <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
+                        ))}
+                      </Pie>
+                      <Tooltip content={<CustomTooltip />} />
+                      <Legend />
+                    </PieChart>
+                  </ResponsiveContainer>
+                </div>
+                <div className="text-center mt-2 text-sm font-medium">
+                  Total: {formatCurrency(totalCreditLimit)}
+                </div>
+              </div>
+
+              {/* Amount Owing Distribution */}
+              <div className="bg-white rounded-lg border shadow-sm p-4">
+                <h4 className="text-sm font-medium text-gray-700 mb-2">Current Spending Distribution</h4>
+                <div className="h-64">
+                  <ResponsiveContainer width="100%" height="100%">
+                    <PieChart>
+                      <Pie
+                        data={creditCardData}
+                        cx="50%"
+                        cy="50%"
+                        labelLine={false}
+                        outerRadius={80}
+                        fill="#8884d8"
+                        dataKey="owing"
+                      >
+                        {creditCardData.map((entry, index) => (
+                          <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
+                        ))}
+                      </Pie>
+                      <Tooltip content={<CustomTooltip />} />
+                      <Legend />
+                    </PieChart>
+                  </ResponsiveContainer>
+                </div>
+                <div className="text-center mt-2 text-sm font-medium">
+                  Total: {formatCurrency(totalOwing)}
+                </div>
+              </div>
+
+              {/* Credit Utilization */}
+              <div className="bg-white rounded-lg border shadow-sm p-4">
+                <h4 className="text-sm font-medium text-gray-700 mb-2">Credit Utilization (%)</h4>
+                <div className="h-64">
+                  <ResponsiveContainer width="100%" height="100%">
+                    <PieChart>
+                      <Pie
+                        data={utilizationData}
+                        cx="50%"
+                        cy="50%"
+                        labelLine={false}
+                        outerRadius={80}
+                        fill="#8884d8"
+                        dataKey="value"
+                      >
+                        {utilizationData.map((entry, index) => (
+                          <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
+                        ))}
+                      </Pie>
+                      <Tooltip formatter={(value) => `${value.toFixed(1)}%`} />
+                      <Legend />
+                    </PieChart>
+                  </ResponsiveContainer>
+                </div>
+                <div className="text-center mt-2 text-sm font-medium">
+                  Average: {formatPercent(totalOwing / totalCreditLimit)}
+                </div>
+              </div>
             </div>
           </div>
         )}

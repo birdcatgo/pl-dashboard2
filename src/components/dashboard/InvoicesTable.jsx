@@ -513,6 +513,56 @@ const InvoicesTable = ({ data }) => {
           })}
         </div>
       </div>
+
+      {/* Next 30 Days View */}
+      <div className="bg-white rounded-lg shadow-sm border border-gray-100 p-4 mt-6">
+        <h2 className="text-lg font-semibold text-gray-900 mb-3">Next 30 Days</h2>
+        <div className="space-y-2">
+          {Array.from({ length: 30 }, (_, i) => {
+            const date = addDays(new Date(), i);
+            const dateKey = format(date, 'yyyy-MM-dd');
+            const payment = getPaymentsForMonth[dateKey];
+            const isToday = isSameDay(date, new Date());
+            const isOverdue = payment && payment.date < new Date();
+            const isOverdueUnder500 = isOverdue && payment && payment.total < 500;
+
+            return (
+              <div
+                key={dateKey}
+                className={`flex items-center justify-between p-3 rounded-lg ${
+                  isToday
+                    ? 'bg-blue-50 border border-blue-200'
+                    : isOverdueUnder500
+                    ? 'bg-orange-50 border border-orange-200'
+                    : isOverdue
+                    ? 'bg-red-50 border border-red-200'
+                    : 'border border-gray-200'
+                }`}
+              >
+                <div className="flex items-center gap-4">
+                  <div className={`text-sm font-medium ${
+                    isToday ? 'text-blue-700' : isOverdueUnder500 ? 'text-orange-700' : isOverdue ? 'text-red-700' : 'text-gray-900'
+                  }`}>
+                    {format(date, 'MMM d, yyyy')}
+                  </div>
+                  {payment && (
+                    <div className="text-sm text-gray-600">
+                      {payment.invoices.length} {payment.invoices.length === 1 ? 'invoice' : 'invoices'} due
+                    </div>
+                  )}
+                </div>
+                {payment && (
+                  <div className={`text-sm font-medium ${
+                    isOverdueUnder500 ? 'text-orange-600' : isOverdue ? 'text-red-600' : 'text-gray-900'
+                  }`}>
+                    {formatCurrency(payment.total)}
+                  </div>
+                )}
+              </div>
+            );
+          })}
+        </div>
+      </div>
     </div>
   );
 };

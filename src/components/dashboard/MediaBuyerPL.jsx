@@ -321,7 +321,9 @@ const MediaBuyerPL = ({ performanceData }) => {
                               {/* Amount to go label */}
                               <div className="absolute -top-6 left-1/2 transform -translate-x-1/2 whitespace-nowrap">
                                 <span className="font-medium text-gray-700 text-sm">
-                                  {formatCurrency(Math.abs(currentProfit))} to go
+                                  {currentProfit >= 0 
+                                    ? `Profitable: +${formatCurrency(currentProfit)}` 
+                                    : `${formatCurrency(Math.abs(currentProfit))} to go`}
                                 </span>
                               </div>
                             </div>
@@ -330,7 +332,9 @@ const MediaBuyerPL = ({ performanceData }) => {
                             <div 
                               className="h-full transition-all duration-500 rounded-l-full"
                               style={{ 
-                                width: `${currentProfit >= 0 ? '50%' : (50 * (1 + currentProfit/Math.abs(totalExpenses)))}%`,
+                                width: currentProfit >= 0 
+                                  ? `${50 + (Math.min(currentProfit, totalExpenses) / totalExpenses) * 50}%` 
+                                  : `${50 * (1 + currentProfit/Math.abs(totalExpenses))}%`,
                                 backgroundColor: currentProfit >= 0 ? '#28a745' : '#dc2626'
                               }}
                             />
@@ -339,7 +343,9 @@ const MediaBuyerPL = ({ performanceData }) => {
                             <div 
                               className="absolute top-1/2 -translate-y-1/2 w-3 h-3 bg-white border-2 rounded-full shadow-sm z-20"
                               style={{ 
-                                left: `${currentProfit >= 0 ? '50%' : (50 * (1 + currentProfit/Math.abs(totalExpenses)))}%`,
+                                left: currentProfit >= 0 
+                                  ? `${50 + (Math.min(currentProfit, totalExpenses) / totalExpenses) * 50}%` 
+                                  : `${50 * (1 + currentProfit/Math.abs(totalExpenses))}%`,
                                 transform: 'translate(-50%, -50%)',
                                 borderColor: currentProfit >= 0 ? '#28a745' : '#dc2626'
                               }}
