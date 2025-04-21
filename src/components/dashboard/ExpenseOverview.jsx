@@ -1662,7 +1662,9 @@ const ProfitTrendChart = ({ plData }) => {
       const totalExpenses = payroll + adSpend + subscriptions + otherExpenses;
       const profit = revenue - totalExpenses;
       const profitMargin = ((profit / revenue) * 100).toFixed(1);
-      const year = month === 'January' ? '2025' : '2024';
+      
+      // Determine the correct year based on the month
+      const year = ['January', 'February', 'March'].includes(month) ? '2025' : '2024';
 
       return {
         month: `${month} ${year}`,
@@ -1756,28 +1758,28 @@ const ProfitTrendChart = ({ plData }) => {
         <table className="w-full text-sm">
           <thead>
             <tr className="bg-gray-50">
-              <th className="px-4 py-3 text-left font-medium text-gray-600 w-32">Month</th>
-              <th className="px-4 py-3 text-right font-medium text-gray-600 w-36">Revenue</th>
-              <th className="px-4 py-3 text-right font-medium text-gray-600 w-24">
+              <th className="px-3 py-2 text-left font-medium text-gray-600 w-28">Month</th>
+              <th className="px-3 py-2 text-right font-medium text-gray-600 w-32">Revenue</th>
+              <th className="px-3 py-2 text-right font-medium text-gray-600 w-20">
                 <div className="flex items-center justify-end">
                   <span className="text-gray-500">Cash Inj.*</span>
                 </div>
               </th>
-              <th className="px-4 py-3 text-right font-medium text-gray-600 border-l bg-gray-100 w-40">Total Expenses</th>
-              <th className="px-4 py-3 text-right font-medium text-gray-600 w-24">
+              <th className="px-3 py-2 text-right font-medium text-gray-600 border-l bg-gray-100 w-36">Total Expenses</th>
+              <th className="px-3 py-2 text-right font-medium text-gray-600 w-20">
                 <span className="text-gray-500">Ad Spend</span>
               </th>
-              <th className="px-4 py-3 text-right font-medium text-gray-600 w-24">
+              <th className="px-3 py-2 text-right font-medium text-gray-600 w-20">
                 <span className="text-gray-500">Payroll</span>
               </th>
-              <th className="px-4 py-3 text-right font-medium text-gray-600 w-24">
+              <th className="px-3 py-2 text-right font-medium text-gray-600 w-20">
                 <span className="text-gray-500">Subs</span>
               </th>
-              <th className="px-4 py-3 text-right font-medium text-gray-600 w-24">
+              <th className="px-3 py-2 text-right font-medium text-gray-600 w-20">
                 <span className="text-gray-500">Misc</span>
               </th>
-              <th className="px-4 py-3 text-right font-medium text-gray-600 border-l bg-gray-50 w-32">Profit</th>
-              <th className="px-4 py-3 text-right font-medium text-gray-600 bg-gray-50 w-24">Margin</th>
+              <th className="px-3 py-2 text-right font-medium text-gray-600 border-l bg-gray-50 w-28">Profit</th>
+              <th className="px-3 py-2 text-right font-medium text-gray-600 bg-gray-50 w-20">Margin</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-gray-200">
@@ -1786,16 +1788,16 @@ const ProfitTrendChart = ({ plData }) => {
 
               return (
                 <tr key={index} className="hover:bg-gray-50">
-                  <td className="px-4 py-3">{data.month}</td>
-                  <td className="px-4 py-3 text-right font-medium text-green-600">{formatCurrency(data.revenue)}</td>
-                  <td className="px-4 py-3 text-right text-gray-500 text-xs">{formatCurrency(data.cashInjections)}</td>
-                  <td className="px-4 py-3 text-right text-red-600 font-medium border-l bg-gray-100">{formatCurrency(totalExpenses)}</td>
-                  <td className="px-4 py-3 text-right text-gray-500 text-xs">{formatCurrency(data.adSpend)}</td>
-                  <td className="px-4 py-3 text-right text-gray-500 text-xs">{formatCurrency(data.payroll)}</td>
-                  <td className="px-4 py-3 text-right text-gray-500 text-xs">{formatCurrency(data.subscriptions)}</td>
-                  <td className="px-4 py-3 text-right text-gray-500 text-xs">{formatCurrency(data.otherExpenses)}</td>
-                  <td className="px-4 py-3 text-right font-bold border-l bg-gray-50">{formatCurrency(data.profit)}</td>
-                  <td className="px-4 py-3 text-right bg-gray-50 font-bold">{data.profitMargin}%</td>
+                  <td className="px-3 py-2 whitespace-nowrap">{data.month}</td>
+                  <td className="px-3 py-2 text-right font-medium text-green-600">{formatCurrency(data.revenue)}</td>
+                  <td className="px-3 py-2 text-right text-gray-500 text-xs">{formatCurrency(data.cashInjections)}</td>
+                  <td className="px-3 py-2 text-right text-red-600 font-medium border-l bg-gray-100">{formatCurrency(totalExpenses)}</td>
+                  <td className="px-3 py-2 text-right text-gray-500 text-xs">{formatCurrency(data.adSpend)}</td>
+                  <td className="px-3 py-2 text-right text-gray-500 text-xs">{formatCurrency(data.payroll)}</td>
+                  <td className="px-3 py-2 text-right text-gray-500 text-xs">{formatCurrency(data.subscriptions)}</td>
+                  <td className="px-3 py-2 text-right text-gray-500 text-xs">{formatCurrency(data.otherExpenses)}</td>
+                  <td className="px-3 py-2 text-right font-bold border-l bg-gray-50">{formatCurrency(data.profit)}</td>
+                  <td className="px-3 py-2 text-right bg-gray-50 font-bold">{data.profitMargin}%</td>
                 </tr>
               );
             })}
@@ -2109,9 +2111,9 @@ const ExpenseOverview = ({ plData, cashFlowData, invoicesData, networkTerms }) =
   const monthlyData = processMonthlyData(plData.monthly);
 
   return (
-    <div className="p-6">
+    <div className="p-2">
       {/* Add refresh button at the top */}
-      <div className="flex justify-between items-center mb-6">
+      <div className="flex justify-between items-center mb-4">
         <h1 className="text-2xl font-bold text-gray-900">Expense Overview</h1>
         <button
           onClick={handleRefresh}
@@ -2141,10 +2143,10 @@ const ExpenseOverview = ({ plData, cashFlowData, invoicesData, networkTerms }) =
 
       <Card>
         <CardContent>
-          <div className="space-y-8">
+          <div className="space-y-6">
             {/* Historical Analysis Section */}
-            <div className="pt-8">
-              <div className="mb-6">
+            <div className="pt-4">
+              <div className="mb-4">
                 <h2 className="text-2xl font-bold text-gray-900">Historical Performance Analysis</h2>
                 <p className="text-sm text-gray-500 mt-1">
                   Detailed breakdown of revenue, expenses, and profitability trends over the last 3 months
