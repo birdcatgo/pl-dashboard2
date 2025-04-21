@@ -2,6 +2,7 @@ import React, { useState, useMemo, useEffect } from 'react';
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
 import { format, parseISO, startOfMonth, endOfMonth, addDays } from 'date-fns';
 import { ChevronDown, ChevronRight, HelpCircle, TrendingUp, TrendingDown, DollarSign, Receipt, BarChart2, Percent, Calendar, Bell } from 'lucide-react';
+import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 import _ from 'lodash';
 
 const formatCurrency = (value) => {
@@ -64,7 +65,6 @@ const MediaBuyerPL = ({ performanceData }) => {
     if (currentProfit >= 0) {
       // Already profitable
       statusText = status === 'up' ? 'Profitable – Up' : 
-                   status === 'down' ? 'Profitable – Down' : 
                    'Profitable – Stable';
       bgGradient = 'from-white to-green-50/30';
     } else {
@@ -281,6 +281,17 @@ const MediaBuyerPL = ({ performanceData }) => {
       .value();
   }, [performanceData]);
 
+  // Inside the MediaBuyerPL component, after the monthlyTotals calculation:
+  const dailyProfitData = useMemo(() => {
+    if (!monthlyTotals.length) return [];
+    
+    const currentMonth = monthlyTotals[0];
+    return currentMonth.days.map(day => ({
+      date: format(day.date, 'MMM d'),
+      profit: day.baseProfit
+    }));
+  }, [monthlyTotals]);
+
   // Function to send the break-even notification
   const sendBreakEvenNotification = async (currentProfit, breakEvenPoint, monthData) => {
     try {
@@ -480,6 +491,32 @@ const MediaBuyerPL = ({ performanceData }) => {
                               {formatCurrency(monthlyTotals[0].days[0].baseProfit)}
                             </div>
                           </div>
+                          <div className="h-32">
+                            <ResponsiveContainer width="100%" height="100%">
+                              <BarChart data={dailyProfitData}>
+                                <CartesianGrid strokeDasharray="3 3" vertical={false} />
+                                <XAxis 
+                                  dataKey="date" 
+                                  tick={{ fontSize: 10 }}
+                                  interval="preserveStartEnd"
+                                />
+                                <YAxis 
+                                  tickFormatter={(value) => formatCurrency(value).replace('$', '')}
+                                  tick={{ fontSize: 10 }}
+                                  width={60}
+                                />
+                                <Tooltip 
+                                  formatter={(value) => formatCurrency(value)}
+                                  labelFormatter={(label) => `Date: ${label}`}
+                                />
+                                <Bar 
+                                  dataKey="profit" 
+                                  fill={monthlyTotals[0].days[0].baseProfit >= 0 ? '#28a745' : '#dc2626'}
+                                  radius={[4, 4, 0, 0]}
+                                />
+                              </BarChart>
+                            </ResponsiveContainer>
+                          </div>
                           {monthlyTotals[0].days[0].baseProfit > 0 && currentProfit < 0 && (
                             <div>
                               <div className="text-sm text-gray-500">Projected Break-even Date</div>
@@ -495,11 +532,6 @@ const MediaBuyerPL = ({ performanceData }) => {
                             </div>
                           )}
                         </div>
-                      </div>
-
-                      <div className="flex items-center gap-2">
-                        <span className="text-xl">{trendComponents.icon}</span>
-                        <span className="text-sm font-medium text-gray-600">{trendComponents.text}</span>
                       </div>
                     </div>
                   </div>
