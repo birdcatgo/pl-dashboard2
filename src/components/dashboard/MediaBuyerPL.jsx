@@ -1,7 +1,7 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
 import { format, parseISO, startOfMonth, endOfMonth, addDays } from 'date-fns';
-import { ChevronDown, ChevronRight, HelpCircle, TrendingUp, TrendingDown, DollarSign, Receipt, BarChart2, Percent, Calendar } from 'lucide-react';
+import { ChevronDown, ChevronRight, HelpCircle, TrendingUp, TrendingDown, DollarSign, Receipt, BarChart2, Percent, Calendar, Bell } from 'lucide-react';
 import _ from 'lodash';
 
 const formatCurrency = (value) => {
@@ -21,6 +21,9 @@ const formatPercent = (value) => {
 
 const MediaBuyerPL = ({ performanceData }) => {
   const [expandedMonths, setExpandedMonths] = useState(new Set());
+  const [notificationSent, setNotificationSent] = useState(false);
+  const [isSendingNotification, setIsSendingNotification] = useState(false);
+  const [notificationError, setNotificationError] = useState(null);
 
   // Get trend status by comparing current month with previous month
   const getTrendStatus = (monthlyTotals) => {
@@ -117,6 +120,13 @@ const MediaBuyerPL = ({ performanceData }) => {
   React.useEffect(() => {
     const currentMonthKey = format(new Date(), 'yyyy-MM');
     setExpandedMonths(new Set([currentMonthKey]));
+    
+    // Check if a notification flag exists in localStorage
+    const currentMonth = format(new Date(), 'yyyy-MM');
+    const notificationSentFlag = localStorage.getItem(`breakeven-notification-${currentMonth}`);
+    if (notificationSentFlag) {
+      setNotificationSent(true);
+    }
   }, []);
 
   const toggleMonth = (monthKey) => {
@@ -271,6 +281,75 @@ const MediaBuyerPL = ({ performanceData }) => {
       .value();
   }, [performanceData]);
 
+  // Function to send the break-even notification
+  const sendBreakEvenNotification = async (currentProfit, breakEvenPoint, monthData) => {
+    try {
+      setIsSendingNotification(true);
+      setNotificationError(null);
+      
+      const requestData = {
+        type: 'break-even',
+        data: {
+          profit: currentProfit,
+          expenses: breakEvenPoint,
+          commissions: monthData.mediaBuyerCommission,
+          dailyExpenses: monthData.dailyExpenses,
+          roi: monthData.roi,
+          revenue: monthData.totalRevenue,
+          adSpend: monthData.totalAdSpend,
+          projectedProfit: currentProfit * 1.2 // Simple projection based on current profit
+        }
+      };
+      
+      console.log('Sending notification with data:', requestData);
+      
+      const response = await fetch('/api/slack-notification', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(requestData)
+      });
+      
+      const responseData = await response.json();
+      
+      if (!response.ok) {
+        console.error('Error response from server:', responseData);
+        throw new Error(responseData.error || responseData.message || 'Server returned an error');
+      }
+      
+      console.log('Break-even notification sent successfully:', responseData);
+    } catch (error) {
+      console.error('Detailed error sending break-even notification:', error);
+      setNotificationError(error.message || 'Failed to send notification to Slack. Check console for details.');
+    } finally {
+      setIsSendingNotification(false);
+    }
+  };
+
+  // Function to manually send notification
+  const handleManualNotification = async () => {
+    if (monthlyTotals.length > 0) {
+      const currentProfit = monthlyTotals[0].finalProfitWithDaily;
+      const totalExpenses = (monthlyTotals[0]?.mediaBuyerCommission || 0) + (monthlyTotals[0]?.dailyExpenses || 0);
+      const currentMonth = format(new Date(), 'yyyy-MM');
+      
+      // Check if notification was already sent this month
+      const notificationSentFlag = localStorage.getItem(`breakeven-notification-${currentMonth}`);
+      if (notificationSentFlag) {
+        // Show already sent status without sending again
+        setNotificationSent(true);
+        return;
+      }
+      
+      await sendBreakEvenNotification(currentProfit, totalExpenses, monthlyTotals[0]);
+      
+      // Mark as sent in state and localStorage
+      localStorage.setItem(`breakeven-notification-${currentMonth}`, 'true');
+      setNotificationSent(true);
+    }
+  };
+
   return (
     <div className="space-y-6">
       {/* Current Month Status */}
@@ -284,6 +363,10 @@ const MediaBuyerPL = ({ performanceData }) => {
               
               // Calculate total expenses for the current month
               const totalExpenses = (monthlyTotals[0]?.mediaBuyerCommission || 0) + (monthlyTotals[0]?.dailyExpenses || 0);
+
+              // Show notification button only if profitable or close to break-even
+              const showNotificationButton = currentProfit > 0 || 
+                (currentProfit < 0 && (currentProfit / Math.abs(totalExpenses)) > -0.1);
 
               return (
                 <div className={`bg-gradient-to-br ${trendComponents.bgGradient} rounded-xl p-6 transform transition-all duration-200 hover:shadow-lg relative overflow-hidden group`}>
@@ -299,6 +382,32 @@ const MediaBuyerPL = ({ performanceData }) => {
                       />
                     </svg>
                   </div>
+                  
+                  {/* Notification Status */}
+                  {currentProfit > 0 && (
+                    <div className="absolute top-2 right-2">
+                      {notificationSent ? (
+                        <div className="flex items-center text-sm bg-green-50 px-3 py-1.5 rounded-md text-green-600">
+                          <Bell className="w-4 h-4 mr-1.5" />
+                          <span>Break-even notification sent</span>
+                        </div>
+                      ) : (
+                        <button
+                          onClick={handleManualNotification}
+                          disabled={isSendingNotification}
+                          className="flex items-center text-sm px-3 py-1.5 rounded-md bg-blue-100 text-blue-700 hover:bg-blue-200 transition-colors font-medium"
+                        >
+                          <Bell className="w-4 h-4 mr-1.5" />
+                          {isSendingNotification ? 'Sending...' : 'Send Break-Even Alert'}
+                        </button>
+                      )}
+                      {notificationError && (
+                        <div className="mt-1.5 text-xs bg-red-50 text-red-600 p-1.5 rounded">
+                          Error: {notificationError}
+                        </div>
+                      )}
+                    </div>
+                  )}
 
                   <div className="grid grid-cols-2 gap-8">
                     {/* Left Column */}

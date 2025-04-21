@@ -270,10 +270,20 @@ const TopPerformers = ({ data, period = 30, performanceData }) => {
             (day[networkOffer] || 0);
           
           // Get the corresponding raw data entry for this day and offer
-          const rawDataEntry = performanceData.find(entry => 
-            new Date(entry.Date).toISOString().split('T')[0] === day.date &&
-            `${entry.Network} - ${entry.Offer}` === networkOffer
-          );
+          const rawDataEntry = performanceData.find(entry => {
+            try {
+              if (!entry.Date) return false;
+              const entryDate = new Date(entry.Date);
+              // Validate if the date is valid before using it
+              if (isNaN(entryDate.getTime())) return false;
+              return entryDate.toISOString().split('T')[0] === day.date &&
+                `${entry.Network} - ${entry.Offer}` === networkOffer;
+            } catch (error) {
+              // Handle any parsing errors
+              console.error('Error parsing date:', entry.Date);
+              return false;
+            }
+          });
 
           return {
             margin,
@@ -447,29 +457,43 @@ const OfferPerformance = ({ performanceData, dateRange, onDateChange, latestDate
 
     // Group by date first
     const dailyData = filteredData.reduce((acc, entry) => {
-      const date = new Date(entry.Date).toISOString().split('T')[0];
-      const networkOffer = `${entry.Network} - ${entry.Offer}`;
-      
-      if (!acc[date]) {
-        acc[date] = {
-          date,
-          displayDate: new Date(entry.Date).toLocaleDateString('en-US', {
-            month: 'short',
-            day: 'numeric'
-          })
-        };
+      try {
+        if (!entry.Date) return acc;
+        const dateObj = new Date(entry.Date);
+        // Check if valid date
+        if (isNaN(dateObj.getTime())) return acc;
+        
+        const date = dateObj.toISOString().split('T')[0];
+        const networkOffer = `${entry.Network} - ${entry.Offer}`;
+        
+        if (!acc[date]) {
+          acc[date] = {
+            date,
+            displayDate: dateObj.toLocaleDateString('en-US', {
+              month: 'short',
+              day: 'numeric'
+            }),
+            total: 0
+          };
+        }
+        
+        if (!acc[date][networkOffer]) {
+          acc[date][networkOffer] = 0;
+        }
+        
+        // Calculate margin
+        const revenue = parseFloat(entry['Total Revenue'] || 0);
+        const spend = parseFloat(entry['Ad Spend'] || 0);
+        const margin = revenue - spend;
+        
+        acc[date][networkOffer] += margin;
+        acc[date].total += margin;
+        
+        return acc;
+      } catch (error) {
+        console.error('Error processing entry date:', entry.Date, error);
+        return acc;
       }
-      
-      if (!acc[date][networkOffer]) {
-        acc[date][networkOffer] = 0;
-      }
-      
-      // Calculate margin
-      const revenue = parseFloat(entry['Total Revenue'] || 0);
-      const spend = parseFloat(entry['Ad Spend'] || 0);
-      acc[date][networkOffer] += revenue - spend;
-      
-      return acc;
     }, {});
 
     // Convert to array and sort by date

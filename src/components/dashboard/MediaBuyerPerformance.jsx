@@ -16,6 +16,7 @@ import { TrendingUp, TrendingDown, ArrowRight, Activity } from 'lucide-react';
 import { Switch } from "@/components/ui/switch";
 import { format, parseISO, isWithinInterval } from 'date-fns';
 import { Checkbox } from '../ui/checkbox';
+import EnhancedDateSelector from './EnhancedDateSelector';
 
 // Add this helper function for row grouping
 const groupDataByMediaBuyer = (data) => {
@@ -684,7 +685,105 @@ const MediaBuyerPerformance = ({ performanceData, dateRange }) => {
 
   return (
     <div className="space-y-6">
-      {/* Performance Metrics - Moved up */}
+      {/* Date Selector - Removed as it's provided by the parent component */}
+      
+      {/* Slack Report Button */}
+      <div className="bg-green-50 border border-green-200 rounded-lg p-4 flex justify-between items-center mb-6">
+        <div>
+          <h3 className="font-medium text-green-800">Media Buyer Performance Report</h3>
+          <p className="text-sm text-green-700">Generate and send media buyer performance data to Slack, including top and underperforming buyers.</p>
+        </div>
+        <button
+          onClick={async () => {
+            try {
+              // Calculate media buyer performance metrics
+              const buyerData = {};
+              filteredByDate.forEach(entry => {
+                const buyer = entry['Media Buyer'] || 'Unknown';
+                if (!buyerData[buyer]) {
+                  buyerData[buyer] = {
+                    name: buyer,
+                    revenue: 0,
+                    spend: 0,
+                    profit: 0,
+                    roi: 0
+                  };
+                }
+                
+                buyerData[buyer].revenue += parseFloat(entry['Total Revenue']) || 0;
+                buyerData[buyer].spend += parseFloat(entry['Ad Spend']) || 0;
+              });
+              
+              // Calculate profit and ROI for each buyer
+              Object.values(buyerData).forEach(buyer => {
+                buyer.profit = buyer.revenue - buyer.spend;
+                buyer.roi = buyer.spend > 0 ? ((buyer.profit / buyer.spend) * 100).toFixed(2) : 0;
+              });
+              
+              // Sort buyers by profit and get ALL buyers, not just top/bottom 5
+              const sortedBuyers = Object.values(buyerData).sort((a, b) => b.profit - a.profit);
+              // Get top and bottom 5 for summary section
+              const topBuyers = sortedBuyers.slice(0, 5);
+              const strugglingBuyers = [...sortedBuyers].sort((a, b) => a.profit - b.profit).slice(0, 5);
+              
+              // Calculate overall metrics
+              const totalRevenue = Object.values(buyerData).reduce((sum, buyer) => sum + buyer.revenue, 0);
+              const totalSpend = Object.values(buyerData).reduce((sum, buyer) => sum + buyer.spend, 0);
+              const totalProfit = totalRevenue - totalSpend;
+              
+              // Format date range for message
+              const formattedDateRange = formatDateRange(dateRange.startDate, dateRange.endDate);
+              
+              // Prepare report data
+              const reportData = {
+                type: 'weekly-performance',
+                data: {
+                  topBuyers,
+                  strugglingBuyers,
+                  allBuyers: sortedBuyers, // Include ALL buyers
+                  totalProfit,
+                  totalRevenue,
+                  totalSpend,
+                  dateRange: formattedDateRange
+                }
+              };
+              
+              console.log('Sending media buyer performance report to Slack:', reportData);
+              
+              // Send to backend
+              const response = await fetch('/api/slack-notification', {
+                method: 'POST',
+                headers: {
+                  'Content-Type': 'application/json'
+                },
+                body: JSON.stringify(reportData)
+              });
+              
+              if (!response.ok) {
+                throw new Error(`Failed to send report: ${response.status} ${response.statusText}`);
+              }
+              
+              const result = await response.json();
+              console.log('Slack notification result:', result);
+              
+              // Show success message
+              alert("Media buyer performance report sent to Slack successfully!");
+              
+            } catch (error) {
+              console.error('Error sending media buyer performance report:', error);
+              alert(`Failed to send report: ${error.message}`);
+            }
+          }}
+          className="px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 transition-colors font-medium flex items-center gap-2"
+        >
+          <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+            <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM9.555 7.168A1 1 0 008 8v4a1 1 0 001.555.832l3-2a1 1 0 000-1.664l-3-2z" clipRule="evenodd" />
+          </svg>
+          Send to Slack
+        </button>
+      </div>
+      
+      {/* Performance Metrics */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         <Card className="bg-blue-50/50">
           <div className="p-6">
