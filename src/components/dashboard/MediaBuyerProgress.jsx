@@ -10,6 +10,7 @@ const MEDIA_BUYERS = [
   'Mike C',
   'Gagan',
   'Omar',
+  'Bikki',
 ];
 
 // Meeting dates

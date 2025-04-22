@@ -18,6 +18,16 @@ import { format, parseISO, isWithinInterval } from 'date-fns';
 import { Checkbox } from '../ui/checkbox';
 import EnhancedDateSelector from './EnhancedDateSelector';
 
+const MEDIA_BUYERS = [
+  'Ishaan',
+  'Edwin',
+  'Nick N',
+  'Mike C',
+  'Gagan',
+  'Omar',
+  'Bikki',
+];
+
 // Add this helper function for row grouping
 const groupDataByMediaBuyer = (data) => {
   // First group by media buyer
