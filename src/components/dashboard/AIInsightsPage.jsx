@@ -1,12 +1,13 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { Card } from '../ui/card';
-import { TrendingUp, DollarSign, Search } from 'lucide-react';
+import { TrendingUp, DollarSign, Search, Clock } from 'lucide-react';
 import { format, startOfMonth, endOfMonth, subDays, subMonths, parseISO, isWithinInterval, addDays } from 'date-fns';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Sparkline } from '../ui/sparkline';
 import { Input } from '../ui/input';
 import InvoicesTable from './InvoicesTable';
 import UpcomingExpensesTable from './UpcomingExpensesTable';
+import { CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 
 const AIInsightsPage = ({ performanceData, invoiceData, expenseData, cashFlowData }) => {
   // Debug logging for invoice data
@@ -22,6 +23,43 @@ const AIInsightsPage = ({ performanceData, invoiceData, expenseData, cashFlowDat
   const [selectedQuestion, setSelectedQuestion] = useState(null);
   const [answer, setAnswer] = useState(null);
   const [analysisDateRange, setAnalysisDateRange] = useState('mtd');
+  const [expandedCampaigns, setExpandedCampaigns] = useState(new Set());
+  const [middayCheckInData, setMiddayCheckInData] = useState([]);
+
+  // Load check-in data from localStorage
+  useEffect(() => {
+    const storedCheckIns = JSON.parse(localStorage.getItem('middayCheckIns') || '[]');
+    setMiddayCheckInData(storedCheckIns);
+  }, []);
+
+  // Get the most recent check-in data
+  const recentCheckIn = useMemo(() => {
+    if (middayCheckInData.length === 0) return null;
+    return middayCheckInData[middayCheckInData.length - 1];
+  }, [middayCheckInData]);
+
+  // Calculate summary metrics for the most recent check-in
+  const checkInMetrics = useMemo(() => {
+    if (!recentCheckIn) return null;
+
+    return recentCheckIn.campaigns.reduce((acc, campaign) => ({
+      totalSpend: acc.totalSpend + campaign.spend,
+      totalRevenue: acc.totalRevenue + campaign.revenue,
+      totalProfit: acc.totalProfit + campaign.profit,
+      totalLeads: acc.totalLeads + campaign.leads,
+      scaleCount: acc.scaleCount + (campaign.roi >= 30 ? 1 : 0),
+      watchCount: acc.watchCount + (campaign.roi >= 15 && campaign.roi < 30 ? 1 : 0),
+      shutoffCount: acc.shutoffCount + (campaign.roi < 15 ? 1 : 0)
+    }), {
+      totalSpend: 0,
+      totalRevenue: 0,
+      totalProfit: 0,
+      totalLeads: 0,
+      scaleCount: 0,
+      watchCount: 0,
+      shutoffCount: 0
+    });
+  }, [recentCheckIn]);
 
   // Calculate the last data date from performance data
   const lastDataDate = useMemo(() => {
@@ -2213,8 +2251,39 @@ const formatCurrency = (value) => {
     setAnswer(generateAnswer(questionId));
   };
 
+  // Calculate profit changes for each campaign
+  const getProfitChange = (campaign) => {
+    if (!recentCheckInData || !checkIns.length) return null;
+    
+    const previousCheckIn = checkIns[checkIns.length - 2];
+    if (!previousCheckIn) return null;
+
+    const previousCampaign = previousCheckIn.campaigns.find(
+      c => c.campaignName === campaign.campaignName
+    );
+
+    if (!previousCampaign) return null;
+
+    const change = campaign.profit - previousCampaign.profit;
+    return {
+      value: change,
+      formatted: `${change >= 0 ? '+' : ''}${change.toFixed(2)}`,
+      isPositive: change >= 0
+    };
+  };
+
+  const toggleCampaignExpansion = (campaignName) => {
+    const newExpanded = new Set(expandedCampaigns);
+    if (newExpanded.has(campaignName)) {
+      newExpanded.delete(campaignName);
+    } else {
+      newExpanded.add(campaignName);
+    }
+    setExpandedCampaigns(newExpanded);
+  };
+
   return (
-    <div className="space-y-6">
+    <div className="space-y-8">
       {/* Questions Section */}
       <div className="space-y-4">
         <h2 className="text-lg font-semibold">Shortcuts</h2>
@@ -2391,6 +2460,112 @@ const formatCurrency = (value) => {
           ))}
             </div>
         </Card>
+
+      {/* Mid-Day Check-In Summary */}
+      {recentCheckIn && checkInMetrics && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <Clock className="h-5 w-5" />
+              Latest Check-In: {format(new Date(recentCheckIn.timestamp), 'MMM d, yyyy h:mm a')}
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="grid grid-cols-4 gap-4 mb-6">
+              <div className="bg-white p-4 rounded-lg shadow-sm">
+                <div className="text-sm text-gray-500">Total Spend</div>
+                <div className="text-2xl font-semibold">
+                  ${checkInMetrics.totalSpend.toLocaleString()}
+                </div>
+              </div>
+              <div className="bg-white p-4 rounded-lg shadow-sm">
+                <div className="text-sm text-gray-500">Total Revenue</div>
+                <div className="text-2xl font-semibold">
+                  ${checkInMetrics.totalRevenue.toLocaleString()}
+                </div>
+              </div>
+              <div className="bg-white p-4 rounded-lg shadow-sm">
+                <div className="text-sm text-gray-500">Total Profit</div>
+                <div className={`text-2xl font-semibold ${checkInMetrics.totalProfit >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                  ${checkInMetrics.totalProfit.toLocaleString()}
+                </div>
+              </div>
+              <div className="bg-white p-4 rounded-lg shadow-sm">
+                <div className="text-sm text-gray-500">Total Leads</div>
+                <div className="text-2xl font-semibold">
+                  {checkInMetrics.totalLeads.toLocaleString()}
+                </div>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-3 gap-4 mb-6">
+              <div className="bg-green-50 p-4 rounded-lg">
+                <div className="text-sm text-green-600">Scale</div>
+                <div className="text-2xl font-semibold text-green-600">
+                  {checkInMetrics.scaleCount}
+                </div>
+                <div className="text-xs text-green-500">ROI ≥ 30%</div>
+              </div>
+              <div className="bg-yellow-50 p-4 rounded-lg">
+                <div className="text-sm text-yellow-600">Watch</div>
+                <div className="text-2xl font-semibold text-yellow-600">
+                  {checkInMetrics.watchCount}
+                </div>
+                <div className="text-xs text-yellow-500">15% ≤ ROI &lt; 30%</div>
+              </div>
+              <div className="bg-red-50 p-4 rounded-lg">
+                <div className="text-sm text-red-600">Shutoff</div>
+                <div className="text-2xl font-semibold text-red-600">
+                  {checkInMetrics.shutoffCount}
+                </div>
+                <div className="text-xs text-red-500">ROI &lt; 15%</div>
+              </div>
+            </div>
+
+            <div className="overflow-x-auto">
+              <table className="w-full">
+                <thead>
+                  <tr className="border-b">
+                    <th className="text-left py-2">Campaign</th>
+                    <th className="text-right py-2">Spend</th>
+                    <th className="text-right py-2">Revenue</th>
+                    <th className="text-right py-2">Profit</th>
+                    <th className="text-right py-2">ROI</th>
+                    <th className="text-right py-2">Leads</th>
+                    <th className="text-right py-2">Trend</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {recentCheckIn.campaigns.map((campaign) => (
+                    <tr key={campaign.name} className="border-b hover:bg-gray-50">
+                      <td className="py-2">{campaign.name}</td>
+                      <td className="text-right py-2">
+                        ${(campaign.spend || 0).toLocaleString()}
+                      </td>
+                      <td className="text-right py-2">
+                        ${(campaign.revenue || 0).toLocaleString()}
+                      </td>
+                      <td className={`text-right py-2 ${campaign.profit >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                        ${campaign.profit.toLocaleString()}
+                      </td>
+                      <td className={`text-right py-2 ${(campaign.roi || 0) >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                        {(campaign.roi || 0).toFixed(2)}%
+                      </td>
+                      <td className="text-right py-2">
+                        {(campaign.leads || 0).toLocaleString()}
+                      </td>
+                      <td className="text-right py-2">
+                        {campaign.trend === 'up' ? '📈' : 
+                         campaign.trend === 'down' ? '📉' : '➡️'}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </CardContent>
+        </Card>
+      )}
     </div>
   );
 };

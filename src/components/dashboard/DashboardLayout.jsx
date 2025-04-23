@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
-import { RefreshCw, ChevronDown, Brain, TrendingUp, DollarSign, Target, Calendar, ChartBar, BarChart2, Users, Receipt } from 'lucide-react';
+import { RefreshCw, ChevronDown, Brain, TrendingUp, DollarSign, Target, Calendar, ChartBar, BarChart2, Users, Receipt, Table, Clock, History, Calculator, FileText, LineChart } from 'lucide-react';
 import { debounce } from 'lodash';
 import EnhancedDateSelector from './EnhancedDateSelector';
 import CashSituation from './CashSituation';
@@ -47,6 +47,10 @@ import ChartContainer from '@/components/ui/ChartContainer';
 import PageHeader from '@/components/ui/PageHeader';
 import { format } from 'date-fns';
 import CommissionPayments from './CommissionPayments';
+import MidDayCheckIn from './MidDayCheckIn';
+import TodaysTrend from './TodaysTrend';
+import DailyTrends from './DailyTrends';
+import { Button } from "@/components/ui/button";
 
 export default function DashboardLayout({ 
   performanceData, 
@@ -57,7 +61,7 @@ export default function DashboardLayout({
   tradeshiftData: initialTradeshiftData,
   plData: initialPlData 
 }) {
-  const [activeTab, setActiveTab] = useState('ai-insights');
+  const [activeTab, setActiveTab] = useState('dashboard-index');
   const [dateRange, setDateRange] = useState({
     startDate: new Date('2025-03-23'),
     endDate: new Date('2025-03-29'),
@@ -84,6 +88,10 @@ export default function DashboardLayout({
   const [showMoreMenu, setShowMoreMenu] = useState(false);
   const moreButtonRef = useRef(null);
   const [selectedView, setSelectedView] = useState('overview');
+  const [accountingSubview, setAccountingSubview] = useState('net-profit');
+  const [accountsSubview, setAccountsSubview] = useState('invoices');
+  const [reportingSubview, setReportingSubview] = useState('eod-report');
+  const [redtrackSubview, setRedtrackSubview] = useState('midday-checkin');
 
   // Update state when props change
   useEffect(() => {
@@ -150,126 +158,590 @@ export default function DashboardLayout({
   };
 
   const mainTabs = [
-    { id: 'ai-insights', label: 'AI Insights', icon: Brain },
-    { id: 'media-buyer-pl', label: 'Media Buyer P&L', icon: DollarSign },
-    { id: 'eod-report', label: 'EOD Report', icon: BarChart2 },
-    { id: 'highlights', label: 'Highlights', icon: Target },
-    { id: 'net-profit', label: 'Net Profit', icon: TrendingUp },
-    { id: 'cash-credit', label: 'Credit Line', icon: DollarSign },
-    { id: 'network-caps', label: 'Network Caps', icon: ChartBar },
-    { id: 'invoices', label: 'Invoices', icon: Receipt },
-    { id: 'thirty-day-challenge', label: '30 Day Challenge', icon: Calendar },
-    { id: 'pl', label: 'Profit & Loss', icon: BarChart2 },
-    { id: 'network', label: 'Offer Performance', icon: Target },
-    { id: 'media-buyers', label: 'Media Buyers', icon: Users },
-    { id: 'commissions', label: 'Commission Payments', icon: DollarSign },
-    { id: 'upcoming-expenses', label: 'Upcoming Expenses', icon: Receipt },
-    { id: 'expense-overview', label: 'Expense Overview', icon: BarChart2 }
+    { id: 'dashboard-index', label: 'Dashboard Index', icon: Brain },
+    { id: 'accounting', label: 'Profit Metrics', icon: Calculator },
+    { id: 'accounts', label: 'Accounts Receivable & Payable', icon: FileText },
+    { id: 'reporting', label: 'Reporting', icon: LineChart }
   ];
 
   const renderTabContent = () => {
     switch (activeTab) {
-      case 'ai-insights':
+      case 'dashboard-index':
         return (
           <div className="space-y-8">
             <PageHeader 
-              title="AI Insights" 
-              subtitle="Intelligent analysis of your business performance"
+              title="Dashboard Index" 
+              subtitle="Quick access to all dashboard views and features"
               icon={Brain}
             />
-            <AIInsightsPage
-              performanceData={performanceData?.data || []}
-              invoiceData={invoiceData}
-              expenseData={expenseData}
-              cashFlowData={cashFlowData}
-            />
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              {/* Profit Metrics Section */}
+              <div className="space-y-4">
+                <h2 className="text-lg font-semibold">Profit Metrics</h2>
+                <div className="space-y-2">
+                  <button
+                    onClick={() => {
+                      setActiveTab('accounting');
+                      setAccountingSubview('net-profit');
+                    }}
+                    className="w-full text-left px-4 py-3 bg-white rounded-lg shadow hover:shadow-md transition-shadow duration-200"
+                  >
+                    <div className="flex items-center space-x-3">
+                      <span className="text-xl">🔮</span>
+                      <div>
+                        <h3 className="font-medium">Forecasting View</h3>
+                        <p className="text-sm text-gray-600">Predicts future performance based on trends and targets</p>
+                      </div>
+                    </div>
+                  </button>
+                  <button
+                    onClick={() => {
+                      setActiveTab('accounting');
+                      setAccountingSubview('pl');
+                    }}
+                    className="w-full text-left px-4 py-3 bg-white rounded-lg shadow hover:shadow-md transition-shadow duration-200"
+                  >
+                    <div className="flex items-center space-x-3">
+                      <span className="text-xl">💵</span>
+                      <div>
+                        <h3 className="font-medium">Cash View (Money In/Out)</h3>
+                        <p className="text-sm text-gray-600">Track actual money received and paid</p>
+                      </div>
+                    </div>
+                  </button>
+                  <button
+                    onClick={() => {
+                      setActiveTab('accounting');
+                      setAccountingSubview('media-buyer-pl');
+                    }}
+                    className="w-full text-left px-4 py-3 bg-white rounded-lg shadow hover:shadow-md transition-shadow duration-200"
+                  >
+                    <div className="flex items-center space-x-3">
+                      <span className="text-xl">📊</span>
+                      <div>
+                        <h3 className="font-medium">Performance View</h3>
+                        <p className="text-sm text-gray-600">Revenue earned based on delivered leads</p>
+                      </div>
+                    </div>
+                  </button>
+                  <button
+                    onClick={() => {
+                      setActiveTab('accounting');
+                      setAccountingSubview('credit-line');
+                    }}
+                    className="w-full text-left px-4 py-3 bg-white rounded-lg shadow hover:shadow-md transition-shadow duration-200"
+                  >
+                    <div className="flex items-center space-x-3">
+                      <span className="text-xl">💳</span>
+                      <div>
+                        <h3 className="font-medium">Credit Line & Budget Manager</h3>
+                        <p className="text-sm text-gray-600">Monitor credit limits and spending thresholds</p>
+                      </div>
+                    </div>
+                  </button>
+                </div>
+              </div>
+
+              {/* Reporting Section */}
+              <div className="space-y-4">
+                <h2 className="text-lg font-semibold">Reporting</h2>
+                <div className="space-y-2">
+                  <button
+                    onClick={() => {
+                      setActiveTab('reporting');
+                      setReportingSubview('eod-report');
+                    }}
+                    className="w-full text-left px-4 py-3 bg-white rounded-lg shadow hover:shadow-md transition-shadow duration-200"
+                  >
+                    <div className="flex items-center space-x-3">
+                      <span className="text-xl">📝</span>
+                      <div>
+                        <h3 className="font-medium">EOD Report</h3>
+                        <p className="text-sm text-gray-600">End of day performance summary</p>
+                      </div>
+                    </div>
+                  </button>
+                  <button
+                    onClick={() => {
+                      setActiveTab('reporting');
+                      setReportingSubview('offer-performance');
+                    }}
+                    className="w-full text-left px-4 py-3 bg-white rounded-lg shadow hover:shadow-md transition-shadow duration-200"
+                  >
+                    <div className="flex items-center space-x-3">
+                      <span className="text-xl">📈</span>
+                      <div>
+                        <h3 className="font-medium">Offer Performance</h3>
+                        <p className="text-sm text-gray-600">Track offer metrics and network caps</p>
+                      </div>
+                    </div>
+                  </button>
+                  <button
+                    onClick={() => {
+                      setActiveTab('reporting');
+                      setReportingSubview('media-buyers');
+                    }}
+                    className="w-full text-left px-4 py-3 bg-white rounded-lg shadow hover:shadow-md transition-shadow duration-200"
+                  >
+                    <div className="flex items-center space-x-3">
+                      <span className="text-xl">👥</span>
+                      <div>
+                        <h3 className="font-medium">Media Buyers</h3>
+                        <p className="text-sm text-gray-600">Media buyer performance and challenges</p>
+                      </div>
+                    </div>
+                  </button>
+                  <button
+                    onClick={() => {
+                      setActiveTab('reporting');
+                      setReportingSubview('redtrack');
+                    }}
+                    className="w-full text-left px-4 py-3 bg-white rounded-lg shadow hover:shadow-md transition-shadow duration-200"
+                  >
+                    <div className="flex items-center space-x-3">
+                      <span className="text-xl">⏰</span>
+                      <div>
+                        <h3 className="font-medium">Redtrack Check In</h3>
+                        <p className="text-sm text-gray-600">Track campaign performance throughout the day</p>
+                      </div>
+                    </div>
+                  </button>
+                  <button
+                    onClick={() => {
+                      setActiveTab('reporting');
+                      setReportingSubview('highlights');
+                    }}
+                    className="w-full text-left px-4 py-3 bg-white rounded-lg shadow hover:shadow-md transition-shadow duration-200"
+                  >
+                    <div className="flex items-center space-x-3">
+                      <span className="text-xl">✨</span>
+                      <div>
+                        <h3 className="font-medium">Highlights</h3>
+                        <p className="text-sm text-gray-600">Key performance highlights and insights</p>
+                      </div>
+                    </div>
+                  </button>
+                </div>
+              </div>
+
+              {/* Accounts Section */}
+              <div className="space-y-4">
+                <h2 className="text-lg font-semibold">Accounts Receivable & Payable</h2>
+                <div className="space-y-2">
+                  <button
+                    onClick={() => {
+                      setActiveTab('accounts');
+                      setAccountsSubview('invoices');
+                    }}
+                    className="w-full text-left px-4 py-3 bg-white rounded-lg shadow hover:shadow-md transition-shadow duration-200"
+                  >
+                    <div className="flex items-center space-x-3">
+                      <span className="text-xl">📄</span>
+                      <div>
+                        <h3 className="font-medium">Invoices (Receivable)</h3>
+                        <p className="text-sm text-gray-600">Track incoming payments and invoices</p>
+                      </div>
+                    </div>
+                  </button>
+                  <button
+                    onClick={() => {
+                      setActiveTab('accounts');
+                      setAccountsSubview('upcoming-expenses');
+                    }}
+                    className="w-full text-left px-4 py-3 bg-white rounded-lg shadow hover:shadow-md transition-shadow duration-200"
+                  >
+                    <div className="flex items-center space-x-3">
+                      <span className="text-xl">💰</span>
+                      <div>
+                        <h3 className="font-medium">Upcoming Expenses (Payable)</h3>
+                        <p className="text-sm text-gray-600">Track upcoming payments and expenses</p>
+                      </div>
+                    </div>
+                  </button>
+                  <button
+                    onClick={() => {
+                      setActiveTab('accounts');
+                      setAccountsSubview('expense-overview');
+                    }}
+                    className="w-full text-left px-4 py-3 bg-white rounded-lg shadow hover:shadow-md transition-shadow duration-200"
+                  >
+                    <div className="flex items-center space-x-3">
+                      <span className="text-xl">📊</span>
+                      <div>
+                        <h3 className="font-medium">Expense Overview</h3>
+                        <p className="text-sm text-gray-600">Analyze expense patterns and categories</p>
+                      </div>
+                    </div>
+                  </button>
+                  <button
+                    onClick={() => {
+                      setActiveTab('accounts');
+                      setAccountsSubview('commissions');
+                    }}
+                    className="w-full text-left px-4 py-3 bg-white rounded-lg shadow hover:shadow-md transition-shadow duration-200"
+                  >
+                    <div className="flex items-center space-x-3">
+                      <span className="text-xl">💸</span>
+                      <div>
+                        <h3 className="font-medium">Commission Payments</h3>
+                        <p className="text-sm text-gray-600">Track and manage commission payouts</p>
+                      </div>
+                    </div>
+                  </button>
+                </div>
+              </div>
+            </div>
           </div>
         );
-      case 'media-buyer-pl':
+      case 'accounting':
         return (
           <div className="space-y-8">
             <PageHeader 
-              title="Media Buyer P&L" 
-              subtitle="Performance and profitability analysis"
-              icon={DollarSign}
+              title="Profit Metrics" 
+              subtitle="Financial performance analysis across different views"
+              icon={Calculator}
             />
-            <MediaBuyerPL performanceData={performanceData?.data || []} />
-          </div>
-        );
-      case 'eod-report':
-        return (
-          <div className="space-y-8">
-            <PageHeader 
-              title="EOD Report" 
-              subtitle="End of day performance summary"
-              icon={BarChart2}
-            />
-            <EODReport performanceData={performanceData?.data || []} />
-          </div>
-        );
-      case 'net-profit':
-        console.log('Net Profit tab data:', {
-          performanceData: performanceData?.data?.length,
-          dateRange,
-          cashFlowData,
-          networkTerms: networkTermsData,
-        });
-        return (
+            
+            {/* Profit Metrics Subviews Navigation */}
+            <div className="bg-white rounded-lg shadow-sm border border-gray-100 p-4 mb-6">
           <div className="space-y-6">
+                <div className="flex space-x-4">
+                  <Button
+                    variant={accountingSubview === 'net-profit' ? 'default' : 'outline'}
+                    onClick={() => setAccountingSubview('net-profit')}
+                    className="flex items-center"
+                  >
+                    🔮 Forecasting View
+                  </Button>
+                  <Button
+                    variant={accountingSubview === 'pl' ? 'default' : 'outline'}
+                    onClick={() => setAccountingSubview('pl')}
+                    className="flex items-center"
+                  >
+                    💵 Cash View (Money In/Out)
+                  </Button>
+                  <Button
+                    variant={accountingSubview === 'media-buyer-pl' ? 'default' : 'outline'}
+                    onClick={() => setAccountingSubview('media-buyer-pl')}
+                    className="flex items-center"
+                  >
+                    📊 Performance View
+                  </Button>
+                  <Button
+                    variant={accountingSubview === 'credit-line' ? 'default' : 'outline'}
+                    onClick={() => setAccountingSubview('credit-line')}
+                    className="flex items-center"
+                  >
+                    💳 Credit Line & Budget Manager
+                  </Button>
+                </div>
+
+                {/* View Description */}
+                <div className="bg-gray-50 rounded-lg p-4">
+                  {accountingSubview === 'net-profit' && (
+                    <div className="space-y-4">
+                      <p className="text-gray-700">
+                        Predicts future performance based on trends, targets, and expected spend.
+                        Use this to plan ahead — it estimates future profit based on current ROI, average daily revenue, and projected ad spend. Great for tracking whether we're on pace to hit monthly goals.
+                      </p>
+                      <div>
+                        <p className="font-medium text-gray-900 mb-2">Includes:</p>
+                        <ul className="list-disc list-inside text-gray-700 space-y-1 ml-2">
+                          <li>Revenue projections (daily, weekly, EOM)</li>
+                          <li>Spend forecasts</li>
+                          <li>Estimated commissions and payouts</li>
+                          <li>Expected profit margin</li>
+                        </ul>
+                      </div>
+                    </div>
+                  )}
+                  {accountingSubview === 'pl' && (
+                    <div className="space-y-4">
+                      <p className="text-gray-700">
+                        Tracks actual money that has come in and gone out.
+                        This is our true Profit & Loss — what we've actually received from networks and what we've actually paid (ad spend, commissions, SaaS tools, etc). It reflects bank balance reality, not just earned figures.
+                      </p>
+                      <div>
+                        <p className="font-medium text-gray-900 mb-2">Includes:</p>
+                        <ul className="list-disc list-inside text-gray-700 space-y-1 ml-2">
+                          <li>Revenue received this month</li>
+                          <li>All business expenses paid</li>
+                          <li>Net profit (cash-based)</li>
+                          <li>Breakeven tracking</li>
+                        </ul>
+                      </div>
+                    </div>
+                  )}
+                  {accountingSubview === 'media-buyer-pl' && (
+                    <div className="space-y-4">
+                      <p className="text-gray-700">
+                        Shows how much revenue we've earned based on delivered leads — regardless of payment timing.
+                        This reflects how our campaigns are performing, not whether we've been paid yet. It's useful for ROI decisions, buyer tracking, and scaling.
+                      </p>
+                      <div>
+                        <p className="font-medium text-gray-900 mb-2">Includes:</p>
+                        <ul className="list-disc list-inside text-gray-700 space-y-1 ml-2">
+                          <li>Earned revenue (accrual-based)</li>
+                          <li>Spend to generate it</li>
+                          <li>Commission-adjusted profit</li>
+                          <li>ROI and profit per campaign/media buyer</li>
+                        </ul>
+                      </div>
+                    </div>
+                  )}
+                  {accountingSubview === 'credit-line' && (
+                    <div className="space-y-4">
+                      <p className="text-gray-700">
+                        Real-time view of available cash, credit limits, daily spend, and safe spending thresholds. Helps protect your ad accounts while maximizing growth.
+                      </p>
+                    </div>
+                  )}
+                </div>
+          </div>
+          </div>
+
+            {/* Render the appropriate subview content */}
+            <div className="bg-white rounded-lg shadow-sm border border-gray-100 p-6">
+              {accountingSubview === 'net-profit' && (
             <NetProfit
-              performanceData={performanceData?.data || []}
+                  performanceData={performanceData?.data || []}
               dateRange={dateRange}
               cashFlowData={{
                 ...cashFlowData,
                 networkTerms: networkTermsData
               }}
             />
+              )}
+              {accountingSubview === 'pl' && (
+                <ImprovedPLDashboard 
+                  plData={plData}
+                  summaryData={plData?.summary || []}
+                />
+              )}
+              {accountingSubview === 'media-buyer-pl' && (
+                <MediaBuyerPL performanceData={performanceData?.data || []} />
+              )}
+              {accountingSubview === 'credit-line' && (
+                <CreditLine 
+                  data={{
+                    performanceData: performanceData?.data || [],
+                    invoicesData: invoiceData,
+                    cashFlowData,
+                    payrollData: expenseData
+                  }}
+                  loading={isRefreshing}
+                  error={error}
+                />
+              )}
+            </div>
           </div>
         );
-      case 'overview-v2':
+      case 'reporting':
         return (
-          <div className="space-y-6">
-            <EnhancedOverviewV2 
-              performanceData={performanceData || []}
-              cashFlowData={cashFlowData}
-              plData={plData}
-              networkTermsData={networkTermsData}
+          <div className="space-y-8">
+            <PageHeader 
+              title="Reporting" 
+              subtitle="Performance reports and analytics"
+              icon={LineChart}
             />
+            
+            {/* Reporting Subviews Navigation */}
+            <div className="bg-white rounded-lg shadow-sm border border-gray-100 p-4 mb-6">
+              <div className="flex space-x-4">
+                <Button
+                  variant={reportingSubview === 'eod-report' ? 'default' : 'outline'}
+                  onClick={() => setReportingSubview('eod-report')}
+                >
+                  EOD Report
+                </Button>
+                <Button
+                  variant={reportingSubview === 'offer-performance' ? 'default' : 'outline'}
+                  onClick={() => setReportingSubview('offer-performance')}
+                >
+                  Offer Performance
+                </Button>
+                <Button
+                  variant={reportingSubview === 'media-buyers' ? 'default' : 'outline'}
+                  onClick={() => setReportingSubview('media-buyers')}
+                >
+                  Media Buyers
+                </Button>
+                <Button
+                  variant={reportingSubview === 'redtrack' ? 'default' : 'outline'}
+                  onClick={() => setReportingSubview('redtrack')}
+                >
+                  Redtrack Check In
+                </Button>
+                <Button
+                  variant={reportingSubview === 'highlights' ? 'default' : 'outline'}
+                  onClick={() => setReportingSubview('highlights')}
+                >
+                  Highlights
+                </Button>
+              </div>
+            </div>
+
+            {/* Render the appropriate subview content */}
+            <div className="bg-white rounded-lg shadow-sm border border-gray-100 p-6">
+              {reportingSubview === 'eod-report' && (
+                <EODReport performanceData={performanceData?.data || []} />
+              )}
+              {reportingSubview === 'offer-performance' && (
+                <div className="space-y-8">
+                  <OfferPerformance 
+                    performanceData={performanceData?.data || []}
+                    dateRange={dateRange}
+                  />
+                  <div className="mt-8 pt-8 border-t">
+                    <h3 className="text-lg font-semibold mb-4">Network Caps</h3>
+                    <NetworkCapsTab 
+                      networkTerms={networkTermsData || []}
+                    />
+                  </div>
+                </div>
+              )}
+              {reportingSubview === 'media-buyers' && (
+                <div className="space-y-8">
+                  <MediaBuyerPerformance 
+                    performanceData={performanceData?.data || []}
+                    dateRange={dateRange}
+                  />
+                  <div className="mt-8 pt-8 border-t">
+                    <h3 className="text-lg font-semibold mb-4">30 Day Challenge</h3>
+                    <div className="space-y-8">
+                      <ThirtyDayChallenge performanceData={performanceData?.data || []} />
+                      <MediaBuyerProgress performanceData={performanceData?.data || []} />
+                    </div>
+                  </div>
+                </div>
+              )}
+              {reportingSubview === 'redtrack' && (
+                <div className="space-y-6">
+                  {/* Redtrack Subviews Navigation */}
+                  <div className="flex space-x-4 mb-6">
+                    <Button
+                      variant={redtrackSubview === 'midday-checkin' ? 'default' : 'outline'}
+                      onClick={() => setRedtrackSubview('midday-checkin')}
+                    >
+                      Mid-Day Check In
+                    </Button>
+                    <Button
+                      variant={redtrackSubview === 'todays-trend' ? 'default' : 'outline'}
+                      onClick={() => setRedtrackSubview('todays-trend')}
+                    >
+                      Today's Trend
+                    </Button>
+                    <Button
+                      variant={redtrackSubview === 'daily-trends' ? 'default' : 'outline'}
+                      onClick={() => setRedtrackSubview('daily-trends')}
+                    >
+                      Daily Trends History
+                    </Button>
+                  </div>
+
+                  {redtrackSubview === 'midday-checkin' && <MidDayCheckIn />}
+                  {redtrackSubview === 'todays-trend' && <TodaysTrend />}
+                  {redtrackSubview === 'daily-trends' && <DailyTrends />}
+                </div>
+              )}
+              {reportingSubview === 'highlights' && (
+                <div className="space-y-6">
+                  <Highlights performanceData={performanceData?.data || []} />
+                </div>
+              )}
+            </div>
           </div>
         );
-  
-      case 'bank-goals':
+      case 'accounts':
         return (
-          <div className="space-y-6">
-            <ProfitDistribution
-              cashFlowData={cashFlowData}
-              networkTermsData={networkTermsData}
-              netProfit={plData?.summary?.[plData.summary.length - 1]?.NetProfit || 0}
+          <div className="space-y-8">
+            <PageHeader 
+              title="Accounts Receivable & Payable" 
+              subtitle="Track and manage invoices, expenses, and financial obligations"
+              icon={FileText}
             />
+            
+            {/* Accounts Subviews Navigation */}
+            <div className="bg-white rounded-lg shadow-sm border border-gray-100 p-4 mb-6">
+              <div className="flex space-x-4">
+                <Button
+                  variant={accountsSubview === 'invoices' ? 'default' : 'outline'}
+                  onClick={() => setAccountsSubview('invoices')}
+                >
+                  Invoices (Receivable)
+                </Button>
+                <Button
+                  variant={accountsSubview === 'upcoming-expenses' ? 'default' : 'outline'}
+                  onClick={() => setAccountsSubview('upcoming-expenses')}
+                >
+                  Upcoming Expenses (Payable)
+                </Button>
+                <Button
+                  variant={accountsSubview === 'expense-overview' ? 'default' : 'outline'}
+                  onClick={() => setAccountsSubview('expense-overview')}
+                >
+                  Expense Overview
+                </Button>
+                <Button
+                  variant={accountsSubview === 'commissions' ? 'default' : 'outline'}
+                  onClick={() => setAccountsSubview('commissions')}
+                >
+                  Commission Payments
+                </Button>
+              </div>
+            </div>
+
+            {/* Render the appropriate subview content */}
+            <div className="bg-white rounded-lg shadow-sm border border-gray-100 p-6">
+              {accountsSubview === 'invoices' && (
+                <InvoicesTable data={invoiceData || []} />
+              )}
+              {accountsSubview === 'upcoming-expenses' && (
+                <UpcomingExpensesTable data={expenseData || []} />
+              )}
+              {accountsSubview === 'expense-overview' && (
+                <ExpenseOverview 
+                  plData={plData}
+                  cashFlowData={cashFlowData}
+                  invoicesData={invoiceData}
+                  networkTerms={networkTermsData || []}
+                />
+              )}
+              {accountsSubview === 'commissions' && (
+                <CommissionPayments commissions={performanceData?.commissions || []} />
+              )}
+            </div>
           </div>
         );
-  
-      case 'cash-credit':
+      case 'revenue-flow':
         return (
-          <CreditLine 
-            data={{
-              performanceData: performanceData?.data || [],
-              invoicesData: invoiceData,
-              cashFlowData,
-              payrollData: expenseData
-            }}
-            loading={isRefreshing}
-            error={error}
+          <RevenueFlowAnalysis 
+            performanceData={performanceData?.data || []}
+            networkTerms={networkTermsData}
+            invoicesData={invoiceData}
+            plData={plData}
           />
         );
-  
-        case 'network-caps':
+      case 'tradeshift':
+        console.log('Rendering tradeshift tab with data:', tradeshiftData);
           return (
-            <NetworkCapsTab 
-              networkTerms={networkTermsData || []}
+          <div className="space-y-6">
+            <TradeshiftOverview 
+              tradeshiftData={tradeshiftData} 
             />
-          );
-  
+            <CreditCardLimits 
+              financialResources={cashFlowData?.financialResources || []}
+            />
+          </div>
+        );
+      case 'monthly-expenses':
+        return (
+          <div className="space-y-6">
+            <MonthlyExpenses expensesData={expenseData || []} />
+          </div>
+        );
+      case 'breakevenCalculator':
+        return <BreakevenCalculator data={performanceData?.data || []} />;
       case 'daily-spend':
         return (
           <DailySpendCalculatorTab 
@@ -278,7 +750,6 @@ export default function DashboardLayout({
             offerCaps={networkTermsData || []}
           />
         );
-        
       case 'cash-flow':
         return (
           <CashFlowProjection 
@@ -293,15 +764,6 @@ export default function DashboardLayout({
             }}
           />
         );
-  
-      case 'pl':
-        return (
-          <ImprovedPLDashboard 
-            plData={plData}
-            summaryData={plData?.summary || []}
-          />
-        );
-  
       case 'network':
         return (
           <div className="space-y-6">
@@ -311,84 +773,47 @@ export default function DashboardLayout({
             />
           </div>
         );
-  
-      case 'media-buyers':
+      case 'commissions':
+        return null;
+      case 'midday-checkin':
         return (
-          <div className="space-y-6">
-            <MediaBuyerPerformance 
-              performanceData={performanceData?.data || []}
-              dateRange={dateRange}
+          <div className="space-y-8">
+            <PageHeader 
+              title="Mid-Day Check-In" 
+              subtitle="Track and review campaign performance throughout the day"
+              icon={Clock}
             />
+            <MidDayCheckIn />
           </div>
         );
-  
-      case 'invoices':
-        console.log('Invoices Data being passed:', invoiceData);
+      case 'todays-trend':
         return (
-          <div className="space-y-6">
-            <InvoicesTable data={invoiceData || []} />
+          <div className="space-y-8">
+            <PageHeader 
+              title="Today's Campaign Trends" 
+              subtitle="Track campaign performance throughout the day"
+              icon={TrendingUp}
+            />
+            <TodaysTrend />
           </div>
         );
-        
-      case 'upcoming-expenses':
-        console.log('Expenses Data:', expenseData);
+      case 'daily-trends':
         return (
-          <div className="space-y-6">
-            <UpcomingExpensesTable data={expenseData || []} />
+          <div className="space-y-8">
+            <PageHeader 
+              title="Daily Trends History" 
+              subtitle="Historical campaign performance trends by day"
+              icon={History}
+            />
+            <DailyTrends />
           </div>
         );
-  
-      case 'cash-position':
+      case 'network-caps':
         return (
-          <CashPosition 
-            cashFlowData={cashFlowData}
-            networkPaymentsData={networkPaymentsData}
-            invoicesData={invoiceData}
+          <NetworkCapsTab 
+            networkTerms={networkTermsData || []}
           />
         );
-  
-      case 'expense-overview':
-        return (
-          <div className="space-y-6">
-            <ExpenseOverview 
-              plData={plData}
-              cashFlowData={cashFlowData}
-              invoicesData={invoiceData}
-              networkTerms={networkTermsData || []}
-            />
-          </div>
-        );
-  
-      case 'highlights':
-        return (
-          <div className="space-y-6">
-            <Highlights performanceData={performanceData?.data || []} />
-          </div>
-        );
-  
-      case 'revenue-flow':
-        return (
-          <RevenueFlowAnalysis 
-            performanceData={performanceData?.data || []}
-            networkTerms={networkTermsData}
-            invoicesData={invoiceData}
-            plData={plData}
-          />
-        );
-  
-      case 'tradeshift':
-        console.log('Rendering tradeshift tab with data:', tradeshiftData);
-  return (
-          <div className="space-y-6">
-            <TradeshiftOverview 
-              tradeshiftData={tradeshiftData} 
-            />
-            <CreditCardLimits 
-              financialResources={cashFlowData?.financialResources || []}
-            />
-          </div>
-        );
-  
       case 'thirty-day-challenge':
         return (
           <div className="space-8">
@@ -396,29 +821,6 @@ export default function DashboardLayout({
             <MediaBuyerProgress performanceData={performanceData?.data || []} />
           </div>
         );
-  
-      case 'monthly-expenses':
-        return (
-          <div className="space-y-6">
-            <MonthlyExpenses expensesData={expenseData || []} />
-        </div>
-        );
-  
-      case 'breakevenCalculator':
-        return <BreakevenCalculator data={performanceData?.data || []} />;
-  
-      case 'commissions':
-        return (
-          <div className="space-y-6">
-            <PageHeader 
-              title="Commission Payments" 
-              subtitle="Media buyer commission calculations and payments"
-              icon={DollarSign}
-            />
-            <CommissionPayments commissions={performanceData?.commissions || []} />
-          </div>
-        );
-  
       default:
         return null;
     }
@@ -435,7 +837,7 @@ export default function DashboardLayout({
         return new Date(year, month - 1, day);
       })
       .filter(Boolean);
-
+    
     return new Date(Math.max(...dates.map(d => d.getTime())));
   };
 
@@ -459,35 +861,35 @@ export default function DashboardLayout({
                 <p className="text-xs text-gray-400">Convert2Freedom Analytics</p>
               </div>
             </div>
-            <div className="flex items-center gap-4">
-              <button
-                onClick={handleRefresh}
+          <div className="flex items-center gap-4">
+            <button
+              onClick={handleRefresh}
                 className={`inline-flex items-center px-4 py-2 border border-gray-600 rounded-md shadow-sm text-sm font-medium text-gray-200 bg-white/10 hover:bg-white/20 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition-all duration-200 ${
-                  isRefreshing ? 'opacity-75 cursor-not-allowed' : ''
-                }`}
-                disabled={isRefreshing}
-              >
-                <RefreshCw className={`h-4 w-4 mr-2 ${isRefreshing ? 'animate-spin' : ''}`} />
-                {isRefreshing ? 'Refreshing...' : 'Refresh Data'}
-              </button>
-              {lastUpdated && (
+                isRefreshing ? 'opacity-75 cursor-not-allowed' : ''
+              }`}
+              disabled={isRefreshing}
+            >
+              <RefreshCw className={`h-4 w-4 mr-2 ${isRefreshing ? 'animate-spin' : ''}`} />
+              {isRefreshing ? 'Refreshing...' : 'Refresh Data'}
+            </button>
+            {lastUpdated && (
                 <div className="text-sm text-gray-400 bg-white/5 px-3 py-1 rounded-md">
                   Last Updated: {format(lastUpdated, 'MMM d, yyyy h:mm a')}
-                </div>
-              )}
-            </div>
+              </div>
+            )}
           </div>
+        </div>
 
           {/* Navigation Tabs */}
           <div className="border-t border-gray-700/50">
             <nav className="flex space-x-8 overflow-x-auto scrollbar-hide">
               {mainTabs.map((tab) => {
-                const Icon = tab.icon;
-                return (
-                  <button
-                    key={tab.id}
-                    onClick={() => setActiveTab(tab.id)}
-                    className={`
+              const Icon = tab.icon;
+              return (
+                <button
+                  key={tab.id}
+                  onClick={() => setActiveTab(tab.id)}
+                  className={`
                       whitespace-nowrap py-3 px-3 border-b-2 font-medium text-sm flex items-center transition-all duration-200
                       ${
                         activeTab === tab.id
@@ -498,12 +900,12 @@ export default function DashboardLayout({
                   >
                     {Icon && <Icon className="w-4 h-4 mr-2" />}
                     {tab.label}
-                  </button>
-                );
-              })}
+                </button>
+              );
+            })}
             </nav>
-          </div>
-        </div>
+                    </div>
+                  </div>
       </header>
 
       {/* Main Content */}
@@ -518,30 +920,30 @@ export default function DashboardLayout({
                   </p>
                 </div>
               </div>
-            </div>
+        </div>
           )}
 
           {/* Main Content Area with Light Background */}
           <div className="space-y-8">
-            {['media-buyers', 'network'].includes(activeTab) && (
+          {['media-buyers', 'network'].includes(activeTab) && (
               <div className="bg-white rounded-lg shadow-sm border border-gray-100 p-6">
-                <EnhancedDateSelector 
-                  onDateChange={handleDateChange}
-                  selectedPeriod={dateRange.period}
-                  defaultRange="last7"
+            <EnhancedDateSelector 
+              onDateChange={handleDateChange}
+              selectedPeriod={dateRange.period}
+              defaultRange="last7"
                   latestDate={getLatestDataDate(performanceData?.data)}
-                />
+            />
               </div>
-            )}
+          )}
 
             {/* Content Sections with Improved Spacing */}
             <div className="bg-white rounded-lg shadow-sm border border-gray-100 p-6">
               {/* Main Content */}
-              <div className="mt-6">{renderTabContent()}</div>
+          <div className="mt-6">{renderTabContent()}</div>
             </div>
-          </div>
         </div>
-      </main>
+      </div>
+    </main>
     </div>
   );
 };
