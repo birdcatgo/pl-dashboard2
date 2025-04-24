@@ -9,6 +9,7 @@ export default function DashboardPage() {
   const [networkTermsData, setNetworkTermsData] = useState(null);
   const [tradeshiftData, setTradeshiftData] = useState([]);
   const [plData, setPlData] = useState(null);
+  const [employeeData, setEmployeeData] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState(null);
 
@@ -35,7 +36,9 @@ export default function DashboardPage() {
         hasTradeshiftData: !!data.tradeshiftData,
         tradeshiftDataLength: data.tradeshiftData?.length,
         hasPlData: !!data.plData,
-        plDataKeys: data.plData ? Object.keys(data.plData) : []
+        plDataKeys: data.plData ? Object.keys(data.plData) : [],
+        hasEmployeeData: !!data.employeeData,
+        employeeDataLength: data.employeeData?.length
       });
       
       // Transform performance data from array of arrays to array of objects
@@ -65,6 +68,7 @@ export default function DashboardPage() {
       setNetworkTermsData(data.networkTerms || []);
       setTradeshiftData(data.tradeshiftData || []);
       setPlData(data.plData || {});
+      setEmployeeData(data.employeeData || []);
 
       // Log the state of each piece of data
       console.log('Data State:', {
@@ -74,7 +78,8 @@ export default function DashboardPage() {
         hasCashFlowData: !!data.cashFlowData,
         networkTermsCount: data.networkTerms?.length || 0,
         tradeshiftDataCount: data.tradeshiftData?.length || 0,
-        hasPlData: !!data.plData
+        hasPlData: !!data.plData,
+        employeeDataCount: data.employeeData?.length || 0
       });
 
     } catch (error) {
@@ -106,6 +111,7 @@ export default function DashboardPage() {
       networkTermsData={networkTermsData}
       tradeshiftData={tradeshiftData}
       plData={plData}
+      employeeData={employeeData}
     />
   );
 }

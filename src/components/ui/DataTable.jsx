@@ -11,6 +11,16 @@ const DataTable = ({
   frozenColumns = 0,
   showZebra = true
 }) => {
+  const renderCell = (column, row) => {
+    if (typeof column.cell === 'function') {
+      return column.cell(row);
+    }
+    if (column.cell?.render) {
+      return column.cell.render(row);
+    }
+    return row[column.accessorKey || column.key];
+  };
+
   return (
     <div className={`bg-white rounded-lg shadow-sm border border-gray-100 overflow-hidden ${className}`}>
       <div className="overflow-x-auto">
@@ -52,7 +62,7 @@ const DataTable = ({
                       ${cellClassName}
                     `}
                   >
-                    {column.cell(row)}
+                    {renderCell(column, row)}
                   </td>
                 ))}
               </tr>

@@ -247,6 +247,53 @@ async function processInvoiceData(response) {
   }
 }
 
+async function processEmployeeData(response) {
+  try {
+    // Check if we have valid data
+    if (!response?.values || response.values.length <= 1) {
+      console.log('No employee data found or only header row present');
+      return [];
+    }
+
+    // Skip header row and process each employee row
+    const employeeData = response.values.slice(1).map((row, index) => {
+      try {
+        // Check if row has enough data
+        if (!row[0]) {
+          console.log(`Skipping invalid row ${index + 2}: Missing name`);
+          return null;
+        }
+
+        return {
+          name: row[0] || '',
+          basePay: row[1] || '',
+          frequency: row[2] || '',
+          commission: row[3] || '',
+          contractType: row[4] || '',
+          email: row[5] || '',
+          ndaSigned: row[6]?.toLowerCase() === 'yes',
+          thirtyDayContract: row[7] || '',
+          postThirtyDayContract: row[8] || '',
+          status: row[9] || 'INACTIVE'
+        };
+      } catch (error) {
+        console.error(`Error processing row ${index + 2}:`, error);
+        return null;
+      }
+    }).filter(Boolean); // Remove any null entries
+
+    console.log(`Processed ${employeeData.length} employee records`);
+    if (employeeData.length > 0) {
+      console.log('Sample employee data:', employeeData[0]);
+    }
+
+    return employeeData;
+  } catch (error) {
+    console.error('Error processing employee data:', error);
+    return [];
+  }
+}
+
 const SHEET_CONFIG = {
   performance: {
     name: 'Performance',
@@ -334,7 +381,8 @@ export default async function handler(req, res) {
       "'Invoices'!A:F",
       "'Tradeshift Check'!A:E",
       "'Monthly Expenses'!A:D",
-      "'Commissions'!A:H"
+      "'Commissions'!A:H",
+      "'Employees'!A:J"
     ];
 
     console.log('Fetching sheets data with ranges:', ranges);
@@ -381,7 +429,8 @@ export default async function handler(req, res) {
       },
       plData: null,
       tradeshiftData: [],
-      commissions: []
+      commissions: [],
+      employeeData: []
     };
 
     // Log all sheet names and their responses
@@ -416,7 +465,8 @@ export default async function handler(req, res) {
       invoicesResponse,
       tradeshiftResponse,
       monthlyExpensesResponse,
-      commissionsResponse
+      commissionsResponse,
+      employeeResponse
     ] = batchResponse.data.valueRanges;
 
     // Add specific logging for Network Terms sheet
@@ -640,6 +690,13 @@ export default async function handler(req, res) {
           valuesLength: commissionsResponse?.values?.length
         });
       }
+
+      // Process employee data
+      processedData.employeeData = await processEmployeeData(employeeResponse);
+      console.log('Processed employee data:', {
+        count: processedData.employeeData.length,
+        sample: processedData.employeeData[0]
+      });
 
     } catch (processingError) {
       console.error('Error processing data:', processingError);
