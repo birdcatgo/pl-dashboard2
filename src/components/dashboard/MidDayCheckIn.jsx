@@ -480,11 +480,48 @@ const MidDayCheckIn = () => {
     try {
       setIsSending(true);
       
-      // Get previous check-ins from localStorage
-      const existingCheckIns = JSON.parse(localStorage.getItem('middayCheckIns') || '[]');
-      // Filter to only include previous check-ins (not the current one)
-      const previousCheckIns = existingCheckIns.filter(ci => ci.timestamp !== checkIn.timestamp);
-      
+      // Group campaigns by media buyer
+      const campaignsByBuyer = {};
+      checkIn.campaigns.forEach(campaign => {
+        if (!campaignsByBuyer[campaign.mediaBuyer]) {
+          campaignsByBuyer[campaign.mediaBuyer] = [];
+        }
+        campaignsByBuyer[campaign.mediaBuyer].push(campaign);
+      });
+
+      // Build message sections
+      let messageText = "*Mid-Day Check-In*\n\n";
+
+      // Add each media buyer's section
+      for (const [buyer, campaigns] of Object.entries(campaignsByBuyer)) {
+        if (campaigns.length === 0) continue;
+
+        messageText += `*${buyer}'s Campaigns*\n`;
+        
+        // Sort campaigns by profit (profitable first, then unprofitable)
+        campaigns.sort((a, b) => (b.profit || 0) - (a.profit || 0));
+
+        campaigns.forEach(campaign => {
+          const accountInfo = `${campaign.mediaBuyer} | ${campaign.adAccount}`;
+          const campaignName = campaign.campaignName;
+          
+          // Truncate campaign name if too long
+          const truncatedName = campaignName.length > 40 ? 
+            campaignName.substring(0, 37) + '...' : 
+            campaignName;
+
+          if (campaign.profit > 0) {
+            const trend = campaign.profitChange > 0 ? ':arrow_up_small:' :
+                         campaign.profitChange < 0 ? ':arrow_down_small:' :
+                         ':arrow_right:';
+            messageText += `• ${accountInfo} — ${truncatedName} — Profit: +$${Math.round(campaign.profit)} ${trend}\n`;
+          } else {
+            messageText += `• ${accountInfo} — ${truncatedName} — Unprofitable\n`;
+          }
+        });
+        messageText += '\n';
+      }
+
       const response = await fetch('/api/slack-notification', {
         method: 'POST',
         headers: {
@@ -493,23 +530,28 @@ const MidDayCheckIn = () => {
         body: JSON.stringify({
           type: 'midday-checkin',
           data: {
-            message: 'Midday Check-In',
-            previousCheckIns: previousCheckIns,
-            campaigns: checkIn.campaigns,
-            timestamp: checkIn.timestamp,
+            message: messageText,
+            timestamp: DateTime.now().toISO()
           },
         }),
       });
 
       if (!response.ok) {
-        throw new Error('Failed to send to Slack');
+        throw new Error(`HTTP error! status: ${response.status}`);
       }
 
-      console.log('Successfully sent to Slack');
-      alert('Successfully sent to Slack!');
+      const result = await response.json();
+      console.log('Slack notification sent:', result);
+      
+      // Update localStorage to mark this check-in as sent
+      const sentCheckIns = JSON.parse(localStorage.getItem('sentSlackCheckIns') || '[]');
+      sentCheckIns.push(checkIn.timestamp);
+      localStorage.setItem('sentSlackCheckIns', JSON.stringify(sentCheckIns));
+      
+      setSelectedSlackCheckIn(null);
     } catch (error) {
       console.error('Error sending to Slack:', error);
-      alert('Failed to send to Slack: ' + error.message);
+      throw error;
     } finally {
       setIsSending(false);
     }

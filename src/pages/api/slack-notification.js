@@ -787,9 +787,9 @@ function createMiddayCheckinMessage(data) {
   ];
 
   // Build campaign table
-  let tableHeader = "| Campaign Name                                | Profit | Trend |\n|---------------------------------------------|--------|-------|";
+  let tableHeader = "| Campaign Name                                         | Profit | Trend |\n|------------------------------------------------------|--------|-------|";
   let tableRows = sortedCampaigns.map(campaign => {
-    const name = campaign.campaignName.length > 45 ? campaign.campaignName.substring(0, 42) + '...' : campaign.campaignName.padEnd(45);
+    const name = campaign.campaignName.length > 55 ? campaign.campaignName.substring(0, 52) + '...' : campaign.campaignName.padEnd(55);
     const profit = `$${Math.round(campaign.profit)}`.padEnd(6);
     return `| ${name} | ${profit} | ${campaign.trend.padEnd(5)} |`;
   }).join('\n');
