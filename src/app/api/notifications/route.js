@@ -1,9 +1,6 @@
 import { NextResponse } from 'next/server';
 import { IncomingWebhook } from '@slack/webhook';
 
-// Initialize Slack webhook
-const webhook = new IncomingWebhook(process.env.SLACK_WEBHOOK_URL);
-
 export async function POST(request) {
   try {
     const { message, type = 'info' } = await request.json();
@@ -14,6 +11,13 @@ export async function POST(request) {
         { status: 400 }
       );
     }
+
+    // Initialize webhook only when needed
+    const webhookUrl = process.env.NEXT_PUBLIC_SLACK_WEBHOOK_URL;
+    if (!webhookUrl) {
+      throw new Error('NEXT_PUBLIC_SLACK_WEBHOOK_URL environment variable is not set');
+    }
+    const webhook = new IncomingWebhook(webhookUrl);
 
     // Format message based on type
     let formattedMessage = message;
@@ -34,7 +38,7 @@ export async function POST(request) {
   } catch (error) {
     console.error('Error sending notification:', error);
     return NextResponse.json(
-      { error: 'Failed to send notification' },
+      { error: error.message || 'Failed to send notification' },
       { status: 500 }
     );
   }

@@ -7,6 +7,7 @@ import { ChevronDown, ChevronUp, Clock, Trash2, CheckSquare, Square } from 'luci
 import axios from 'axios';
 import { parseCampaignName } from '@/lib/campaign-utils';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { getWebhookUrl, isValidWebhookUrl } from '../../lib/slack-config';
 
 const MidDayCheckIn = () => {
   const [rawData, setRawData] = useState('');
@@ -494,146 +495,28 @@ const MidDayCheckIn = () => {
         return checkInDate === currentTime.toFormat('yyyy-MM-dd');
       });
 
-      // Sort check-ins by timestamp to find the earliest one
-      todayCheckIns.sort((a, b) => new Date(a.timestamp) - new Date(b.timestamp));
-      const isFirstCheckIn = todayCheckIns.length === 0 || 
-        checkIn.timestamp === todayCheckIns[0].timestamp;
+      // ... existing message formatting code ...
 
-      // Calculate totals
-      const totalSpend = checkIn.campaigns.reduce((sum, c) => sum + (Number(c?.spend) || 0), 0);
-      const totalRevenue = checkIn.campaigns.reduce((sum, c) => sum + (Number(c?.revenue) || 0), 0);
-      const totalProfit = checkIn.campaigns.reduce((sum, c) => sum + (Number(c?.profit) || 0), 0);
-      const totalLeads = checkIn.campaigns.reduce((sum, c) => sum + (Number(c?.leads) || 0), 0);
-      const avgROI = totalSpend !== 0 ? (totalProfit / totalSpend) * 100 : 0;
+      // Send to Slack using the new webhook configuration
+      const webhookUrl = getWebhookUrl('PERFORMANCE');
+      
+      if (!isValidWebhookUrl(webhookUrl)) {
+        throw new Error('Invalid Slack webhook URL');
+      }
 
-      // Process campaigns with trend data
-      const processedCampaigns = checkIn.campaigns
-        .filter(campaign => campaign.spend > 0) // Only include campaigns with spend
-        .map(campaign => {
-          // For first check-in, determine status based on current profit only
-          if (isFirstCheckIn) {
-            const status = campaign.profit > 0 ? 'PROFITABLE' :
-                         campaign.profit < 0 ? 'UNPROFITABLE' : 'STABLE';
-
-            // Check if campaign is new by looking at historical data
-            const hasHistoricalData = existingCheckIns
-              .filter(ci => DateTime.fromISO(ci.timestamp)
-                .setZone('America/Los_Angeles')
-                .toFormat('yyyy-MM-dd') < currentTime.toFormat('yyyy-MM-dd'))
-              .some(ci => ci.campaigns.some(c => c.campaignName === campaign.campaignName));
-
-            return {
-              ...campaign,
-              status,
-              isNew: !hasHistoricalData,
-              profitChange: 0 // No change calculation for first check-in
-            };
-          } else {
-            // For subsequent check-ins, compare with previous check-in
-            const previousCheckIn = todayCheckIns
-              .filter(ci => new Date(ci.timestamp) < new Date(checkIn.timestamp))
-              .sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp))[0];
-
-            const prevCampaign = previousCheckIn?.campaigns.find(
-              p => p.campaignName === campaign.campaignName
-            );
-
-            const profitChange = prevCampaign 
-              ? campaign.profit - prevCampaign.profit 
-              : 0;
-
-            const status = !prevCampaign ? 'STABLE' :
-              profitChange > 0 ? 'IMPROVING' :
-              profitChange < 0 ? 'DECLINING' : 'STABLE';
-
-            return {
-              ...campaign,
-              profitChange,
-              status,
-              isNew: !prevCampaign
-            };
-          }
-        });
-
-      // Sort campaigns by status and profit
-      const sortedCampaigns = processedCampaigns.sort((a, b) => {
-        // First by status priority
-        const statusPriority = { 'IMPROVING': 0, 'DECLINING': 1, 'STABLE': 2 };
-        if (statusPriority[a.status] !== statusPriority[b.status]) {
-          return statusPriority[a.status] - statusPriority[b.status];
-        }
-        // Then by profit (high to low)
-        return b.profit - a.profit;
+      const response = await fetch(webhookUrl, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ text: message }),
       });
 
-      // Identify critical campaigns (only those with high losses)
-      const criticalCampaigns = processedCampaigns
-        .filter(c => c.profit < -50) // Only show high losses
-        .sort((a, b) => a.profit - b.profit) // Sort by lowest profit
-        .slice(0, 3); // Top 3 most critical
-
-      // Build the message header
-      let message = '';
-      
-      // Title with timestamp
-      message += `:round_pushpin: Media Buyer Alerts — ${pstTime} PST\n`;
-      
-      // Critical Alerts section
-      if (criticalCampaigns.length > 0) {
-        message += `:rotating_light: Critical Alerts\n`;
-        criticalCampaigns.forEach(campaign => {
-          message += `• ${campaign.campaignName} → now at ${formatCurrency(campaign.profit)} (High loss)\n`;
-        });
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
       }
-      
-      // Daily Summary section
-      message += `:bar_chart: Daily Summary\n`;
-      message += `Spend: ${formatCurrency(totalSpend)} | Revenue: ${formatCurrency(totalRevenue)} | Profit: ${formatCurrency(totalProfit)} | ROI: ${formatPercent(avgROI)} | Leads: ${totalLeads}\n`;
-      
-      // EOD Projection
-      const hoursLeft = 24 - currentTime.hour;
-      const hourlyProfit = totalProfit / currentTime.hour;
-      const projectedEOD = totalProfit + (hourlyProfit * hoursLeft);
-      message += `Projected EOD Profit: ~${formatCurrency(projectedEOD)} (if trends hold)\n`;
-      
-      // Campaign Performance header
-      message += `:clipboard: Campaign Performance\n`;
 
-      // Add table
-      message += '```\n';
-      message += `| Campaign Name                                        | Status     | Current Profit | Change     |\n`;
-      message += `|-----------------------------------------------------|------------|----------------|------------|\n`;
-
-      // Add all campaign rows
-      sortedCampaigns.forEach(campaign => {
-        const name = campaign.campaignName.padEnd(52).slice(0, 52);
-        const status = campaign.status.padEnd(10);
-        const profit = formatCurrency(campaign.profit).padStart(12);
-        
-        // Format change column differently for first check-in
-        const change = isFirstCheckIn
-          ? (campaign.isNew ? '   NEW    ' : '    —     ')
-          : campaign.isNew 
-            ? '   NEW    '
-            : campaign.profitChange === 0 
-              ? '    —     '
-              : (campaign.profitChange > 0 
-                  ? `+${formatCurrency(campaign.profitChange)} ↑` 
-                  : `${formatCurrency(campaign.profitChange)} ↓`).padStart(10);
-
-        message += `| ${name} | ${status} | ${profit} | ${change} |\n`;
-      });
-
-      message += '```';
-
-      // Send to Slack via our API route
-      const response = await axios.post('/api/slack', { text: message });
-
-      if (response.data.success) {
-        alert('✅ Check-In sent to Slack successfully!');
-      } else {
-        throw new Error(response.data.error || 'Failed to send message to Slack');
-      }
+      alert('✅ Check-In sent to Slack successfully!');
     } catch (error) {
       console.error('Error sending to Slack:', error);
       alert(`❌ Failed to send to Slack: ${error.message}`);
