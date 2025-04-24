@@ -30,7 +30,7 @@ const ContractPreview = ({ content, contractor, onDownload }) => {
       month: 'long',
       day: 'numeric'
     }))
-    .replace(/\[EMPLOYEE_NAME\]/g, contractor.name)
+    .replace(/\[CONTRACTOR_NAME\]/g, contractor.name)
     .replace(/\[BASE_PAY\]/g, formatCurrency(contractor.basePay))
     .replace(/\[FREQUENCY\]/g, contractor.frequency)
     .replace(/\[COMMISSION\]/g, contractor.commission)
@@ -84,7 +84,7 @@ const ContractorContracts = ({ contractorData }) => {
   const [isEditing, setIsEditing] = useState(false);
   const [showInstructions, setShowInstructions] = useState(true);
 
-  const emailTemplate = `Hi [EMPLOYEE_NAME],
+  const emailTemplate = `Hi [CONTRACTOR_NAME],
 
 Hope you're doing well! When you have a moment, could you please review and sign the following three documents:
 
@@ -124,7 +124,7 @@ Thanks heaps,`;
 
     return template
       .replace(/\[DATE\]/g, formattedDate)
-      .replace(/\[EMPLOYEE_NAME\]/g, contractor.name)
+      .replace(/\[CONTRACTOR_NAME\]/g, contractor.name)
       .replace(/\[BASE_PAY\]/g, formatCurrency(contractor.basePay))
       .replace(/\[FREQUENCY\]/g, contractor.frequency)
       .replace(/\[COMMISSION\]/g, contractor.commission)
@@ -272,60 +272,12 @@ Thanks heaps,`;
   ];
 
   return (
-    <div className="space-y-6">
-      {showInstructions && (
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between">
-            <div>
-              <CardTitle>Instructions</CardTitle>
-            </div>
-            <Button variant="ghost" size="sm" onClick={() => setShowInstructions(false)}>
-              <X className="h-4 w-4" />
-            </Button>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <div className="space-y-2">
-              <h3 className="font-semibold">Process Overview:</h3>
-              <ol className="list-decimal list-inside space-y-1 text-sm">
-                <li>Select a contractor from the table below</li>
-                <li>Generate required contracts using the action buttons (NDA, Media Buyer, 30 Day, Post 30 Day)</li>
-                <li>Review each contract and edit if necessary using the Edit button</li>
-                <li>Download the contracts as PDFs using the Download button</li>
-                <li>Send contracts to the contractor for signature</li>
-              </ol>
-            </div>
-            <div className="space-y-2">
-              <h3 className="font-semibold">Email Template:</h3>
-              <div className="bg-gray-50 p-4 rounded-md">
-                <pre className="text-sm whitespace-pre-wrap">{emailTemplate}</pre>
-                <Button 
-                  variant="outline" 
-                  size="sm" 
-                  className="mt-2"
-                  onClick={() => navigator.clipboard.writeText(emailTemplate)}
-                >
-                  Copy Template
-                </Button>
-              </div>
-            </div>
-            <div className="space-y-2">
-              <h3 className="font-semibold">Contract Types:</h3>
-              <ul className="list-disc list-inside space-y-1 text-sm">
-                <li><strong>NDA:</strong> Required for all employees before starting</li>
-                <li><strong>Media Buyer Agreement:</strong> Main contractor agreement</li>
-                <li><strong>30 Day Contract:</strong> Initial trial period agreement</li>
-                <li><strong>Post 30 Day:</strong> Long-term agreement after trial period</li>
-              </ul>
-            </div>
-          </CardContent>
-        </Card>
-      )}
-
+    <div className="space-y-2">
       <Card>
-        <CardHeader>
-          <CardTitle>Contractor Information</CardTitle>
+        <CardHeader className="py-2">
+          <CardTitle className="text-lg">Contractor Information</CardTitle>
         </CardHeader>
-        <CardContent>
+        <CardContent className="py-2">
           <DataTable
             columns={columns}
             data={contractorData || []}
@@ -334,34 +286,34 @@ Thanks heaps,`;
       </Card>
 
       <Dialog open={!!selectedContract} onOpenChange={() => setSelectedContract(null)}>
-        <DialogContent className="max-w-4xl max-h-[90vh] flex flex-col p-4">
-          <DialogHeader className="pb-2">
-            <DialogTitle>
+        <DialogContent className="max-w-4xl max-h-[90vh] flex flex-col p-2">
+          <DialogHeader className="py-1">
+            <DialogTitle className="text-lg">
               {selectedContract?.contractor?.name} - {selectedContract?.type === 'nda' ? 'NDA' : 
                 selectedContract?.type === 'mediaBuyer' ? 'Media Buyer Agreement' :
                 selectedContract?.type === 'thirtyDay' ? '30 Day Contract' : 'Post 30 Day Contract'}
             </DialogTitle>
           </DialogHeader>
           <div className="flex-1 flex flex-col overflow-hidden">
-            <div className="sticky top-0 bg-white z-10 flex justify-end gap-2 py-2 border-b">
-              <Button onClick={() => setIsEditing(!isEditing)}>
-                {isEditing ? <Eye className="h-4 w-4 mr-2" /> : <Edit className="h-4 w-4 mr-2" />}
+            <div className="sticky top-0 bg-white z-50 flex justify-end gap-2 py-2 px-2 border-b">
+              <Button variant="outline" size="sm" onClick={() => setIsEditing(!isEditing)}>
+                {isEditing ? <Eye className="h-4 w-4 mr-1" /> : <Edit className="h-4 w-4 mr-1" />}
                 {isEditing ? 'Preview' : 'Edit'}
               </Button>
-              <Button onClick={() => handleDownload(selectedContract.contractor, selectedContract.type)}>
-                <Download className="h-4 w-4 mr-2" />
+              <Button size="sm" onClick={() => handleDownload(selectedContract.contractor, selectedContract.type)}>
+                <Download className="h-4 w-4 mr-1" />
                 Download
               </Button>
             </div>
-            <div className="flex-1 overflow-y-auto mt-2">
+            <div className="flex-1 overflow-y-auto mt-2 px-2">
               {isEditing ? (
                 <Textarea
                   value={editedContent}
                   onChange={(e) => setEditedContent(e.target.value)}
-                  className="min-h-[500px] font-mono text-sm"
+                  className="min-h-[400px] font-mono text-sm"
                 />
               ) : (
-                <div className="whitespace-pre-wrap font-mono text-sm border p-2 rounded-md min-h-[500px]">
+                <div className="whitespace-pre-wrap font-mono text-sm border p-1 rounded-md min-h-[400px]">
                   {editedContent}
                 </div>
               )}

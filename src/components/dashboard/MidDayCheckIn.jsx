@@ -477,49 +477,39 @@ const MidDayCheckIn = () => {
   };
 
   const sendToSlack = async (checkIn) => {
-    setIsSending(true);
     try {
-      if (!checkIn || !Array.isArray(checkIn.campaigns) || checkIn.campaigns.length === 0) {
-        throw new Error('No campaign data available to send.');
-      }
-
-      const currentTime = DateTime.fromISO(checkIn.timestamp).setZone('America/Los_Angeles');
-      const pstTime = currentTime.toFormat('dd LLL yyyy, h:mm a');
-
-      // Get all check-ins from today to determine if this is the first one
-      const existingCheckIns = JSON.parse(localStorage.getItem('middayCheckIns') || '[]');
-      const todayCheckIns = existingCheckIns.filter(ci => {
-        const checkInDate = DateTime.fromISO(ci.timestamp)
-          .setZone('America/Los_Angeles')
-          .toFormat('yyyy-MM-dd');
-        return checkInDate === currentTime.toFormat('yyyy-MM-dd');
-      });
-
-      // ... existing message formatting code ...
-
-      // Send to Slack using the new webhook configuration
-      const webhookUrl = getWebhookUrl('PERFORMANCE');
+      setIsSending(true);
       
-      if (!isValidWebhookUrl(webhookUrl)) {
-        throw new Error('Invalid Slack webhook URL');
-      }
-
-      const response = await fetch(webhookUrl, {
+      // Get previous check-ins from localStorage
+      const existingCheckIns = JSON.parse(localStorage.getItem('middayCheckIns') || '[]');
+      // Filter to only include previous check-ins (not the current one)
+      const previousCheckIns = existingCheckIns.filter(ci => ci.timestamp !== checkIn.timestamp);
+      
+      const response = await fetch('/api/slack-notification', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({ text: message }),
+        body: JSON.stringify({
+          type: 'midday-checkin',
+          data: {
+            message: 'Midday Check-In',
+            previousCheckIns: previousCheckIns,
+            campaigns: checkIn.campaigns,
+            timestamp: checkIn.timestamp,
+          },
+        }),
       });
 
       if (!response.ok) {
-        throw new Error(`HTTP error! status: ${response.status}`);
+        throw new Error('Failed to send to Slack');
       }
 
-      alert('✅ Check-In sent to Slack successfully!');
+      console.log('Successfully sent to Slack');
+      alert('Successfully sent to Slack!');
     } catch (error) {
       console.error('Error sending to Slack:', error);
-      alert(`❌ Failed to send to Slack: ${error.message}`);
+      alert('Failed to send to Slack: ' + error.message);
     } finally {
       setIsSending(false);
     }
@@ -880,9 +870,6 @@ const MidDayCheckIn = () => {
                 <Button onClick={handleProcessData} disabled={!rawData}>
                   Process Data
                 </Button>
-                <Button onClick={consolidateAndStoreDailyTrends} variant="outline">
-                  Consolidate Trends
-                </Button>
                 <Button 
                   onClick={consolidateToDailyTrends} 
                   className="bg-[#4A90E2] text-white hover:bg-[#357ABD]"
@@ -1061,22 +1048,16 @@ const MidDayCheckIn = () => {
                           </td>
                           <td className="p-2 text-right font-medium">{totalLeads}</td>
                           <td className="p-2 text-center flex items-center justify-end space-x-2">
-                            <Button 
-                              variant="ghost" 
-                              size="sm" 
-                              className="h-8 px-2 text-red-500 hover:text-red-700 hover:bg-red-50"
+                            <button
                               onClick={(e) => {
                                 e.stopPropagation();
                                 deleteCheckIn(timestamp);
                               }}
+                              className="text-red-500 hover:text-red-700"
+                              title="Delete check-in"
                             >
-                              <Trash2 className="h-4 w-4" />
-                            </Button>
-                            {expandedTimestamps.has(timestamp) ? (
-                              <ChevronUp className="h-5 w-5 text-gray-400 inline-block" />
-                            ) : (
-                              <ChevronDown className="h-5 w-5 text-gray-400 inline-block" />
-                            )}
+                              <Trash2 className="h-5 w-5" />
+                            </button>
                           </td>
                         </tr>
                         {expandedTimestamps.has(timestamp) && (

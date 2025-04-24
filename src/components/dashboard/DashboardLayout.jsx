@@ -51,7 +51,7 @@ import MidDayCheckIn from './MidDayCheckIn';
 import TodaysTrend from './TodaysTrend';
 import DailyTrends from './DailyTrends';
 import { Button } from "@/components/ui/button";
-import EmployeeContracts from './EmployeeContracts';
+import ContractorContracts from './ContractorContracts';
 import { NDA_TEMPLATE, APPENDIX_A_FIRST_30_DAYS, APPENDIX_B_POST_30_DAYS } from '@/lib/contract-templates';
 import { MEDIA_BUYER_CONTRACTOR_AGREEMENT } from '@/lib/contract-templates';
 
@@ -96,7 +96,7 @@ export default function DashboardLayout({
   const [accountsSubview, setAccountsSubview] = useState('invoices');
   const [reportingSubview, setReportingSubview] = useState('eod-report');
   const [redtrackSubview, setRedtrackSubview] = useState('midday-checkin');
-  const [employeeSubview, setEmployeeSubview] = useState('contracts');
+  const [contractorSubview, setContractorSubview] = useState('contracts');
 
   // Update state when props change
   useEffect(() => {
@@ -167,7 +167,7 @@ export default function DashboardLayout({
     { id: 'accounting', label: 'Profit Metrics', icon: Calculator },
     { id: 'accounts', label: 'Accounts Receivable & Payable', icon: FileText },
     { id: 'reporting', label: 'Reporting', icon: LineChart },
-    { id: 'employee-info', label: 'Employee Information', icon: UserCheck }
+    { id: 'contractor-info', label: 'Contractor Information', icon: UserCheck }
   ];
 
   const renderTabContent = () => {
@@ -827,45 +827,45 @@ export default function DashboardLayout({
             <MediaBuyerProgress performanceData={performanceData?.data || []} />
           </div>
         );
-      case 'employee-info':
+      case 'contractor-info':
         return (
           <div className="space-y-8">
             <PageHeader 
-              title="Employee Information" 
-              subtitle="Manage employee contracts and documentation"
+              title="Contractor Information" 
+              subtitle="Manage contractor contracts and documentation"
               icon={UserCheck}
             />
             
-            {/* Employee Information Subviews Navigation */}
+            {/* Contractor Information Subviews Navigation */}
             <div className="bg-white rounded-lg shadow-sm border border-gray-100 p-4 mb-6">
               <div className="flex space-x-4">
                 <Button
-                  variant={employeeSubview === 'contracts' ? 'default' : 'outline'}
-                  onClick={() => setEmployeeSubview('contracts')}
+                  variant={contractorSubview === 'contracts' ? 'default' : 'outline'}
+                  onClick={() => setContractorSubview('contracts')}
                 >
-                  Employee Contracts
+                  Contractor Contracts
                 </Button>
                 <Button
-                  variant={employeeSubview === 'nda' ? 'default' : 'outline'}
-                  onClick={() => setEmployeeSubview('nda')}
+                  variant={contractorSubview === 'nda' ? 'default' : 'outline'}
+                  onClick={() => setContractorSubview('nda')}
                 >
                   NDA
                 </Button>
                 <Button
-                  variant={employeeSubview === 'media-buyer' ? 'default' : 'outline'}
-                  onClick={() => setEmployeeSubview('media-buyer')}
+                  variant={contractorSubview === 'media-buyer' ? 'default' : 'outline'}
+                  onClick={() => setContractorSubview('media-buyer')}
                 >
                   Media Buyer Agreement
                 </Button>
                 <Button
-                  variant={employeeSubview === '30-day' ? 'default' : 'outline'}
-                  onClick={() => setEmployeeSubview('30-day')}
+                  variant={contractorSubview === '30-day' ? 'default' : 'outline'}
+                  onClick={() => setContractorSubview('30-day')}
                 >
                   30 Day Contract
                 </Button>
                 <Button
-                  variant={employeeSubview === 'post-30-day' ? 'default' : 'outline'}
-                  onClick={() => setEmployeeSubview('post-30-day')}
+                  variant={contractorSubview === 'post-30-day' ? 'default' : 'outline'}
+                  onClick={() => setContractorSubview('post-30-day')}
                 >
                   Post 30 Day Contract
                 </Button>
@@ -874,10 +874,10 @@ export default function DashboardLayout({
 
             {/* Render the appropriate subview content */}
             <div className="bg-white rounded-lg shadow-sm border border-gray-100 p-6">
-              {employeeSubview === 'contracts' && (
-                <EmployeeContracts employeeData={employeeData} />
+              {contractorSubview === 'contracts' && (
+                <ContractorContracts contractorData={employeeData} />
               )}
-              {employeeSubview === 'nda' && (
+              {contractorSubview === 'nda' && (
                 <div className="space-y-4">
                   <h3 className="text-lg font-semibold mb-4">Non-Disclosure Agreement Template</h3>
                   <div className="bg-gray-50 p-4 rounded-lg">
@@ -887,7 +887,7 @@ export default function DashboardLayout({
                   </div>
                 </div>
               )}
-              {employeeSubview === 'media-buyer' && (
+              {contractorSubview === 'media-buyer' && (
                 <div className="space-y-4">
                   <h3 className="text-lg font-semibold mb-4">Media Buyer Agreement Template</h3>
                   <div className="bg-gray-50 p-4 rounded-lg">
@@ -897,7 +897,7 @@ export default function DashboardLayout({
                   </div>
                 </div>
               )}
-              {employeeSubview === '30-day' && (
+              {contractorSubview === '30-day' && (
                 <div className="space-y-4">
                   <h3 className="text-lg font-semibold mb-4">30 Day Contract Template</h3>
                   <div className="bg-gray-50 p-4 rounded-lg">
@@ -907,7 +907,7 @@ export default function DashboardLayout({
                   </div>
                 </div>
               )}
-              {employeeSubview === 'post-30-day' && (
+              {contractorSubview === 'post-30-day' && (
                 <div className="space-y-4">
                   <h3 className="text-lg font-semibold mb-4">Post 30 Day Contract Template</h3>
                   <div className="bg-gray-50 p-4 rounded-lg">

@@ -1,4 +1,5 @@
 import axios from 'axios';
+import { getWebhookUrl, isValidWebhookUrl } from '../../lib/slack-config';
 
 export default async function handler(req, res) {
   // Only allow POST requests
@@ -8,66 +9,78 @@ export default async function handler(req, res) {
 
   try {
     const { type, data } = req.body;
-    console.log('Received notification request:', { type, data });
+    console.log('Received notification request:', { 
+      type, 
+      hasData: !!data,
+      dataKeys: data ? Object.keys(data) : [],
+      messageLength: data?.message?.length || 0
+    });
 
     if (!type || !data) {
-      console.error('Missing required parameters:', { type, data });
-      return res.status(400).json({ error: 'Missing required parameters', details: { hasType: !!type, hasData: !!data } });
+      console.error('Missing required parameters:', { type, hasData: !!data });
+      return res.status(400).json({ error: 'Missing required parameters' });
     }
 
-    const slackWebhookUrl = process.env.NEXT_PUBLIC_SLACK_WEBHOOK_URL;
+    // Get the appropriate webhook URL based on notification type
+    const webhookUrl = getWebhookUrl(type);
     
-    if (!slackWebhookUrl) {
-      console.error('Slack webhook URL not configured');
-      return res.status(500).json({ error: 'Slack webhook URL not configured' });
-    }
+    // Log environment check
+    console.log('Environment check:', {
+      hasWebhookUrl: !!webhookUrl,
+      webhookLength: webhookUrl?.length || 0,
+      webhookPrefix: webhookUrl?.substring(0, 20) || ''
+    });
 
-    // Validate webhook URL format
-    if (!slackWebhookUrl.startsWith('https://hooks.slack.com/')) {
-      console.error('Invalid Slack webhook URL format');
-      return res.status(500).json({ error: 'Invalid Slack webhook URL format. Must start with https://hooks.slack.com/' });
+    if (!webhookUrl || !isValidWebhookUrl(webhookUrl)) {
+      console.error('Invalid or missing webhook URL');
+      return res.status(500).json({ error: 'Slack webhook URL not configured' });
     }
 
     let message;
 
-    switch (type.toLowerCase()) {
-      case 'break-even':
-        message = createBreakEvenMessage(data);
-        break;
-      case 'weekly-performance':
-        message = createWeeklyPerformanceMessage(data);
-        break;
-      case 'offer-performance':
-        message = createOfferPerformanceMessage(data);
-        break;
-      // Add more notification types here in the future
-      default:
-        console.error('Invalid notification type:', type);
-        return res.status(400).json({ error: 'Invalid notification type', receivedType: type });
-    }
-
-    console.log('Sending message to Slack:', JSON.stringify(message, null, 2));
-    
     try {
-      const response = await axios.post(slackWebhookUrl, message);
-      console.log('Successfully sent message to Slack, status:', response.status);
+      switch (type.toLowerCase()) {
+        case 'break-even':
+          message = createBreakEvenMessage(data);
+          break;
+        case 'weekly-performance':
+          message = createWeeklyPerformanceMessage(data);
+          break;
+        case 'offer-performance':
+          message = createOfferPerformanceMessage(data);
+          break;
+        case 'midday-checkin':
+        case 'middaycheckin':
+          message = createMiddayCheckinMessage(data);
+          break;
+        default:
+          console.error('Invalid notification type:', type);
+          return res.status(400).json({ error: 'Invalid notification type', receivedType: type });
+      }
+
+      console.log('Prepared message for Slack:', JSON.stringify(message, null, 2));
+      
+      const response = await axios.post(webhookUrl, message);
+      console.log('Slack API response:', {
+        status: response.status,
+        statusText: response.statusText,
+        data: response.data
+      });
+      
       return res.status(200).json({ success: true });
     } catch (error) {
-      console.error('Error from Slack API:', error.message);
-      
-      if (error.response) {
-        console.error('Slack API response status:', error.response.status);
-        console.error('Slack API response data:', error.response.data);
-        return res.status(502).json({ 
-          error: 'Error from Slack API', 
-          status: error.response.status,
-          details: error.response.data || error.message
-        });
-      }
+      console.error('Error sending to Slack:', {
+        message: error.message,
+        response: error.response?.data,
+        status: error.response?.status,
+        statusText: error.response?.statusText,
+        stack: error.stack
+      });
       
       return res.status(500).json({ 
-        error: 'Failed to send to Slack API', 
-        details: error.message 
+        error: 'Failed to send to Slack', 
+        details: error.message,
+        response: error.response?.data
       });
     }
   } catch (error) {
@@ -663,6 +676,151 @@ function createOfferPerformanceMessage(data) {
   );
 
   return { blocks };
+}
+
+function createMiddayCheckinMessage(data) {
+  const now = new Date();
+  const pstTime = new Date(now.toLocaleString('en-US', { timeZone: 'America/Los_Angeles' }));
+  const formattedDateTime = pstTime.toLocaleString('en-US', {
+    month: 'short',
+    day: 'numeric',
+    hour: 'numeric',
+    minute: '2-digit',
+    hour12: true,
+    timeZone: 'America/Los_Angeles'
+  });
+
+  // Initialize totals
+  let totalSpend = 0;
+  let totalRevenue = 0;
+  let totalProfit = 0;
+  let totalLeads = 0;
+
+  // Process campaigns from the data object
+  const campaigns = data.campaigns || [];
+  const previousCheckIns = data.previousCheckIns || [];
+
+  // Process each campaign
+  const processedCampaigns = campaigns.map(campaign => {
+    // Extract values from campaign object
+    const profit = parseFloat(campaign.profit) || 0;
+    const spend = parseFloat(campaign.spend) || 0;
+    const revenue = parseFloat(campaign.revenue) || 0;
+    const leads = parseInt(campaign.leads) || 0;
+
+    // Update totals
+    totalSpend += spend;
+    totalRevenue += revenue;
+    totalProfit += profit;
+    totalLeads += leads;
+
+    // Calculate ROI
+    const roi = spend > 0 ? ((revenue - spend) / spend) * 100 : 0;
+
+    // Find previous check-in data
+    const previousCheckIn = previousCheckIns.find(checkIn => 
+      checkIn.campaigns.some(prevCampaign => 
+        prevCampaign.campaignName === campaign.campaignName
+      )
+    );
+
+    // Get previous profit
+    let previousProfit = 0;
+    if (previousCheckIn) {
+      const prevCampaign = previousCheckIn.campaigns.find(
+        prev => prev.campaignName === campaign.campaignName
+      );
+      if (prevCampaign) {
+        previousProfit = parseFloat(prevCampaign.profit) || 0;
+      }
+    }
+
+    // Calculate trend
+    let trend = 'Stable';
+    if (!previousCheckIn) {
+      trend = 'New';
+    } else if (profit > previousProfit) {
+      trend = 'Improving';
+    } else if (profit < previousProfit) {
+      trend = 'Declining';
+    }
+
+    return {
+      campaignName: campaign.campaignName,
+      profit: profit,
+      trend: trend,
+      spend: spend,
+      revenue: revenue,
+      leads: leads,
+      roi: roi
+    };
+  });
+
+  // Sort campaigns by profit
+  const sortedCampaigns = processedCampaigns.sort((a, b) => b.profit - a.profit);
+
+  // Get top 3 losing campaigns
+  const losingCampaigns = sortedCampaigns
+    .filter(campaign => campaign.profit < 0)
+    .slice(0, 3);
+
+  // Calculate total ROI
+  const roi = totalSpend > 0 ? ((totalRevenue - totalSpend) / totalSpend * 100).toFixed(2) : 0;
+  
+  // Format message for Slack blocks format
+  const blocks = [
+    {
+      "type": "header",
+      "text": {
+        "type": "plain_text",
+        "text": `📍 Media Buyer Alerts — ${formattedDateTime}`,
+        "emoji": true
+      }
+    },
+    {
+      "type": "section",
+      "text": {
+        "type": "mrkdwn",
+        "text": `📊 *Daily Summary*\nSpend: $${totalSpend.toFixed(2)} | Revenue: $${totalRevenue.toFixed(2)} | Profit: $${totalProfit.toFixed(2)} | ROI: ${roi}% | Leads: ${totalLeads}\nProjected EOD Profit: ~$${Math.round(totalProfit * 1.2)} (if trends hold)`
+      }
+    }
+  ];
+
+  // Build campaign table
+  let tableHeader = "| Campaign Name                                | Profit | Trend |\n|---------------------------------------------|--------|-------|";
+  let tableRows = sortedCampaigns.map(campaign => {
+    const name = campaign.campaignName.length > 45 ? campaign.campaignName.substring(0, 42) + '...' : campaign.campaignName.padEnd(45);
+    const profit = `$${Math.round(campaign.profit)}`.padEnd(6);
+    return `| ${name} | ${profit} | ${campaign.trend.padEnd(5)} |`;
+  }).join('\n');
+
+  // Add campaign performance table
+  blocks.push({
+    "type": "section",
+    "text": {
+      "type": "mrkdwn",
+      "text": `📋 *Campaign Performance*\n\`\`\`\n${tableHeader}\n${tableRows}\n\`\`\``
+    }
+  });
+
+  // Add critical alerts if there are losing campaigns
+  if (losingCampaigns.length > 0) {
+    blocks.push({
+      "type": "section",
+      "text": {
+        "type": "mrkdwn",
+        "text": "🚨 *Critical Alerts*\n" + 
+          losingCampaigns.map(campaign => 
+            `• ${campaign.campaignName} → now at $${Math.abs(Math.round(campaign.profit))} (High loss)`
+          ).join('\n')
+      }
+    });
+  }
+
+  return { 
+    text: "Midday Check-In Report",
+    blocks: blocks
+  };
 }
 
 function formatCurrency(amount) {

@@ -3,46 +3,46 @@ NON-DISCLOSURE AGREEMENT
 
 This Non-Disclosure Agreement ("Agreement") is made and entered into as of [DATE] by and between:
 
-Employee: [EMPLOYEE_NAME]
+Contractor: [CONTRACTOR_NAME]
 Email: [EMAIL]
 
 1. Definition of Confidential Information
    For purposes of this Agreement, "Confidential Information" shall include all information or material that has or could have commercial value or other utility in the business in which the Company is engaged.
 
-2. Employee Obligations
-   The Employee agrees to:
+2. Contractor Obligations
+   The Contractor agrees to:
    a) Maintain the confidentiality of all Confidential Information
    b) Not disclose any Confidential Information to any third party
    c) Use the Confidential Information only for the purpose of performing duties for the Company
 
 3. Exclusions
    The obligations of confidentiality shall not apply to information that:
-   a) Is or becomes publicly known through no fault of the Employee
-   b) Was known to the Employee prior to disclosure by the Company
-   c) Is independently developed by the Employee without use of Confidential Information
+   a) Is or becomes publicly known through no fault of the Contractor
+   b) Was known to the Contractor prior to disclosure by the Company
+   c) Is independently developed by the Contractor without use of Confidential Information
 
 4. Term
    This Agreement shall remain in effect for a period of 2 years from the date of execution.
 
 5. Remedies
-   The Employee acknowledges that any breach of this Agreement would cause irreparable harm to the Company, and the Company shall be entitled to seek injunctive relief in addition to any other remedies available at law.
+   The Contractor acknowledges that any breach of this Agreement would cause irreparable harm to the Company, and the Company shall be entitled to seek injunctive relief in addition to any other remedies available at law.
 
 6. Governing Law
    This Agreement shall be governed by and construed in accordance with the laws of the State of [STATE].
 
 IN WITNESS WHEREOF, the parties have executed this Agreement as of the date first written above.
 
-Employee Signature: ________________________
+Contractor Signature: ________________________
 Date: ________________________
 
-Company Representative: ________________________
-Date: ________________________
+Company Representative: Nick Torson
+Date: [DATE]
 `;
 
 export const MEDIA_BUYER_CONTRACTOR_AGREEMENT = `
 MEDIA BUYER CONTRACTOR AGREEMENT
 
-This Media Buyer Contractor Agreement ("Agreement") is made and entered into as of [DATE] by and between Convert 2 Freedom LLC, a Florida limited liability company ("Company"), and [EMPLOYEE_NAME] ("Contractor").
+This Media Buyer Contractor Agreement ("Agreement") is made and entered into as of [DATE] by and between Convert 2 Freedom LLC, a California limited liability company ("Company"), and [CONTRACTOR_NAME] ("Contractor").
 
 1. Professional Integrity
 Contractor shall maintain the highest standards of professional integrity in all dealings with Company, its clients, and third parties. Contractor shall not engage in any deceptive, misleading, or unethical practices in the course of performing services under this Agreement.
@@ -117,8 +117,8 @@ Contractor acknowledges that they have read, understand, and agree to comply wit
 Contractor: ________________________
 Date: ________________________
 
-Company Representative: ________________________
-Date: ________________________
+Company Representative: Nick Torson
+Date: [DATE]
 `;
 
 export const APPENDIX_A_FIRST_30_DAYS = `
@@ -126,42 +126,41 @@ APPENDIX A - FIRST 30 DAYS
 
 This Agreement is made and entered into as of [DATE] by and between:
 
-Employee: [EMPLOYEE_NAME]
+Contractor: [CONTRACTOR_NAME]
 Position: [POSITION]
 Base Pay: [BASE_PAY]
 Frequency: [FREQUENCY]
 Commission: [COMMISSION]
 
 1. Position and Duties
-   The Employee shall serve as a [POSITION] and shall perform all duties and responsibilities associated with this position.
+   The Contractor shall serve as a [POSITION] and shall perform all duties and responsibilities associated with this position.
 
 2. Compensation
    a) Base Pay: [BASE_PAY] per [FREQUENCY]
-   b) Commission: [COMMISSION] based on performance metrics
-   c) Payment Schedule: Bi-weekly
+   b) Commission: [COMMISSION] of net profit
 
 3. Term
    This Agreement shall commence on [START_DATE] and continue for a period of 30 days.
 
 4. Performance Review
-   The Employee's performance will be evaluated at the end of the 30-day period to determine suitability for continued employment.
+   The Contractor's performance will be evaluated at the end of the 30-day period to determine suitability for continued engagement.
 
 5. Termination
    Either party may terminate this Agreement at any time with 24 hours' notice.
 
 6. Confidentiality
-   The Employee agrees to maintain the confidentiality of all company information.
+   The Contractor agrees to maintain the confidentiality of all company information.
 
 7. Governing Law
    This Agreement shall be governed by and construed in accordance with the laws of the State of [STATE].
 
 IN WITNESS WHEREOF, the parties have executed this Agreement as of the date first written above.
 
-Employee Signature: ________________________
+Contractor Signature: ________________________
 Date: ________________________
 
-Company Representative: ________________________
-Date: ________________________
+Company Representative: Nick Torson
+Date: [DATE]
 `;
 
 export const APPENDIX_B_POST_30_DAYS = `
@@ -169,41 +168,39 @@ APPENDIX B - POST 30 DAYS
 
 This Agreement is made and entered into as of [DATE] by and between:
 
-Employee: [EMPLOYEE_NAME]
+Contractor: [CONTRACTOR_NAME]
 Position: [POSITION]
 Base Pay: [BASE_PAY]
 Frequency: [FREQUENCY]
 Commission: [COMMISSION]
 
 1. Position and Duties
-   The Employee shall serve as a [POSITION] and shall perform all duties and responsibilities associated with this position.
+   The Contractor shall serve as a [POSITION] and shall perform all duties and responsibilities associated with this position.
 
 2. Compensation
    a) Base Pay: [BASE_PAY] per [FREQUENCY]
-   b) Commission: [COMMISSION] based on performance metrics
-   c) Payment Schedule: Bi-weekly
-   d) Benefits: Eligible for company benefits package
+   b) Commission: [COMMISSION] of net profit
 
 3. Term
    This Agreement shall commence on [START_DATE] and continue until terminated by either party.
 
 4. Performance Expectations
-   The Employee is expected to maintain or exceed the performance standards established during the initial 30-day period.
+   The Contractor is expected to maintain or exceed the performance standards established during the initial 30-day period.
 
 5. Termination
    Either party may terminate this Agreement with 2 weeks' notice.
 
 6. Confidentiality
-   The Employee agrees to maintain the confidentiality of all company information.
+   The Contractor agrees to maintain the confidentiality of all company information.
 
 7. Governing Law
    This Agreement shall be governed by and construed in accordance with the laws of the State of [STATE].
 
 IN WITNESS WHEREOF, the parties have executed this Agreement as of the date first written above.
 
-Employee Signature: ________________________
+Contractor Signature: ________________________
 Date: ________________________
 
-Company Representative: ________________________
-Date: ________________________
+Company Representative: Nick Torson
+Date: [DATE]
 `;

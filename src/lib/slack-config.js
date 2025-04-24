@@ -1,13 +1,12 @@
 // Slack webhook configuration
 export const SLACK_WEBHOOKS = {
-  // Main webhook for general notifications
+  // Main webhook for all notifications
   MAIN: process.env.NEXT_PUBLIC_SLACK_WEBHOOK_URL,
-  // Webhook for break-even notifications
-  BREAK_EVEN: process.env.SLACK_WEBHOOK_BREAKEVEN_URL,
-  // Webhook for performance reports
-  PERFORMANCE: process.env.SLACK_WEBHOOK_PERFORMANCE_URL,
-  // Webhook for expense notifications
-  EXPENSES: process.env.SLACK_WEBHOOK_EXPENSES_URL
+  // Alias for different notification types
+  BREAK_EVEN: process.env.NEXT_PUBLIC_SLACK_WEBHOOK_URL,
+  PERFORMANCE: process.env.NEXT_PUBLIC_SLACK_WEBHOOK_URL,
+  EXPENSES: process.env.NEXT_PUBLIC_SLACK_WEBHOOK_URL,
+  MIDDAY_CHECKIN: process.env.NEXT_PUBLIC_SLACK_WEBHOOK_URL
 };
 
 // Helper function to get webhook URL by type
