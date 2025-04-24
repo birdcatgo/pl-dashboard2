@@ -1,0 +1,13 @@
+{
+  "name": "slack-test",
+  "version": "1.0.0",
+  "description": "Test script for Slack notification API",
+  "main": "slack-test.js",
+  "type": "module",
+  "scripts": {
+    "test": "node slack-test.js"
+  },
+  "dependencies": {
+    "node-fetch": "^3.3.0"
+  }
+} 

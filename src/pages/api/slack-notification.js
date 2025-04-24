@@ -690,6 +690,39 @@ function createMiddayCheckinMessage(data) {
     timeZone: 'America/Los_Angeles'
   });
 
+  // If the data only contains a message field, display it directly
+  if (data.message && !data.campaigns) {
+    return {
+      text: "Midday Check-In Report",
+      blocks: [
+        {
+          "type": "header",
+          "text": {
+            "type": "plain_text",
+            "text": `📍 Media Buyer Alerts — ${formattedDateTime}`,
+            "emoji": true
+          }
+        },
+        {
+          "type": "section",
+          "text": {
+            "type": "mrkdwn",
+            "text": data.message
+          }
+        },
+        {
+          "type": "context",
+          "elements": [
+            {
+              "type": "mrkdwn",
+              "text": "Sent from the PL Dashboard"
+            }
+          ]
+        }
+      ]
+    };
+  }
+
   // Initialize totals
   let totalSpend = 0;
   let totalRevenue = 0;
@@ -703,9 +736,10 @@ function createMiddayCheckinMessage(data) {
   // Process each campaign
   const processedCampaigns = campaigns.map(campaign => {
     // Extract values from campaign object
-    const profit = parseFloat(campaign.profit) || 0;
     const spend = parseFloat(campaign.spend) || 0;
     const revenue = parseFloat(campaign.revenue) || 0;
+    // Calculate profit correctly
+    const profit = revenue - spend;
     const leads = parseInt(campaign.leads) || 0;
 
     // Update totals
@@ -759,13 +793,13 @@ function createMiddayCheckinMessage(data) {
   // Sort campaigns by profit
   const sortedCampaigns = processedCampaigns.sort((a, b) => b.profit - a.profit);
 
-  // Get top 3 losing campaigns
+  // Get losing campaigns with significant loss (>$50)
   const losingCampaigns = sortedCampaigns
-    .filter(campaign => campaign.profit < 0)
-    .slice(0, 3);
+    .filter(campaign => campaign.profit < -50) // Only include campaigns with more than $50 loss
+    .slice(0, 3); // Still limit to top 3 biggest losers
 
-  // Calculate total ROI
-  const roi = totalSpend > 0 ? ((totalRevenue - totalSpend) / totalSpend * 100).toFixed(2) : 0;
+  // Calculate total ROI correctly
+  const totalRoi = totalSpend > 0 ? ((totalRevenue - totalSpend) / totalSpend * 100).toFixed(2) : 0;
   
   // Format message for Slack blocks format
   const blocks = [
@@ -781,7 +815,7 @@ function createMiddayCheckinMessage(data) {
       "type": "section",
       "text": {
         "type": "mrkdwn",
-        "text": `📊 *Daily Summary*\nSpend: $${totalSpend.toFixed(2)} | Revenue: $${totalRevenue.toFixed(2)} | Profit: $${totalProfit.toFixed(2)} | ROI: ${roi}% | Leads: ${totalLeads}\nProjected EOD Profit: ~$${Math.round(totalProfit * 1.2)} (if trends hold)`
+        "text": `📊 *Daily Summary*\nSpend: $${totalSpend.toFixed(2)} | Revenue: $${totalRevenue.toFixed(2)} | Profit: $${totalProfit.toFixed(2)} | ROI: ${totalRoi}% | Leads: ${totalLeads}\nProjected EOD Profit: ~$${Math.round(totalProfit * 1.2)} (if trends hold)`
       }
     }
   ];
@@ -803,7 +837,7 @@ function createMiddayCheckinMessage(data) {
     }
   });
 
-  // Add critical alerts if there are losing campaigns
+  // Add critical alerts if there are losing campaigns with significant losses
   if (losingCampaigns.length > 0) {
     blocks.push({
       "type": "section",
@@ -811,7 +845,7 @@ function createMiddayCheckinMessage(data) {
         "type": "mrkdwn",
         "text": "🚨 *Critical Alerts*\n" + 
           losingCampaigns.map(campaign => 
-            `• ${campaign.campaignName} → now at $${Math.abs(Math.round(campaign.profit))} (High loss)`
+            `• ${campaign.campaignName} → now at $${Math.abs(Math.round(campaign.profit))} loss`
           ).join('\n')
       }
     });

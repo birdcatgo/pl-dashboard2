@@ -247,9 +247,9 @@ const MidDayCheckIn = () => {
       const campaignName = block[1].trim();
       const campaignHash = block[2].trim();
       const adAccount = block[3].trim();
-      const spend = parseCurrency(block[4]);
-      const revenue = parseCurrency(block[5]);
-      const profit = parseCurrency(block[6]);
+      const revenue = parseCurrency(block[4]);
+      const spend = parseCurrency(block[5]);
+      const profit = revenue - spend;
       const roi = parsePercentage(block[7]);
       const leads = parseInteger(block[8]);
       // Lines 9-16 are optional metrics we don't need
@@ -359,6 +359,11 @@ const MidDayCheckIn = () => {
         let trend = '➡️'; // Default trend (new campaign or unchanged)
         let profitChange = 0;
         
+        // Ensure profit is correctly calculated as revenue - spend
+        const spend = parseFloat(campaign.spend) || 0;
+        const revenue = parseFloat(campaign.revenue) || 0;
+        const profit = revenue - spend;
+        
         // Only look for trends if we have previous check-ins
         if (existingCheckIns.length > 0) {
           // Get the most recent check-in that has this campaign
@@ -375,7 +380,7 @@ const MidDayCheckIn = () => {
             );
             
             if (prevCampaign && typeof prevCampaign.profit === 'number') {
-              profitChange = campaign.profit - prevCampaign.profit;
+              profitChange = profit - prevCampaign.profit;
               
               // Apply trend rules
               if (profitChange > 0) {
@@ -396,7 +401,7 @@ const MidDayCheckIn = () => {
           adAccount: campaign.adAccount,
           spend: campaign.spend,
           revenue: campaign.revenue,
-          profit: campaign.profit,
+          profit: profit,
           profitPercent: campaign.profitPercent,
           leads: campaign.leads,
           profitChange,
@@ -522,6 +527,22 @@ const MidDayCheckIn = () => {
         messageText += '\n';
       }
 
+      // Fix the campaign data by swapping spend and revenue
+      const fixedCampaigns = checkIn.campaigns.map(campaign => {
+        // Get the original values
+        const originalRevenue = parseFloat(campaign.revenue) || 0;
+        const originalSpend = parseFloat(campaign.spend) || 0;
+        
+        // Create a new campaign object with swapped values
+        return {
+          ...campaign,
+          spend: originalRevenue,  // Swap: assign revenue value to spend
+          revenue: originalSpend,  // Swap: assign spend value to revenue
+          // Recalculate profit based on swapped values
+          profit: originalSpend - originalRevenue
+        };
+      });
+
       const response = await fetch('/api/slack-notification', {
         method: 'POST',
         headers: {
@@ -531,6 +552,7 @@ const MidDayCheckIn = () => {
           type: 'midday-checkin',
           data: {
             message: messageText,
+            campaigns: fixedCampaigns,
             timestamp: DateTime.now().toISO()
           },
         }),
