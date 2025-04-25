@@ -396,6 +396,88 @@ export default function DashboardLayout({
                   </button>
                 </div>
               </div>
+
+              {/* Contractor Information Section */}
+              <div className="space-y-4">
+                <h2 className="text-lg font-semibold">Contractor Information</h2>
+                <div className="space-y-2">
+                  <button
+                    onClick={() => {
+                      setActiveTab('contractor-info');
+                      setContractorSubview('contracts');
+                    }}
+                    className="w-full text-left px-4 py-3 bg-white rounded-lg shadow hover:shadow-md transition-shadow duration-200"
+                  >
+                    <div className="flex items-center space-x-3">
+                      <span className="text-xl">📝</span>
+                      <div>
+                        <h3 className="font-medium">Contractor Contracts</h3>
+                        <p className="text-sm text-gray-600">Manage and download contracts for contractors</p>
+                      </div>
+                    </div>
+                  </button>
+                  <button
+                    onClick={() => {
+                      setActiveTab('contractor-info');
+                      setContractorSubview('nda');
+                    }}
+                    className="w-full text-left px-4 py-3 bg-white rounded-lg shadow hover:shadow-md transition-shadow duration-200"
+                  >
+                    <div className="flex items-center space-x-3">
+                      <span className="text-xl">🔒</span>
+                      <div>
+                        <h3 className="font-medium">NDA Template</h3>
+                        <p className="text-sm text-gray-600">Non-Disclosure Agreement for contractors</p>
+                      </div>
+                    </div>
+                  </button>
+                  <button
+                    onClick={() => {
+                      setActiveTab('contractor-info');
+                      setContractorSubview('media-buyer');
+                    }}
+                    className="w-full text-left px-4 py-3 bg-white rounded-lg shadow hover:shadow-md transition-shadow duration-200"
+                  >
+                    <div className="flex items-center space-x-3">
+                      <span className="text-xl">📊</span>
+                      <div>
+                        <h3 className="font-medium">Media Buyer Agreement</h3>
+                        <p className="text-sm text-gray-600">Contract template for media buyers</p>
+                      </div>
+                    </div>
+                  </button>
+                  <button
+                    onClick={() => {
+                      setActiveTab('contractor-info');
+                      setContractorSubview('30-day');
+                    }}
+                    className="w-full text-left px-4 py-3 bg-white rounded-lg shadow hover:shadow-md transition-shadow duration-200"
+                  >
+                    <div className="flex items-center space-x-3">
+                      <span className="text-xl">📅</span>
+                      <div>
+                        <h3 className="font-medium">30 Day Contract</h3>
+                        <p className="text-sm text-gray-600">First 30 days agreement template</p>
+                      </div>
+                    </div>
+                  </button>
+                  <button
+                    onClick={() => {
+                      setActiveTab('contractor-info');
+                      setContractorSubview('post-30-day');
+                    }}
+                    className="w-full text-left px-4 py-3 bg-white rounded-lg shadow hover:shadow-md transition-shadow duration-200"
+                  >
+                    <div className="flex items-center space-x-3">
+                      <span className="text-xl">📆</span>
+                      <div>
+                        <h3 className="font-medium">Post 30 Day Contract</h3>
+                        <p className="text-sm text-gray-600">Contract template after initial 30 days</p>
+                      </div>
+                    </div>
+                  </button>
+                </div>
+              </div>
             </div>
           </div>
         );
@@ -849,7 +931,7 @@ export default function DashboardLayout({
                   variant={contractorSubview === 'nda' ? 'default' : 'outline'}
                   onClick={() => setContractorSubview('nda')}
                 >
-                  NDA
+                  NDA Template
                 </Button>
                 <Button
                   variant={contractorSubview === 'media-buyer' ? 'default' : 'outline'}
