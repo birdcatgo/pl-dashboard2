@@ -793,11 +793,6 @@ function createMiddayCheckinMessage(data) {
   // Sort campaigns by profit
   const sortedCampaigns = processedCampaigns.sort((a, b) => b.profit - a.profit);
 
-  // Get losing campaigns with significant loss (>$50)
-  const losingCampaigns = sortedCampaigns
-    .filter(campaign => campaign.profit < -50) // Only include campaigns with more than $50 loss
-    .slice(0, 3); // Still limit to top 3 biggest losers
-
   // Calculate total ROI correctly
   const totalRoi = totalSpend > 0 ? ((totalRevenue - totalSpend) / totalSpend * 100).toFixed(2) : 0;
   
@@ -837,19 +832,17 @@ function createMiddayCheckinMessage(data) {
     }
   });
 
-  // Add critical alerts if there are losing campaigns with significant losses
-  if (losingCampaigns.length > 0) {
-    blocks.push({
-      "type": "section",
-      "text": {
+  // Remove the Critical Alerts section
+  // Add footer instead
+  blocks.push({
+    "type": "context",
+    "elements": [
+      {
         "type": "mrkdwn",
-        "text": "🚨 *Critical Alerts*\n" + 
-          losingCampaigns.map(campaign => 
-            `• ${campaign.campaignName} → now at $${Math.abs(Math.round(campaign.profit))} loss`
-          ).join('\n')
+        "text": "Sent from the PL Dashboard"
       }
-    });
-  }
+    ]
+  });
 
   return { 
     text: "Midday Check-In Report",
