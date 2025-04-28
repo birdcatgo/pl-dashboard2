@@ -527,19 +527,17 @@ const MidDayCheckIn = () => {
         messageText += '\n';
       }
 
-      // Fix the campaign data by swapping spend and revenue
-      const fixedCampaigns = checkIn.campaigns.map(campaign => {
-        // Get the original values
-        const originalRevenue = parseFloat(campaign.revenue) || 0;
-        const originalSpend = parseFloat(campaign.spend) || 0;
+      // Process the campaign data without swapping values
+      const processedCampaigns = checkIn.campaigns.map(campaign => {
+        const spend = parseFloat(campaign.spend) || 0;
+        const revenue = parseFloat(campaign.revenue) || 0;
+        const profit = revenue - spend; // Correct profit calculation
         
-        // Create a new campaign object with swapped values
         return {
           ...campaign,
-          spend: originalRevenue,  // Swap: assign revenue value to spend
-          revenue: originalSpend,  // Swap: assign spend value to revenue
-          // Recalculate profit based on swapped values
-          profit: originalSpend - originalRevenue
+          spend,
+          revenue,
+          profit
         };
       });
 
@@ -552,9 +550,9 @@ const MidDayCheckIn = () => {
           type: 'midday-checkin',
           data: {
             message: messageText,
-            campaigns: fixedCampaigns,
-            timestamp: DateTime.now().toISO()
-          },
+            campaigns: processedCampaigns,
+            previousCheckIns: existingCheckIns
+          }
         }),
       });
 
