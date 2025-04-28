@@ -248,17 +248,10 @@ const DailyTrends = () => {
       day.summary.forEach(campaign => {
         // Only consider valid campaigns (with trendData and non-zero spend)
         if (campaign.trendData && campaign.trendData.length > 0) {
-          // Ignore campaigns with $0 spend and $0 revenue
-          const hasSpendOrRevenue = campaign.trendData.some(
-            dataPoint => (dataPoint.spend > 0 || dataPoint.revenue > 0)
-          );
-          
-          if (hasSpendOrRevenue) {
-            if (campaign.offer) offers.add(campaign.offer);
-            if (campaign.adAccount) adAccounts.add(campaign.adAccount);
-            if (campaign.mediaBuyer) mediaBuyers.add(campaign.mediaBuyer);
-            if (campaign.network) networks.add(campaign.network);
-          }
+          if (campaign.offer) offers.add(campaign.offer);
+          if (campaign.adAccount) adAccounts.add(campaign.adAccount);
+          if (campaign.mediaBuyer) mediaBuyers.add(campaign.mediaBuyer);
+          if (campaign.network) networks.add(campaign.network);
         }
       });
     });
@@ -598,6 +591,27 @@ const DailyTrends = () => {
       localStorage.removeItem('dailyTrendHistory');
       setTrendHistory([]);
       setError(null);
+    }
+  };
+
+  // Also load saved campaign trends history
+  useEffect(() => {
+    loadSavedCampaignTrends();
+  }, []);
+
+  // Load saved campaign trends history from localStorage
+  const loadSavedCampaignTrends = () => {
+    const savedTrends = localStorage.getItem('campaignTrendsHistory');
+    if (savedTrends) {
+      try {
+        const parsedTrends = JSON.parse(savedTrends);
+        console.log('Loaded saved campaign trends history:', {
+          count: parsedTrends.length,
+          dates: parsedTrends.map(day => day.date)
+        });
+      } catch (error) {
+        console.error('Error parsing saved campaign trends:', error);
+      }
     }
   };
 

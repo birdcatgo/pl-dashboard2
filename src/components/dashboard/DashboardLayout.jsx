@@ -50,10 +50,12 @@ import CommissionPayments from './CommissionPayments';
 import MidDayCheckIn from './MidDayCheckIn';
 import TodaysTrend from './TodaysTrend';
 import DailyTrends from './DailyTrends';
+import TrendHistory from './TrendHistory';
 import { Button } from "@/components/ui/button";
 import ContractorContracts from './ContractorContracts';
 import { NDA_TEMPLATE, APPENDIX_A_FIRST_30_DAYS, APPENDIX_B_POST_30_DAYS } from '@/lib/contract-templates';
 import { MEDIA_BUYER_CONTRACTOR_AGREEMENT } from '@/lib/contract-templates';
+import TimezoneConverter from './TimezoneConverter';
 
 export default function DashboardLayout({ 
   performanceData, 
@@ -167,7 +169,8 @@ export default function DashboardLayout({
     { id: 'accounting', label: 'Profit Metrics', icon: Calculator },
     { id: 'accounts', label: 'Accounts Receivable & Payable', icon: FileText },
     { id: 'reporting', label: 'Reporting', icon: LineChart },
-    { id: 'contractor-info', label: 'Contractor Information', icon: UserCheck }
+    { id: 'contractor-info', label: 'Contractor Information', icon: UserCheck },
+    { id: 'timezone', label: 'Timezone Converter', icon: Clock }
   ];
 
   const renderTabContent = () => {
@@ -324,6 +327,25 @@ export default function DashboardLayout({
                       <div>
                         <h3 className="font-medium">Highlights</h3>
                         <p className="text-sm text-gray-600">Key performance highlights and insights</p>
+                      </div>
+                    </div>
+                  </button>
+                </div>
+              </div>
+
+              {/* Timezone Section */}
+              <div className="space-y-4">
+                <h2 className="text-lg font-semibold">Tools</h2>
+                <div className="space-y-2">
+                  <button
+                    onClick={() => setActiveTab('timezone')}
+                    className="w-full text-left px-4 py-3 bg-white rounded-lg shadow hover:shadow-md transition-shadow duration-200"
+                  >
+                    <div className="flex items-center space-x-3">
+                      <span className="text-xl">⏰</span>
+                      <div>
+                        <h3 className="font-medium">Timezone Converter</h3>
+                        <p className="text-sm text-gray-600">Convert between NZT, PST, and Australian time</p>
                       </div>
                     </div>
                   </button>
@@ -725,11 +747,18 @@ export default function DashboardLayout({
                     >
                       Daily Trends History
                     </Button>
+                    <Button
+                      variant={redtrackSubview === 'trend-history' ? 'default' : 'outline'}
+                      onClick={() => setRedtrackSubview('trend-history')}
+                    >
+                      Trend History
+                    </Button>
                   </div>
 
                   {redtrackSubview === 'midday-checkin' && <MidDayCheckIn />}
                   {redtrackSubview === 'todays-trend' && <TodaysTrend />}
                   {redtrackSubview === 'daily-trends' && <DailyTrends />}
+                  {redtrackSubview === 'trend-history' && <TrendHistory />}
                 </div>
               )}
               {reportingSubview === 'highlights' && (
@@ -1000,6 +1029,17 @@ export default function DashboardLayout({
                 </div>
               )}
             </div>
+          </div>
+        );
+      case 'timezone':
+        return (
+          <div className="space-y-8">
+            <PageHeader 
+              title="Timezone Converter" 
+              subtitle="Convert between different timezones and manage daylight savings"
+              icon={Clock}
+            />
+            <TimezoneConverter />
           </div>
         );
       default:
