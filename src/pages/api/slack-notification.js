@@ -819,8 +819,9 @@ function createMiddayCheckinMessage(data) {
   let tableHeader = "| Campaign Name                                         | Profit | Trend |\n|------------------------------------------------------|--------|-------|";
   let tableRows = sortedCampaigns.map(campaign => {
     const name = campaign.campaignName.length > 55 ? campaign.campaignName.substring(0, 52) + '...' : campaign.campaignName.padEnd(55);
-    const profit = `$${Math.round(campaign.profit)}`.padEnd(6);
-    return `| ${name} | ${profit} | ${campaign.trend.padEnd(5)} |`;
+    const profit = `$${Math.abs(Math.round(campaign.profit))}`.padEnd(6);
+    const profitSign = campaign.profit >= 0 ? '+' : '-';
+    return `| ${name} | ${profitSign}${profit} | ${campaign.trend.padEnd(5)} |`;
   }).join('\n');
 
   // Add campaign performance table
