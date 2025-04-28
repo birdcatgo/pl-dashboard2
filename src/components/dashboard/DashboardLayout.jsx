@@ -183,9 +183,9 @@ export default function DashboardLayout({
               subtitle="Quick access to all dashboard views and features"
               icon={Brain}
             />
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               {/* Profit Metrics Section */}
-              <div className="space-y-4">
+              <div className="space-y-2">
                 <h2 className="text-lg font-semibold">Profit Metrics</h2>
                 <div className="space-y-2">
                   <button
@@ -251,8 +251,75 @@ export default function DashboardLayout({
                 </div>
               </div>
 
+              {/* Accounts Section */}
+              <div className="space-y-2">
+                <h2 className="text-lg font-semibold">Accounts Receivable & Payable</h2>
+                <div className="space-y-2">
+                  <button
+                    onClick={() => {
+                      setActiveTab('accounts');
+                      setAccountsSubview('invoices');
+                    }}
+                    className="w-full text-left px-4 py-3 bg-white rounded-lg shadow hover:shadow-md transition-shadow duration-200"
+                  >
+                    <div className="flex items-center space-x-3">
+                      <span className="text-xl">📄</span>
+                      <div>
+                        <h3 className="font-medium">Invoices (Receivable)</h3>
+                        <p className="text-sm text-gray-600">Track incoming payments and invoices</p>
+                      </div>
+                    </div>
+                  </button>
+                  <button
+                    onClick={() => {
+                      setActiveTab('accounts');
+                      setAccountsSubview('upcoming-expenses');
+                    }}
+                    className="w-full text-left px-4 py-3 bg-white rounded-lg shadow hover:shadow-md transition-shadow duration-200"
+                  >
+                    <div className="flex items-center space-x-3">
+                      <span className="text-xl">💰</span>
+                      <div>
+                        <h3 className="font-medium">Upcoming Expenses (Payable)</h3>
+                        <p className="text-sm text-gray-600">Track upcoming payments and expenses</p>
+                      </div>
+                    </div>
+                  </button>
+                  <button
+                    onClick={() => {
+                      setActiveTab('accounts');
+                      setAccountsSubview('expense-overview');
+                    }}
+                    className="w-full text-left px-4 py-3 bg-white rounded-lg shadow hover:shadow-md transition-shadow duration-200"
+                  >
+                    <div className="flex items-center space-x-3">
+                      <span className="text-xl">📊</span>
+                      <div>
+                        <h3 className="font-medium">Expense Overview</h3>
+                        <p className="text-sm text-gray-600">Analyze expense patterns and categories</p>
+                      </div>
+                    </div>
+                  </button>
+                  <button
+                    onClick={() => {
+                      setActiveTab('accounts');
+                      setAccountsSubview('commissions');
+                    }}
+                    className="w-full text-left px-4 py-3 bg-white rounded-lg shadow hover:shadow-md transition-shadow duration-200"
+                  >
+                    <div className="flex items-center space-x-3">
+                      <span className="text-xl">💸</span>
+                      <div>
+                        <h3 className="font-medium">Commission Payments</h3>
+                        <p className="text-sm text-gray-600">Track and manage commission payouts</p>
+                      </div>
+                    </div>
+                  </button>
+                </div>
+              </div>
+
               {/* Reporting Section */}
-              <div className="space-y-4">
+              <div className="space-y-2">
                 <h2 className="text-lg font-semibold">Reporting</h2>
                 <div className="space-y-2">
                   <button
@@ -333,94 +400,8 @@ export default function DashboardLayout({
                 </div>
               </div>
 
-              {/* Timezone Section */}
-              <div className="space-y-4">
-                <h2 className="text-lg font-semibold">Tools</h2>
-                <div className="space-y-2">
-                  <button
-                    onClick={() => setActiveTab('timezone')}
-                    className="w-full text-left px-4 py-3 bg-white rounded-lg shadow hover:shadow-md transition-shadow duration-200"
-                  >
-                    <div className="flex items-center space-x-3">
-                      <span className="text-xl">⏰</span>
-                      <div>
-                        <h3 className="font-medium">Timezone Converter</h3>
-                        <p className="text-sm text-gray-600">Convert between NZT, PST, and Australian time</p>
-                      </div>
-                    </div>
-                  </button>
-                </div>
-              </div>
-
-              {/* Accounts Section */}
-              <div className="space-y-4">
-                <h2 className="text-lg font-semibold">Accounts Receivable & Payable</h2>
-                <div className="space-y-2">
-                  <button
-                    onClick={() => {
-                      setActiveTab('accounts');
-                      setAccountsSubview('invoices');
-                    }}
-                    className="w-full text-left px-4 py-3 bg-white rounded-lg shadow hover:shadow-md transition-shadow duration-200"
-                  >
-                    <div className="flex items-center space-x-3">
-                      <span className="text-xl">📄</span>
-                      <div>
-                        <h3 className="font-medium">Invoices (Receivable)</h3>
-                        <p className="text-sm text-gray-600">Track incoming payments and invoices</p>
-                      </div>
-                    </div>
-                  </button>
-                  <button
-                    onClick={() => {
-                      setActiveTab('accounts');
-                      setAccountsSubview('upcoming-expenses');
-                    }}
-                    className="w-full text-left px-4 py-3 bg-white rounded-lg shadow hover:shadow-md transition-shadow duration-200"
-                  >
-                    <div className="flex items-center space-x-3">
-                      <span className="text-xl">💰</span>
-                      <div>
-                        <h3 className="font-medium">Upcoming Expenses (Payable)</h3>
-                        <p className="text-sm text-gray-600">Track upcoming payments and expenses</p>
-                      </div>
-                    </div>
-                  </button>
-                  <button
-                    onClick={() => {
-                      setActiveTab('accounts');
-                      setAccountsSubview('expense-overview');
-                    }}
-                    className="w-full text-left px-4 py-3 bg-white rounded-lg shadow hover:shadow-md transition-shadow duration-200"
-                  >
-                    <div className="flex items-center space-x-3">
-                      <span className="text-xl">📊</span>
-                      <div>
-                        <h3 className="font-medium">Expense Overview</h3>
-                        <p className="text-sm text-gray-600">Analyze expense patterns and categories</p>
-                      </div>
-                    </div>
-                  </button>
-                  <button
-                    onClick={() => {
-                      setActiveTab('accounts');
-                      setAccountsSubview('commissions');
-                    }}
-                    className="w-full text-left px-4 py-3 bg-white rounded-lg shadow hover:shadow-md transition-shadow duration-200"
-                  >
-                    <div className="flex items-center space-x-3">
-                      <span className="text-xl">💸</span>
-                      <div>
-                        <h3 className="font-medium">Commission Payments</h3>
-                        <p className="text-sm text-gray-600">Track and manage commission payouts</p>
-                      </div>
-                    </div>
-                  </button>
-                </div>
-              </div>
-
               {/* Contractor Information Section */}
-              <div className="space-y-4">
+              <div className="space-y-2">
                 <h2 className="text-lg font-semibold">Contractor Information</h2>
                 <div className="space-y-2">
                   <button
@@ -495,6 +476,25 @@ export default function DashboardLayout({
                       <div>
                         <h3 className="font-medium">Post 30 Day Contract</h3>
                         <p className="text-sm text-gray-600">Contract template after initial 30 days</p>
+                      </div>
+                    </div>
+                  </button>
+                </div>
+              </div>
+
+              {/* Timezone Section */}
+              <div className="space-y-2">
+                <h2 className="text-lg font-semibold">Tools</h2>
+                <div className="space-y-2">
+                  <button
+                    onClick={() => setActiveTab('timezone')}
+                    className="w-full text-left px-4 py-3 bg-white rounded-lg shadow hover:shadow-md transition-shadow duration-200"
+                  >
+                    <div className="flex items-center space-x-3">
+                      <span className="text-xl">⏰</span>
+                      <div>
+                        <h3 className="font-medium">Timezone Converter</h3>
+                        <p className="text-sm text-gray-600">Convert between NZT, PST, and Australian time</p>
                       </div>
                     </div>
                   </button>
