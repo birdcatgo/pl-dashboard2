@@ -382,7 +382,8 @@ export default async function handler(req, res) {
       "'Tradeshift Check'!A:E",
       "'Monthly Expenses'!A:D",
       "'Commissions'!A:H",
-      "'Employees'!A:J"
+      "'Employees'!A:J",
+      "'DigitSolution Accounts'!A:Z"
     ];
 
     console.log('Fetching sheets data with ranges:', ranges);

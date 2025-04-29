@@ -56,6 +56,7 @@ import ContractorContracts from './ContractorContracts';
 import { NDA_TEMPLATE, APPENDIX_A_FIRST_30_DAYS, APPENDIX_B_POST_30_DAYS } from '@/lib/contract-templates';
 import { MEDIA_BUYER_CONTRACTOR_AGREEMENT } from '@/lib/contract-templates';
 import TimezoneConverter from './TimezoneConverter';
+import AdAccounts from './AdAccounts';
 
 export default function DashboardLayout({ 
   performanceData, 
@@ -170,7 +171,8 @@ export default function DashboardLayout({
     { id: 'accounts', label: 'Accounts Receivable & Payable', icon: FileText },
     { id: 'reporting', label: 'Reporting', icon: LineChart },
     { id: 'contractor-info', label: 'Contractor Information', icon: UserCheck },
-    { id: 'timezone', label: 'Timezone Converter', icon: Clock }
+    { id: 'timezone', label: 'Timezone Converter', icon: Clock },
+    { id: 'ad-accounts', label: 'Ad Accounts', icon: Target }
   ];
 
   const renderTabContent = () => {
@@ -1040,6 +1042,17 @@ export default function DashboardLayout({
               icon={Clock}
             />
             <TimezoneConverter />
+          </div>
+        );
+      case 'ad-accounts':
+        return (
+          <div className="space-y-8">
+            <PageHeader 
+              title="Ad Accounts" 
+              subtitle="Manage and monitor ad accounts"
+              icon={Users}
+            />
+            <AdAccounts />
           </div>
         );
       default:

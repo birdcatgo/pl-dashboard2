@@ -248,10 +248,10 @@ const DailyTrends = () => {
       day.summary.forEach(campaign => {
         // Only consider valid campaigns (with trendData and non-zero spend)
         if (campaign.trendData && campaign.trendData.length > 0) {
-          if (campaign.offer) offers.add(campaign.offer);
-          if (campaign.adAccount) adAccounts.add(campaign.adAccount);
-          if (campaign.mediaBuyer) mediaBuyers.add(campaign.mediaBuyer);
-          if (campaign.network) networks.add(campaign.network);
+            if (campaign.offer) offers.add(campaign.offer);
+            if (campaign.adAccount) adAccounts.add(campaign.adAccount);
+            if (campaign.mediaBuyer) mediaBuyers.add(campaign.mediaBuyer);
+            if (campaign.network) networks.add(campaign.network);
         }
       });
     });

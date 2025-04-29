@@ -271,52 +271,52 @@ const TodaysTrend = () => {
                   {savedMessage}
                 </div>
               )}
-              <div className="overflow-x-auto">
-                <table className="w-full">
-                  <thead>
-                    <tr className="border-b">
-                      <th className="text-left py-2 px-3 sticky left-0 bg-white">Campaign</th>
-                      {sortedCheckIns.map((checkIn, index) => (
-                        <th key={index} className="text-center py-2 px-3 min-w-[150px]">
-                          {formatTimestamp(checkIn.timestamp)}
-                        </th>
-                      ))}
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {Object.values(groupedCampaigns).map((campaign, index) => (
-                      <tr key={index} className="border-b hover:bg-gray-50 transition-colors">
-                        <td className="py-2 px-3 font-bold sticky left-0 bg-white">{campaign.name}</td>
-                        {sortedCheckIns.map((checkIn, checkInIndex) => {
-                          const history = campaign.history.find(h => h.timestamp === checkIn.timestamp);
-                          if (!history) {
-                            return <td key={checkInIndex} className="text-center py-2 px-3">-</td>;
-                          }
-                          
-                          return (
-                            <td key={checkInIndex} className="text-center py-2 px-3">
-                              <div className="flex flex-col items-center space-y-1">
-                                <div className="flex items-center space-x-1 justify-center">
-                                  <span className={`text-sm ${getROIColorClass(history.roi)}`}>
-                                    {formatPercent(history.roi)}
-                                  </span>
-                                  {getTrendIcon(history.trend)}
-                                </div>
-                                <div className="text-sm font-bold text-right">
-                                  {formatCurrency(history.profit)}
-                                </div>
-                                <div className="text-xs text-gray-400">
-                                  {history.leads} leads
-                                </div>
-                              </div>
-                            </td>
-                          );
-                        })}
-                      </tr>
+            <div className="overflow-x-auto">
+              <table className="w-full">
+                <thead>
+                  <tr className="border-b">
+                    <th className="text-left py-2 px-3 sticky left-0 bg-white">Campaign</th>
+                    {sortedCheckIns.map((checkIn, index) => (
+                      <th key={index} className="text-center py-2 px-3 min-w-[150px]">
+                        {formatTimestamp(checkIn.timestamp)}
+                      </th>
                     ))}
-                  </tbody>
-                </table>
-              </div>
+                  </tr>
+                </thead>
+                <tbody>
+                  {Object.values(groupedCampaigns).map((campaign, index) => (
+                    <tr key={index} className="border-b hover:bg-gray-50 transition-colors">
+                      <td className="py-2 px-3 font-bold sticky left-0 bg-white">{campaign.name}</td>
+                      {sortedCheckIns.map((checkIn, checkInIndex) => {
+                        const history = campaign.history.find(h => h.timestamp === checkIn.timestamp);
+                        if (!history) {
+                          return <td key={checkInIndex} className="text-center py-2 px-3">-</td>;
+                        }
+                        
+                        return (
+                          <td key={checkInIndex} className="text-center py-2 px-3">
+                            <div className="flex flex-col items-center space-y-1">
+                              <div className="flex items-center space-x-1 justify-center">
+                                <span className={`text-sm ${getROIColorClass(history.roi)}`}>
+                                  {formatPercent(history.roi)}
+                                </span>
+                                {getTrendIcon(history.trend)}
+                              </div>
+                              <div className="text-sm font-bold text-right">
+                                {formatCurrency(history.profit)}
+                              </div>
+                              <div className="text-xs text-gray-400">
+                                {history.leads} leads
+                              </div>
+                            </div>
+                          </td>
+                        );
+                      })}
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
             </>
           )}
         </CardContent>
