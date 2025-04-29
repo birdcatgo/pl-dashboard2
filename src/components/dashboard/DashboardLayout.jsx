@@ -199,7 +199,7 @@ export default function DashboardLayout({
                     <div className="flex items-center space-x-3">
                       <span className="text-xl">🔮</span>
                       <div>
-                        <h3 className="font-medium">Forecasting View</h3>
+                        <h3 className="font-medium">Net Profit</h3>
                         <p className="text-sm text-gray-600">Predicts future performance based on trends and targets</p>
                       </div>
                     </div>
@@ -254,7 +254,7 @@ export default function DashboardLayout({
 
               {/* Accounts Section */}
               <div className="space-y-2">
-                <h2 className="text-lg font-semibold">Accounts Receivable & Payable</h2>
+                <h2 className="text-lg font-semibold">Accounts</h2>
                 <div className="space-y-2">
                   <button
                     onClick={() => {
@@ -267,14 +267,14 @@ export default function DashboardLayout({
                       <span className="text-xl">📄</span>
                       <div>
                         <h3 className="font-medium">Invoices (Receivable)</h3>
-                        <p className="text-sm text-gray-600">Track incoming payments and invoices</p>
+                        <p className="text-sm text-gray-600">Track and manage incoming payments</p>
                       </div>
                     </div>
                   </button>
                   <button
                     onClick={() => {
                       setActiveTab('accounts');
-                      setAccountsSubview('upcoming-expenses');
+                      setAccountsSubview('expenses');
                     }}
                     className="w-full text-left px-4 py-3 bg-white rounded-lg shadow hover:shadow-md transition-shadow duration-200"
                   >
@@ -282,7 +282,7 @@ export default function DashboardLayout({
                       <span className="text-xl">💰</span>
                       <div>
                         <h3 className="font-medium">Upcoming Expenses (Payable)</h3>
-                        <p className="text-sm text-gray-600">Track upcoming payments and expenses</p>
+                        <p className="text-sm text-gray-600">Manage and track outgoing payments</p>
                       </div>
                     </div>
                   </button>
@@ -331,11 +331,8 @@ export default function DashboardLayout({
                     className="w-full text-left px-4 py-3 bg-white rounded-lg shadow hover:shadow-md transition-shadow duration-200"
                   >
                     <div className="flex items-center space-x-3">
-                      <span className="text-xl">📝</span>
-                      <div>
-                        <h3 className="font-medium">EOD Report</h3>
-                        <p className="text-sm text-gray-600">End of day performance summary</p>
-                      </div>
+                      <span className="text-xl">📊</span>
+                      <span>EOD Report</span>
                     </div>
                   </button>
                   <button
@@ -495,7 +492,7 @@ export default function DashboardLayout({
                       <span className="text-xl">⏰</span>
                       <div>
                         <h3 className="font-medium">Timezone Converter</h3>
-                        <p className="text-sm text-gray-600">Convert between NZT, PST, and Australian time</p>
+                        <p className="text-sm text-gray-600">Convert between NZT and PST</p>
                       </div>
                     </div>
                   </button>
@@ -527,33 +524,49 @@ export default function DashboardLayout({
             
             {/* Profit Metrics Subviews Navigation */}
             <div className="bg-white rounded-lg shadow-sm border border-gray-100 p-4 mb-6">
-          <div className="space-y-6">
+              <div className="space-y-6">
                 <div className="flex space-x-4">
                   <Button
                     variant={accountingSubview === 'net-profit' ? 'default' : 'outline'}
                     onClick={() => setAccountingSubview('net-profit')}
-                    className="flex items-center"
+                    className={`flex items-center ${
+                      accountingSubview === 'net-profit' 
+                        ? 'bg-purple-100 text-purple-800 border-purple-200 hover:bg-purple-200' 
+                        : 'hover:bg-purple-50'
+                    }`}
                   >
                     🔮 Forecasting View
                   </Button>
                   <Button
                     variant={accountingSubview === 'pl' ? 'default' : 'outline'}
                     onClick={() => setAccountingSubview('pl')}
-                    className="flex items-center"
+                    className={`flex items-center ${
+                      accountingSubview === 'pl' 
+                        ? 'bg-blue-100 text-blue-800 border-blue-200 hover:bg-blue-200' 
+                        : 'hover:bg-blue-50'
+                    }`}
                   >
                     💵 Cash View (Money In/Out)
                   </Button>
                   <Button
                     variant={accountingSubview === 'media-buyer-pl' ? 'default' : 'outline'}
                     onClick={() => setAccountingSubview('media-buyer-pl')}
-                    className="flex items-center"
+                    className={`flex items-center ${
+                      accountingSubview === 'media-buyer-pl' 
+                        ? 'bg-green-100 text-green-800 border-green-200 hover:bg-green-200' 
+                        : 'hover:bg-green-50'
+                    }`}
                   >
                     📊 Performance View
                   </Button>
                   <Button
                     variant={accountingSubview === 'credit-line' ? 'default' : 'outline'}
                     onClick={() => setAccountingSubview('credit-line')}
-                    className="flex items-center"
+                    className={`flex items-center ${
+                      accountingSubview === 'credit-line' 
+                        ? 'bg-yellow-100 text-yellow-800 border-yellow-200 hover:bg-yellow-200' 
+                        : 'hover:bg-yellow-50'
+                    }`}
                   >
                     💳 Credit Line & Budget Manager
                   </Button>
@@ -620,8 +633,8 @@ export default function DashboardLayout({
                     </div>
                   )}
                 </div>
-          </div>
-          </div>
+              </div>
+            </div>
 
             {/* Render the appropriate subview content */}
             <div className="bg-white rounded-lg shadow-sm border border-gray-100 p-6">
@@ -793,31 +806,53 @@ export default function DashboardLayout({
             
             {/* Accounts Subviews Navigation */}
             <div className="bg-white rounded-lg shadow-sm border border-gray-100 p-4 mb-6">
-              <div className="flex space-x-4">
-                <Button
-                  variant={accountsSubview === 'invoices' ? 'default' : 'outline'}
-                  onClick={() => setAccountsSubview('invoices')}
-                >
-                  Invoices (Receivable)
-                </Button>
-                <Button
-                  variant={accountsSubview === 'upcoming-expenses' ? 'default' : 'outline'}
-                  onClick={() => setAccountsSubview('upcoming-expenses')}
-                >
-                  Upcoming Expenses (Payable)
-                </Button>
-                <Button
-                  variant={accountsSubview === 'expense-overview' ? 'default' : 'outline'}
-                  onClick={() => setAccountsSubview('expense-overview')}
-                >
-                  Expense Overview
-                </Button>
-                <Button
-                  variant={accountsSubview === 'commissions' ? 'default' : 'outline'}
-                  onClick={() => setAccountsSubview('commissions')}
-                >
-                  Commission Payments
-                </Button>
+              <div className="space-y-6">
+                <div className="flex space-x-4">
+                  <Button
+                    variant={accountsSubview === 'invoices' ? 'default' : 'outline'}
+                    onClick={() => setAccountsSubview('invoices')}
+                    className={`flex items-center ${
+                      accountsSubview === 'invoices' 
+                        ? 'bg-blue-100 text-blue-800 border-blue-200 hover:bg-blue-200' 
+                        : 'hover:bg-blue-50'
+                    }`}
+                  >
+                    📄 Invoices (Receivable)
+                  </Button>
+                  <Button
+                    variant={accountsSubview === 'expenses' ? 'default' : 'outline'}
+                    onClick={() => setAccountsSubview('expenses')}
+                    className={`flex items-center ${
+                      accountsSubview === 'expenses' 
+                        ? 'bg-red-100 text-red-800 border-red-200 hover:bg-red-200' 
+                        : 'hover:bg-red-50'
+                    }`}
+                  >
+                    💰 Upcoming Expenses (Payable)
+                  </Button>
+                  <Button
+                    variant={accountsSubview === 'expense-overview' ? 'default' : 'outline'}
+                    onClick={() => setAccountsSubview('expense-overview')}
+                    className={`flex items-center ${
+                      accountsSubview === 'expense-overview' 
+                        ? 'bg-green-100 text-green-800 border-green-200 hover:bg-green-200' 
+                        : 'hover:bg-green-50'
+                    }`}
+                  >
+                    📊 Expense Overview
+                  </Button>
+                  <Button
+                    variant={accountsSubview === 'commissions' ? 'default' : 'outline'}
+                    onClick={() => setAccountsSubview('commissions')}
+                    className={`flex items-center ${
+                      accountsSubview === 'commissions' 
+                        ? 'bg-purple-100 text-purple-800 border-purple-200 hover:bg-purple-200' 
+                        : 'hover:bg-purple-50'
+                    }`}
+                  >
+                    💸 Commission Payments
+                  </Button>
+                </div>
               </div>
             </div>
 
@@ -826,7 +861,7 @@ export default function DashboardLayout({
               {accountsSubview === 'invoices' && (
                 <InvoicesTable data={invoiceData || []} />
               )}
-              {accountsSubview === 'upcoming-expenses' && (
+              {accountsSubview === 'expenses' && (
                 <UpcomingExpensesTable data={expenseData || []} />
               )}
               {accountsSubview === 'expense-overview' && (
@@ -1083,7 +1118,7 @@ export default function DashboardLayout({
                   <span className="text-xl">⏰</span>
                   <div>
                     <h3 className="font-medium">Timezone Converter</h3>
-                    <p className="text-sm text-gray-600">Convert between NZT, PST, and Australian time</p>
+                    <p className="text-sm text-gray-600">Convert between NZT and PST</p>
                   </div>
                 </div>
               </button>
