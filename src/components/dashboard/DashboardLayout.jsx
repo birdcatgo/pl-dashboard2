@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
-import { RefreshCw, ChevronDown, Brain, TrendingUp, DollarSign, Target, Calendar, ChartBar, BarChart2, Users, Receipt, Table, Clock, History, Calculator, FileText, LineChart, UserCheck } from 'lucide-react';
+import { RefreshCw, ChevronDown, Brain, TrendingUp, DollarSign, Target, Calendar, ChartBar, BarChart2, Users, Receipt, Table, Clock, History, Calculator, FileText, LineChart, UserCheck, Wrench } from 'lucide-react';
 import { debounce } from 'lodash';
 import EnhancedDateSelector from './EnhancedDateSelector';
 import CashSituation from './CashSituation';
@@ -171,8 +171,7 @@ export default function DashboardLayout({
     { id: 'accounts', label: 'Accounts Receivable & Payable', icon: FileText },
     { id: 'reporting', label: 'Reporting', icon: LineChart },
     { id: 'contractor-info', label: 'Contractor Information', icon: UserCheck },
-    { id: 'timezone', label: 'Timezone Converter', icon: Clock },
-    { id: 'ad-accounts', label: 'Ad Accounts', icon: Target }
+    { id: 'tools', label: 'Tools', icon: Wrench }
   ];
 
   const renderTabContent = () => {
@@ -497,6 +496,18 @@ export default function DashboardLayout({
                       <div>
                         <h3 className="font-medium">Timezone Converter</h3>
                         <p className="text-sm text-gray-600">Convert between NZT, PST, and Australian time</p>
+                      </div>
+                    </div>
+                  </button>
+                  <button
+                    onClick={() => setActiveTab('ad-accounts')}
+                    className="w-full text-left px-4 py-3 bg-white rounded-lg shadow hover:shadow-md transition-shadow duration-200"
+                  >
+                    <div className="flex items-center space-x-3">
+                      <span className="text-xl">🎯</span>
+                      <div>
+                        <h3 className="font-medium">Ad Accounts</h3>
+                        <p className="text-sm text-gray-600">Manage and monitor ad accounts</p>
                       </div>
                     </div>
                   </button>
@@ -1055,6 +1066,42 @@ export default function DashboardLayout({
             <AdAccounts />
           </div>
         );
+      case 'tools':
+        return (
+          <div className="space-y-8">
+            <PageHeader 
+              title="Tools" 
+              subtitle="Useful tools and utilities"
+              icon={Wrench}
+            />
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <button
+                onClick={() => setActiveTab('timezone')}
+                className="w-full text-left px-4 py-3 bg-white rounded-lg shadow hover:shadow-md transition-shadow duration-200"
+              >
+                <div className="flex items-center space-x-3">
+                  <span className="text-xl">⏰</span>
+                  <div>
+                    <h3 className="font-medium">Timezone Converter</h3>
+                    <p className="text-sm text-gray-600">Convert between NZT, PST, and Australian time</p>
+                  </div>
+                </div>
+              </button>
+              <button
+                onClick={() => setActiveTab('ad-accounts')}
+                className="w-full text-left px-4 py-3 bg-white rounded-lg shadow hover:shadow-md transition-shadow duration-200"
+              >
+                <div className="flex items-center space-x-3">
+                  <span className="text-xl">🎯</span>
+                  <div>
+                    <h3 className="font-medium">Ad Accounts</h3>
+                    <p className="text-sm text-gray-600">Manage and monitor ad accounts</p>
+                  </div>
+                </div>
+              </button>
+            </div>
+          </div>
+        );
       default:
         return null;
     }
@@ -1138,8 +1185,8 @@ export default function DashboardLayout({
               );
             })}
             </nav>
-                    </div>
-                  </div>
+          </div>
+        </div>
       </header>
 
       {/* Main Content */}

@@ -103,7 +103,7 @@ const AdAccounts = () => {
                           className="h-6 w-6 p-1 bg-white hover:bg-gray-100 border-gray-300 flex items-center justify-center"
                           onClick={() => copyToClipboard(account['2FA'])}
                         >
-                          <Copy className="h-3 w-3 text-gray-600" />
+                          <span className="text-gray-600 text-sm">📋</span>
                         </Button>
                       </div>
                     )}
