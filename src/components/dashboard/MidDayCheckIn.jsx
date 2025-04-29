@@ -485,61 +485,65 @@ const MidDayCheckIn = () => {
     try {
       setIsSending(true);
       
-      // Group campaigns by media buyer
-      const campaignsByBuyer = {};
-      checkIn.campaigns.forEach(campaign => {
-        if (!campaignsByBuyer[campaign.mediaBuyer]) {
-          campaignsByBuyer[campaign.mediaBuyer] = [];
-        }
-        campaignsByBuyer[campaign.mediaBuyer].push(campaign);
-      });
-
       // Build message sections
-      let messageText = "*Mid-Day Check-In*\n\n";
-
-      // Add each media buyer's section
-      for (const [buyer, campaigns] of Object.entries(campaignsByBuyer)) {
-        if (campaigns.length === 0) continue;
-
-        messageText += `*${buyer}'s Campaigns*\n`;
-        
-        // Sort campaigns by profit (profitable first, then unprofitable)
-        campaigns.sort((a, b) => (b.profit || 0) - (a.profit || 0));
-
-        campaigns.forEach(campaign => {
-          const accountInfo = `${campaign.mediaBuyer} | ${campaign.adAccount}`;
-          const campaignName = campaign.campaignName;
-          
-          // Truncate campaign name if too long
-          const truncatedName = campaignName.length > 40 ? 
-            campaignName.substring(0, 37) + '...' : 
-            campaignName;
-
-          if (campaign.profit > 0) {
-            const trend = campaign.profitChange > 0 ? ':arrow_up_small:' :
-                         campaign.profitChange < 0 ? ':arrow_down_small:' :
-                         ':arrow_right:';
-            messageText += `• ${accountInfo} — ${truncatedName} — Profit: +$${Math.round(campaign.profit)} ${trend}\n`;
-          } else {
-            messageText += `• ${accountInfo} — ${truncatedName} — Unprofitable\n`;
-          }
-        });
-        messageText += '\n';
-      }
-
-      // Process the campaign data without swapping values
-      const processedCampaigns = checkIn.campaigns.map(campaign => {
-        const spend = parseFloat(campaign.spend) || 0;
-        const revenue = parseFloat(campaign.revenue) || 0;
-        const profit = revenue - spend; // Correct profit calculation
-        
-        return {
-          ...campaign,
-          spend,
-          revenue,
-          profit
-        };
+      let messageText = `Daily Summary\n`;
+      
+      // Calculate totals
+      const totalSpend = checkIn.campaigns.reduce((sum, c) => sum + (c.spend || 0), 0);
+      const totalRevenue = checkIn.campaigns.reduce((sum, c) => sum + (c.revenue || 0), 0);
+      const totalProfit = totalRevenue - totalSpend;
+      const totalROI = totalSpend > 0 ? (totalProfit / totalSpend) * 100 : 0;
+      const totalLeads = checkIn.campaigns.reduce((sum, c) => sum + (c.leads || 0), 0);
+      
+      // Determine if this is the first check-in of the day
+      const today = DateTime.now().setZone('America/Los_Angeles').toFormat('yyyy-MM-dd');
+      const existingCheckIns = JSON.parse(localStorage.getItem('middayCheckIns') || '[]');
+      const todayCheckIns = existingCheckIns.filter(checkIn => {
+        const checkInDate = DateTime.fromISO(checkIn.timestamp)
+          .setZone('America/Los_Angeles')
+          .toFormat('yyyy-MM-dd');
+        return checkInDate === today;
       });
+      
+      const isFirstCheckIn = todayCheckIns.length === 0;
+      
+      // Add status based on profit and check-in timing
+      const profitStatus = totalProfit >= 0 ? 'Profitable' : 'Unprofitable';
+      const statusColor = totalProfit >= 0 ? 'green' : 'red';
+      
+      messageText += `Status: *${profitStatus}*\n`;
+      messageText += `Spend: $${totalSpend.toFixed(2)} | Revenue: $${totalRevenue.toFixed(2)} | Profit: $${totalProfit.toFixed(2)} | ROI: ${totalROI.toFixed(2)}% | Leads: ${totalLeads}\n`;
+      messageText += `Projected EOD Profit: ~$${(totalProfit * 1.2).toFixed(2)} (if trends hold)\n\n`;
+      
+      messageText += `Campaign Performance\n`;
+      messageText += `\`\`\`\n`;
+      messageText += `Campaign Name                                         | Profit    | Status\n`;
+      messageText += `------------------------------------------------------|-----------|--------\n`;
+      
+      // Sort campaigns by profit
+      const sortedCampaigns = [...checkIn.campaigns].sort((a, b) => {
+        const profitA = (a.revenue || 0) - (a.spend || 0);
+        const profitB = (b.revenue || 0) - (b.spend || 0);
+        return profitB - profitA;
+      });
+      
+      sortedCampaigns.forEach(campaign => {
+        const profit = (campaign.revenue || 0) - (campaign.spend || 0);
+        const campaignName = campaign.campaignName.length > 50 
+          ? campaign.campaignName.substring(0, 47) + '...' 
+          : campaign.campaignName;
+        
+        // Format profit with proper alignment
+        const profitStr = profit >= 0 ? `$${profit.toFixed(2)}` : `-$${Math.abs(profit).toFixed(2)}`;
+        const profitPadding = profit >= 0 ? ' ' : '';
+        
+        // Determine status based on profit
+        const campaignStatus = profit >= 0 ? 'Profitable' : 'Unprofitable';
+        
+        messageText += `${campaignName.padEnd(50)} | ${profitPadding}${profitStr.padStart(8)} | ${campaignStatus.padStart(8)}\n`;
+      });
+      
+      messageText += `\`\`\``;
 
       const response = await fetch('/api/slack-notification', {
         method: 'POST',
@@ -548,19 +552,20 @@ const MidDayCheckIn = () => {
         },
         body: JSON.stringify({
           type: 'midday-checkin',
+          message: messageText,
           data: {
-            message: messageText,
-            campaigns: processedCampaigns,
-            previousCheckIns: existingCheckIns
+            campaigns: checkIn.campaigns,
+            previousCheckIns: historicalData
           }
         }),
       });
 
+      const result = await response.json();
+
       if (!response.ok) {
-        throw new Error(`HTTP error! status: ${response.status}`);
+        throw new Error(`Failed to send Slack notification: ${result.error || `HTTP error! status: ${response.status}`}`);
       }
 
-      const result = await response.json();
       console.log('Slack notification sent:', result);
       
       // Update localStorage to mark this check-in as sent
