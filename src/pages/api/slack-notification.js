@@ -13,7 +13,7 @@ export default async function handler(req, res) {
     }
 
     const webhookUrl = getWebhookUrl(type);
-
+    
     if (!isValidWebhookUrl(webhookUrl)) {
       return res.status(500).json({ error: 'Invalid Slack webhook URL configuration' });
     }

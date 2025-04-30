@@ -332,7 +332,10 @@ export default function DashboardLayout({
                   >
                     <div className="flex items-center space-x-3">
                       <span className="text-xl">📊</span>
-                      <span>EOD Report</span>
+                      <div>
+                        <h3 className="font-medium">EOD Report</h3>
+                        <p className="text-sm text-gray-600">Daily performance summary and analysis</p>
+                      </div>
                     </div>
                   </button>
                   <button
