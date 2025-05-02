@@ -274,7 +274,7 @@ const NetProfit = ({ performanceData, dateRange, cashFlowData }) => {
                   </tr>
                 </thead>
                 <tbody>
-                  {Object.entries(monthlyTotals).map(([month, data]) => (
+                  {Object.entries(monthlyTotals).reverse().map(([month, data]) => (
                     <tr key={month} className="border-b">
                       <td className="py-2">{month}</td>
                       <td className="text-right py-2">{formatCurrency(data.revenue)}</td>

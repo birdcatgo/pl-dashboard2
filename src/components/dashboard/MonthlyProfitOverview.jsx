@@ -191,7 +191,17 @@ const MonthlyProfitOverview = ({ rawData }) => {
       // Sort by actual date, not string
       .sortBy(item => {
         const date = parse(item.month, 'MMMM yyyy', new Date());
-        return -date.getTime(); // Negative for descending order
+        const year = date.getFullYear();
+        const month = date.getMonth();
+        
+        // Create a custom sort order
+        // For 2025: April (3) -> March (2) -> February (1) -> January (0)
+        // For 2024: December (11) -> November (10) -> October (9)
+        if (year === 2025) {
+          return -month; // Reverse order for 2025 months
+        } else {
+          return month; // Normal order for 2024 months
+        }
       })
       .value();
   }, [rawData]);
