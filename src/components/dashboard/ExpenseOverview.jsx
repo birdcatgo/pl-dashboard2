@@ -342,9 +342,9 @@ const ExpenseCategory = ({ title, monthlyData, plData }) => {
     if (title.toLowerCase().includes('subscription')) {
       // Get the most recent month's data
       const mostRecentMonth = Object.entries(plData.monthly)
-        .filter(([month]) => ['March', 'February', 'January'].includes(month))
+        .filter(([month]) => ['April', 'March', 'February', 'January'].includes(month))
         .sort(([monthA], [monthB]) => {
-          const monthOrder = { 'March': 3, 'February': 2, 'January': 1 };
+          const monthOrder = { 'April': 4, 'March': 3, 'February': 2, 'January': 1 };
           return monthOrder[monthB] - monthOrder[monthA];
         })[0];
 
@@ -365,12 +365,21 @@ const ExpenseCategory = ({ title, monthlyData, plData }) => {
     return `${title} ${trend > 0 ? 'increased' : 'decreased'} by ${formatCurrency(difference)} (${Math.abs(trend)}%) compared to ${monthDisplay}`;
   };
 
-  // Ensure data is in chronological order (March, Feb, Jan)
+  // Ensure data is in chronological order (April, March, Feb)
   const orderedData = [
+    monthlyData.find(d => d.month === 'April 2025'),
     monthlyData.find(d => d.month === 'March 2025'),
-    monthlyData.find(d => d.month === 'February 2025'),
-    monthlyData.find(d => d.month === 'January 2025')
+    monthlyData.find(d => d.month === 'February 2025')
   ].filter(Boolean);
+
+  if (!orderedData.length) {
+    console.log('No data available for display:', {
+      monthlyData,
+      aprilData: monthlyData.find(d => d.month === 'April 2025'),
+      marchData: monthlyData.find(d => d.month === 'March 2025'),
+      febData: monthlyData.find(d => d.month === 'February 2025')
+    });
+  }
 
   return (
     <div className="mt-6">
@@ -418,10 +427,10 @@ const ExpenseCategory = ({ title, monthlyData, plData }) => {
       {showExpenseDetails && (
         <ExpenseDetails
           expenses={Object.entries(plData.monthly)
-            .filter(([month]) => ['February', 'January', 'December'].includes(month))
+            .filter(([month]) => ['April', 'March', 'February'].includes(month))
             .sort(([monthA], [monthB]) => {
-              const monthOrder = { 'February': 3, 'January': 2, 'December': 1 };
-              return monthOrder[monthB] - monthOrder[monthA];
+              const monthSortOrder = { 'April': 4, 'March': 3, 'February': 2 };
+              return monthSortOrder[monthB] - monthSortOrder[monthA];
             })[0]?.[1]?.expenseData?.filter(expense => {
               const category = expense.CATEGORY?.toLowerCase() || '';
               const description = expense.DESCRIPTION?.toLowerCase() || '';
@@ -1557,7 +1566,7 @@ const ProfitTrendChart = ({ plData }) => {
   const profitTrendData = useMemo(() => {
     if (!plData?.monthly) return [];
 
-    const monthOrder = ['July', 'August', 'September', 'October', 'November', 'December', 'January', 'February', 'March'];
+    const monthOrder = ['July', 'August', 'September', 'October', 'November', 'December', 'January', 'February', 'March', 'April'];
     
     return monthOrder.map(month => {
       const data = plData.monthly[month];
@@ -1664,7 +1673,7 @@ const ProfitTrendChart = ({ plData }) => {
       const profitMargin = ((profit / revenue) * 100).toFixed(1);
       
       // Determine the correct year based on the month
-      const year = ['January', 'February', 'March'].includes(month) ? '2025' : '2024';
+      const year = ['January', 'February', 'March', 'April'].includes(month) ? '2025' : '2024';
 
       return {
         month: `${month} ${year}`,
@@ -1854,7 +1863,7 @@ const processMonthlyData = (monthlyData) => {
     }, 0);
 
     // Update year assignment for March
-    const year = month === 'January' || month === 'February' || month === 'March' ? '2025' : '2024';
+    const year = ['January', 'February', 'March', 'April'].includes(month) ? '2025' : '2024';
     
     return {
       month: `${month} ${year}`,
@@ -1971,30 +1980,22 @@ const ExpenseOverview = ({ plData, cashFlowData, invoicesData, networkTerms }) =
       'November': 11,
       'December': 12
     };
+    
+    // Get all available months from the summary
+    const availableMonths = plData.summary.map(item => ({
+      name: item.Month,
+      date: new Date(`${item.Month} 1, ${
+        ['January', 'February', 'March', 'April'].includes(item.Month) ? '2025' : '2024'
+      }`),
+      order: monthOrder[item.Month]
+    }));
 
-    // Sort months by year (2025 before 2024) and then by month order
-    const sortedMonths = plData.summary
-      .map(item => ({
-        name: item.Month,
-        date: new Date(`${item.Month} 1, ${
-          ['January', 'February', 'March'].includes(item.Month) ? '2025' : '2024'
-        }`),
-        order: monthOrder[item.Month]
-      }))
-      .sort((a, b) => {
-        // First compare years
-        const yearA = a.date.getFullYear();
-        const yearB = b.date.getFullYear();
-        if (yearA !== yearB) return yearB - yearA;
-        
-        // If same year, compare months
-        return monthOrder[a.name] - monthOrder[b.name];
-      })
-      .slice(0, 3); // Get only the most recent 3 months
+    // Sort by date (newest first)
+    availableMonths.sort((a, b) => b.date - a.date);
 
-    console.log('Last three months:', sortedMonths);
-    return sortedMonths;
-  }, [plData]);
+    // Return the three most recent months
+    return availableMonths.slice(0, 3);
+  }, [plData?.summary]);
 
   const processedData = useMemo(() => {
     if (!plData?.monthly) {
@@ -2003,7 +2004,7 @@ const ExpenseOverview = ({ plData, cashFlowData, invoicesData, networkTerms }) =
     }
 
     // Define the months we want to show in order
-    const targetMonths = ['March 2025', 'February 2025', 'January 2025'];
+    const targetMonths = ['April 2025', 'March 2025', 'February 2025'];
 
     // Add debug logging
     console.log('Processing monthly data:', {

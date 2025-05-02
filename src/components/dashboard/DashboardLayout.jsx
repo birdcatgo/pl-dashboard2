@@ -57,6 +57,7 @@ import { NDA_TEMPLATE, APPENDIX_A_FIRST_30_DAYS, APPENDIX_B_POST_30_DAYS } from 
 import { MEDIA_BUYER_CONTRACTOR_AGREEMENT } from '@/lib/contract-templates';
 import TimezoneConverter from './TimezoneConverter';
 import AdAccounts from './AdAccounts';
+import ExpenseReview from './ExpenseReview';
 
 export default function DashboardLayout({ 
   performanceData, 
@@ -298,6 +299,21 @@ export default function DashboardLayout({
                       <div>
                         <h3 className="font-medium">Expense Overview</h3>
                         <p className="text-sm text-gray-600">Analyze expense patterns and categories</p>
+                      </div>
+                    </div>
+                  </button>
+                  <button
+                    onClick={() => {
+                      setActiveTab('accounts');
+                      setAccountsSubview('expense-review');
+                    }}
+                    className="w-full text-left px-4 py-3 bg-white rounded-lg shadow hover:shadow-md transition-shadow duration-200"
+                  >
+                    <div className="flex items-center space-x-3">
+                      <span className="text-xl">📅</span>
+                      <div>
+                        <h3 className="font-medium">Expense Review</h3>
+                        <p className="text-sm text-gray-600">Review and analyze expenses</p>
                       </div>
                     </div>
                   </button>
@@ -845,6 +861,17 @@ export default function DashboardLayout({
                     📊 Expense Overview
                   </Button>
                   <Button
+                    variant={accountsSubview === 'expense-review' ? 'default' : 'outline'}
+                    onClick={() => setAccountsSubview('expense-review')}
+                    className={`flex items-center ${
+                      accountsSubview === 'expense-review' 
+                        ? 'bg-yellow-100 text-yellow-800 border-yellow-200 hover:bg-yellow-200' 
+                        : 'hover:bg-yellow-50'
+                    }`}
+                  >
+                    📅 Expense Review
+                  </Button>
+                  <Button
                     variant={accountsSubview === 'commissions' ? 'default' : 'outline'}
                     onClick={() => setAccountsSubview('commissions')}
                     className={`flex items-center ${
@@ -874,6 +901,9 @@ export default function DashboardLayout({
                   invoicesData={invoiceData}
                   networkTerms={networkTermsData || []}
                 />
+              )}
+              {accountsSubview === 'expense-review' && (
+                <ExpenseReview plData={plData} />
               )}
               {accountsSubview === 'commissions' && (
                 <CommissionPayments commissions={performanceData?.commissions || []} />

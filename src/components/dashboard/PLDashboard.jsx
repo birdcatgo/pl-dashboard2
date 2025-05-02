@@ -19,6 +19,9 @@ const PLDashboard = ({ plData, selectedMonth }) => {
     availableMonths: []
   });
 
+  const monthOrder = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
+  const yearOffset = ['January', 'February', 'March', 'April'].includes(selectedMonth) ? 12 : 0;
+
   useEffect(() => {
     if (!plData?.summary) {
       console.log('No PL data available');

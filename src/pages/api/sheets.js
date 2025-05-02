@@ -9,7 +9,7 @@ async function processPLData(batchResponse) {
 
     // Process monthly detail sheets more efficiently
     const monthSheets = batchResponse.data.valueRanges.filter(range => 
-      /^(March|February|January|December|November|October|September|August|July|June)!/.test(range.range)
+      /^(April|March|February|January|December|November|October|September|August|July|June)!/.test(range.range)
     );
 
     // Process all months in parallel
@@ -313,7 +313,7 @@ const SHEET_CONFIG = {
   commissions: {
     name: 'Commissions',
     range: 'A:Z',
-    requiredColumns: ['Media Buyer', 'Commission Rates', 'February 2025 Estimated', 'February 2025 Confirmed', 'February 2025 Commission', 'March 2025 Estimated', 'March 2025 Confirmed', 'March 2025 Commission']
+    requiredColumns: ['Media Buyer', 'Commission Rates', 'April 2025 Estimated', 'April 2025 Confirmed', 'April 2025 Commission', 'March 2025 Estimated', 'March 2025 Confirmed', 'March 2025 Commission', 'February 2025 Estimated', 'February 2025 Confirmed', 'February 2025 Commission']
   }
 };
 
@@ -367,6 +367,7 @@ export default async function handler(req, res) {
       "'Media Buyer Spend'!A:B",
       "'Summary'!A:V",
       "'Network Payment Schedule'!A:H",
+      "'April'!A:D",
       "'March'!A:D",
       "'February'!A:D",
       "'January'!A:D",
@@ -452,6 +453,7 @@ export default async function handler(req, res) {
       mediaBuyerResponse,
       summaryResponse,
       networkPaymentsResponse,
+      aprilResponse,
       marchResponse,
       februaryResponse,
       januaryResponse,
@@ -615,6 +617,7 @@ export default async function handler(req, res) {
       const plData = await processPLData({
         data: {
           valueRanges: [
+            aprilResponse,
             marchResponse,
             februaryResponse,
             januaryResponse,

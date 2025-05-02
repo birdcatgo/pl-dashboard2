@@ -38,8 +38,8 @@ const parseAmount = (amount) => {
 const SummaryTable = ({ summaryData }) => {
   // Helper function to get the year for a month
   const getYearForMonth = (month) => {
-    // January, February, and March are in 2025, all other months are in 2024
-    return ['January', 'February', 'March'].includes(month) ? 2025 : 2024;
+    // January, February, March, and April are in 2025, all other months are in 2024
+    return ['January', 'February', 'March', 'April'].includes(month) ? 2025 : 2024;
   };
 
   return (
@@ -182,7 +182,8 @@ const MonthlyDetails = ({ monthData, month }) => {
 
 const ExpenseCategoriesTrend = ({ monthlyData }) => {
   const getYearForMonth = (month) => {
-    return ['January', 'February'].includes(month) ? 2025 : 2024;
+    // January, February, March, and April are in 2025, all other months are in 2024
+    return ['January', 'February', 'March', 'April'].includes(month) ? 2025 : 2024;
   };
 
   // Define category groupings
@@ -337,8 +338,8 @@ const PLWrapper = ({ plData, monthlyData, selectedMonth, onMonthChange }) => {
   const getMonthWeight = (month) => {
     const monthOrder = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
     const monthIndex = monthOrder.indexOf(month);
-    // For 2025 months (January, February, and March), add 12 to their index
-    const yearOffset = ['January', 'February', 'March'].includes(month) ? 12 : 0;
+    // For 2025 months (January, February, March, and April), add 12 to their index
+    const yearOffset = ['January', 'February', 'March', 'April'].includes(month) ? 12 : 0;
     return monthIndex + yearOffset;
   };
 
@@ -371,7 +372,7 @@ const PLWrapper = ({ plData, monthlyData, selectedMonth, onMonthChange }) => {
               {Object.keys(monthlyData)
                 .sort((a, b) => getMonthWeight(b) - getMonthWeight(a))
                 .map(month => {
-                  const year = ['January', 'February', 'March'].includes(month) ? '2025' : '2024';
+                  const year = ['January', 'February', 'March', 'April'].includes(month) ? '2025' : '2024';
                   return (
                     <SelectItem 
                       key={month} 
