@@ -640,40 +640,40 @@ export default async function handler(req, res) {
           allRows: commissionsResponse.values
         });
 
-        processedData.commissions = commissionsResponse.values.slice(1).map((row, index) => {
-          // Log the raw row data for debugging
-          console.log(`Raw Commission Row ${index + 1}:`, {
-            mediaBuyer: row[0],
-            commissionRate: row[1],
-            status: row[2],
-            confirmed: row[3],
-            marchConfirmed: row[4],
-            marchCommission: row[5],
-            februaryConfirmed: row[6],
-            februaryCommission: row[7],
-            rowLength: row.length
-          });
+        // Get all month columns from the header
+        const headerRow = commissionsResponse.values[0];
+        const monthColumns = headerRow.reduce((acc, header, index) => {
+          // Match both formats: "April 2025" and "April 2025 Commission"
+          const monthMatch = header.match(/^(April|March|February)\s+2025(?:\s+Commission)?$/);
+          if (monthMatch) {
+            acc[header] = index;
+          }
+          return acc;
+        }, {});
 
+        console.log('Month columns:', monthColumns);
+
+        processedData.commissions = commissionsResponse.values.slice(1).map((row, index) => {
           const commission = {
             mediaBuyer: row[0] || '',
             commissionRate: parseFloat((row[1] || '0').replace('%', '')) / 100,
             status: row[2] || '',
-            Confirmed: row[3] || '',
-            march2025: {
-              confirmed: row[4] || '0',
-              commission: row[5] || '0'
-            },
-            february2025: {
-              confirmed: row[6] || '0',
-              commission: row[7] || '0'
-            }
+            Confirmed: row[3] || ''
           };
+
+          // Add each month's data directly
+          Object.entries(monthColumns).forEach(([header, index]) => {
+            commission[header] = row[index] || '0';
+          });
 
           // Log each processed row for debugging
           console.log(`Processed Commission Row ${index + 1}:`, {
             mediaBuyer: commission.mediaBuyer,
-            march2025: commission.march2025,
-            february2025: commission.february2025
+            months: Object.keys(monthColumns),
+            monthData: Object.entries(monthColumns).map(([header, index]) => ({
+              header,
+              value: row[index]
+            }))
           });
 
           return commission;
@@ -683,8 +683,8 @@ export default async function handler(req, res) {
           count: processedData.commissions.length,
           sample: processedData.commissions[0],
           allCommissions: processedData.commissions
-      });
-    } else {
+        });
+      } else {
         console.log('No Commission Data Found:', {
           hasResponse: !!commissionsResponse,
           hasValues: !!commissionsResponse?.values,
