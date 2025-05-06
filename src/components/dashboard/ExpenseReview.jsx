@@ -1,6 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { formatCurrency } from '@/lib/utils';
 import { ChevronUp, ChevronDown } from 'lucide-react';
+import { Button } from "@/components/ui/button";
+import { toast } from 'sonner';
 
 const ExpenseReview = ({ plData }) => {
   const [cancelledExpenses, setCancelledExpenses] = useState(new Set());
@@ -21,8 +23,28 @@ const ExpenseReview = ({ plData }) => {
   // Save state to localStorage
   useEffect(() => {
     localStorage.setItem('cancelledExpenses', JSON.stringify(Array.from(cancelledExpenses)));
-    localStorage.setItem('expenseNotes', JSON.stringify(notes));
-  }, [cancelledExpenses, notes]);
+  }, [cancelledExpenses]);
+
+  const handleSaveAllNotes = () => {
+    try {
+      localStorage.setItem('expenseNotes', JSON.stringify(notes));
+      toast.success('All notes saved successfully');
+    } catch (error) {
+      console.error('Error saving notes:', error);
+      toast.error('Failed to save notes');
+    }
+  };
+
+  const handleClearAllNotes = () => {
+    try {
+      setNotes({});
+      localStorage.removeItem('expenseNotes');
+      toast.success('All notes cleared');
+    } catch (error) {
+      console.error('Error clearing notes:', error);
+      toast.error('Failed to clear notes');
+    }
+  };
 
   // Get the most recent month's data
   const getMostRecentMonth = () => {
@@ -116,9 +138,29 @@ const ExpenseReview = ({ plData }) => {
   return (
     <div className="space-y-4">
       <div className="flex justify-between items-center">
-        <h2 className="text-xl font-semibold">
-          {mostRecentMonth.Month} Expenses
-        </h2>
+        <div className="flex items-center gap-4">
+          <h2 className="text-xl font-semibold">
+            {mostRecentMonth.Month} Expenses
+          </h2>
+          <div className="flex gap-2">
+            <Button
+              onClick={handleSaveAllNotes}
+              variant="outline"
+              size="sm"
+              className="text-green-600 border-green-600 hover:bg-green-50"
+            >
+              Save All Notes
+            </Button>
+            <Button
+              onClick={handleClearAllNotes}
+              variant="outline"
+              size="sm"
+              className="text-red-600 border-red-600 hover:bg-red-50"
+            >
+              Clear All Notes
+            </Button>
+          </div>
+        </div>
         <div className="text-sm text-gray-500">
           Total Expenses: {formatCurrency(mostRecentMonth.Expenses)}
         </div>
