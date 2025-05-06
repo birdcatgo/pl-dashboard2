@@ -141,7 +141,31 @@ const TradeshiftReview = ({ tradeshiftData }) => {
 
   let sortedData = [...(tradeshiftData || [])];
 
-  // Apply sorting
+  // Define status priority (ACTIVE first)
+  const statusPriority = {
+    'ACTIVE': 0,
+    'ONCE OFF': 1,
+    'CANCELLED': 2,
+    'EXPIRED': 3
+  };
+
+  // Always sort by status (ACTIVE first), then account, then name
+  sortedData.sort((a, b) => {
+    // First, sort by status
+    const aStatus = expenseStatuses[`${a.lastFourDigits}-${sortedData.indexOf(a)}`] || 'ACTIVE';
+    const bStatus = expenseStatuses[`${b.lastFourDigits}-${sortedData.indexOf(b)}`] || 'ACTIVE';
+    const statusCompare = statusPriority[aStatus] - statusPriority[bStatus];
+    if (statusCompare !== 0) return statusCompare;
+
+    // Then, sort by account
+    const accountCompare = (a.account || '').localeCompare(b.account || '');
+    if (accountCompare !== 0) return accountCompare;
+
+    // Finally, sort by name
+    return (a.name || '').localeCompare(b.name || '');
+  });
+
+  // Apply additional sorting if specified
   if (sortConfig.key) {
     sortedData.sort((a, b) => {
       if (['available', 'spent', 'approved'].includes(sortConfig.key)) {
