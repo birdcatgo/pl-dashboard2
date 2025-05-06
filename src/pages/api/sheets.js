@@ -93,7 +93,14 @@ async function processPLData(batchResponse) {
 }
 
 async function processTradeShiftData(response) {
-  console.log('Processing Tradeshift response:', response); // Debug log
+  console.log('Processing Tradeshift response:', {
+    hasResponse: !!response,
+    hasValues: !!response?.values,
+    valuesLength: response?.values?.length,
+    headerRow: response?.values?.[0],
+    sampleDataRow: response?.values?.[1],
+    allRows: response?.values
+  });
 
   if (!response?.values || response.values.length <= 1) {
     console.log('No valid Tradeshift data found');
@@ -102,28 +109,36 @@ async function processTradeShiftData(response) {
   
   try {
     // Skip header row and process data
-    const rows = response.values.slice(1).map(row => {
-      if (!row || row.length < 5) {
-        console.log('Invalid row:', row);
+    const rows = response.values.slice(1).map((row, index) => {
+      if (!row || row.length < 9) {
+        console.log(`Invalid row at index ${index}:`, {
+          row,
+          length: row?.length
+        });
         return null;
       }
 
-      const amount = parseFloat((row[2] || '0').replace(/[$,]/g, ''));
-      if (isNaN(amount)) {
-        console.log('Invalid amount:', row[2]);
-        return null;
-      }
-
-      return {
-        purpose: row[0]?.trim() || '',
-        card: row[1]?.trim() || '',
-        amount: amount,
-        merchantName: row[3]?.trim() || '',
-        cardLastDigits: row[4]?.trim() || ''
+      const processedRow = {
+        lastFourDigits: row[0]?.trim() || '',
+        name: row[1]?.trim() || '',
+        endDate: row[2]?.trim() || '',
+        usage: row[3]?.trim() || '',
+        available: row[4]?.trim() || '$0',
+        spent: row[5]?.trim() || '$0',
+        approved: row[6]?.trim() || '$0',
+        status: row[7]?.trim() || '',
+        account: row[8]?.trim() || ''
       };
+
+      console.log(`Processed row ${index}:`, processedRow);
+      return processedRow;
     }).filter(Boolean); // Remove any null entries
 
-    console.log('Processed Tradeshift rows:', rows.length);
+    console.log('Final processed Tradeshift data:', {
+      rowCount: rows.length,
+      sampleRow: rows[0],
+      allRows: rows
+    });
     return rows;
   } catch (error) {
     console.error('Error processing Tradeshift data:', error);
@@ -368,6 +383,19 @@ export default async function handler(req, res) {
 
     const sheets = google.sheets({ version: 'v4', auth });
 
+    // First, get all sheet names
+    try {
+      const spreadsheet = await sheets.spreadsheets.get({
+        spreadsheetId: SHEET_ID,
+      });
+      
+      console.log('Available sheets:', {
+        sheets: spreadsheet.data.sheets.map(sheet => sheet.properties.title)
+      });
+    } catch (error) {
+      console.error('Error getting sheet names:', error);
+    }
+
     // Define ranges to fetch
     const ranges = [
       "'Main Sheet'!A:L",
@@ -389,7 +417,7 @@ export default async function handler(req, res) {
       "'June'!A:E",
       "'Network Terms'!A:J",
       "'Invoices'!A:F",
-      "'Tradeshift Check'!A:E",
+      "'Tradeshift Check'!A:I",
       "'Monthly Expenses'!A:D",
       "'Commissions'!A:H",
       "'Employees'!A:J",
@@ -504,6 +532,20 @@ export default async function handler(req, res) {
       headerRow: networkTermsResponse?.values?.[0],
       allRows: networkTermsResponse?.values?.slice(1),
       networks: networkTermsResponse?.values?.slice(1).map(row => row[0]).filter(Boolean)
+    });
+
+    // Add specific logging for Tradeshift sheet
+    console.log('Tradeshift Sheet Details:', {
+      sheetName: 'Tradeshift Check',
+      range: "'Tradeshift Check'!A:I",
+      response: {
+        hasResponse: !!tradeshiftResponse,
+        hasValues: !!tradeshiftResponse?.values,
+        valuesLength: tradeshiftResponse?.values?.length,
+        firstRow: tradeshiftResponse?.values?.[0],
+        sampleRows: tradeshiftResponse?.values?.slice(0, 3),
+        fullResponse: tradeshiftResponse
+      }
     });
 
     // Process each response with error handling

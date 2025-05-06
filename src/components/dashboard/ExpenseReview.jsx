@@ -111,7 +111,8 @@ const ExpenseReview = ({ plData }) => {
   if (!monthlyData) return <div>No expense data available for {mostRecentMonth.Month}</div>;
 
   // Convert categories object to array of entries and prepare for sorting
-  let categories = Object.entries(monthlyData.categories || {});
+  let categories = Object.entries(monthlyData.categories || {})
+    .filter(([category]) => category !== 'Advertising'); // Exclude Advertising category
   
   // Flatten the data for sorting
   let sortedData = categories.flatMap(([category, items]) => 
@@ -145,6 +146,9 @@ const ExpenseReview = ({ plData }) => {
     });
   }
 
+  // Calculate total expenses (excluding Advertising)
+  const totalExpenses = sortedData.reduce((sum, item) => sum + item.Amount, 0);
+
   const SortIcon = ({ columnKey }) => {
     if (sortConfig.key !== columnKey) return null;
     return sortConfig.direction === 'asc' ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />;
@@ -177,7 +181,7 @@ const ExpenseReview = ({ plData }) => {
           </div>
         </div>
         <div className="text-sm text-gray-500">
-          Total Expenses: {formatCurrency(mostRecentMonth.Expenses)}
+          Total Expenses: {formatCurrency(totalExpenses)}
         </div>
       </div>
 

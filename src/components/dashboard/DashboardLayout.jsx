@@ -58,6 +58,7 @@ import { MEDIA_BUYER_CONTRACTOR_AGREEMENT } from '@/lib/contract-templates';
 import TimezoneConverter from './TimezoneConverter';
 import AdAccounts from './AdAccounts';
 import ExpenseReview from './ExpenseReview';
+import TradeshiftReview from './TradeshiftReview';
 
 export default function DashboardLayout({ 
   performanceData, 
@@ -314,6 +315,21 @@ export default function DashboardLayout({
                       <div>
                         <h3 className="font-medium">Expense Review</h3>
                         <p className="text-sm text-gray-600">Review and analyze expenses</p>
+                      </div>
+                    </div>
+                  </button>
+                  <button
+                    onClick={() => {
+                      setActiveTab('accounts');
+                      setAccountsSubview('tradeshift-review');
+                    }}
+                    className="w-full text-left px-4 py-3 bg-white rounded-lg shadow hover:shadow-md transition-shadow duration-200"
+                  >
+                    <div className="flex items-center space-x-3">
+                      <span className="text-xl">📅</span>
+                      <div>
+                        <h3 className="font-medium">Tradeshift Review</h3>
+                        <p className="text-sm text-gray-600">Review and analyze tradeshift data</p>
                       </div>
                     </div>
                   </button>
@@ -825,64 +841,43 @@ export default function DashboardLayout({
             
             {/* Accounts Subviews Navigation */}
             <div className="bg-white rounded-lg shadow-sm border border-gray-100 p-4 mb-6">
-              <div className="space-y-6">
-                <div className="flex space-x-4">
-                  <Button
-                    variant={accountsSubview === 'invoices' ? 'default' : 'outline'}
-                    onClick={() => setAccountsSubview('invoices')}
-                    className={`flex items-center ${
-                      accountsSubview === 'invoices' 
-                        ? 'bg-blue-100 text-blue-800 border-blue-200 hover:bg-blue-200' 
-                        : 'hover:bg-blue-50'
-                    }`}
-                  >
-                    📄 Invoices (Receivable)
-                  </Button>
-                  <Button
-                    variant={accountsSubview === 'expenses' ? 'default' : 'outline'}
-                    onClick={() => setAccountsSubview('expenses')}
-                    className={`flex items-center ${
-                      accountsSubview === 'expenses' 
-                        ? 'bg-red-100 text-red-800 border-red-200 hover:bg-red-200' 
-                        : 'hover:bg-red-50'
-                    }`}
-                  >
-                    💰 Upcoming Expenses (Payable)
-                  </Button>
-                  <Button
-                    variant={accountsSubview === 'expense-overview' ? 'default' : 'outline'}
-                    onClick={() => setAccountsSubview('expense-overview')}
-                    className={`flex items-center ${
-                      accountsSubview === 'expense-overview' 
-                        ? 'bg-green-100 text-green-800 border-green-200 hover:bg-green-200' 
-                        : 'hover:bg-green-50'
-                    }`}
-                  >
-                    📊 Expense Overview
-                  </Button>
-                  <Button
-                    variant={accountsSubview === 'expense-review' ? 'default' : 'outline'}
-                    onClick={() => setAccountsSubview('expense-review')}
-                    className={`flex items-center ${
-                      accountsSubview === 'expense-review' 
-                        ? 'bg-yellow-100 text-yellow-800 border-yellow-200 hover:bg-yellow-200' 
-                        : 'hover:bg-yellow-50'
-                    }`}
-                  >
-                    📅 Expense Review
-                  </Button>
-                  <Button
-                    variant={accountsSubview === 'commissions' ? 'default' : 'outline'}
-                    onClick={() => setAccountsSubview('commissions')}
-                    className={`flex items-center ${
-                      accountsSubview === 'commissions' 
-                        ? 'bg-purple-100 text-purple-800 border-purple-200 hover:bg-purple-200' 
-                        : 'hover:bg-purple-50'
-                    }`}
-                  >
-                    💸 Commission Payments
-                  </Button>
-                </div>
+              <div className="flex space-x-4">
+                <Button
+                  variant={accountsSubview === 'invoices' ? 'default' : 'outline'}
+                  onClick={() => setAccountsSubview('invoices')}
+                >
+                  Invoices
+                </Button>
+                <Button
+                  variant={accountsSubview === 'expenses' ? 'default' : 'outline'}
+                  onClick={() => setAccountsSubview('expenses')}
+                >
+                  Upcoming Expenses
+                </Button>
+                <Button
+                  variant={accountsSubview === 'expense-overview' ? 'default' : 'outline'}
+                  onClick={() => setAccountsSubview('expense-overview')}
+                >
+                  Expense Overview
+                </Button>
+                <Button
+                  variant={accountsSubview === 'expense-review' ? 'default' : 'outline'}
+                  onClick={() => setAccountsSubview('expense-review')}
+                >
+                  Expense Review
+                </Button>
+                <Button
+                  variant={accountsSubview === 'tradeshift-review' ? 'default' : 'outline'}
+                  onClick={() => setAccountsSubview('tradeshift-review')}
+                >
+                  Tradeshift Review
+                </Button>
+                <Button
+                  variant={accountsSubview === 'commissions' ? 'default' : 'outline'}
+                  onClick={() => setAccountsSubview('commissions')}
+                >
+                  Commissions
+                </Button>
               </div>
             </div>
 
@@ -904,6 +899,9 @@ export default function DashboardLayout({
               )}
               {accountsSubview === 'expense-review' && (
                 <ExpenseReview plData={plData} />
+              )}
+              {accountsSubview === 'tradeshift-review' && (
+                <TradeshiftReview tradeshiftData={tradeshiftData || []} />
               )}
               {accountsSubview === 'commissions' && (
                 <CommissionPayments commissions={performanceData?.commissions || []} />
