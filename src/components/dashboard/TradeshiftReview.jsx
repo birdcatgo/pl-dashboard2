@@ -20,6 +20,8 @@ const TradeshiftReview = ({ tradeshiftData }) => {
     key: null,
     direction: 'asc'
   });
+  const [selectedItems, setSelectedItems] = useState(new Set());
+  const [selectAll, setSelectAll] = useState(false);
 
   // Load saved state from localStorage
   useEffect(() => {
@@ -40,7 +42,8 @@ const TradeshiftReview = ({ tradeshiftData }) => {
       const nextStatus = {
         'ACTIVE': 'CANCELLED',
         'CANCELLED': 'ONCE OFF',
-        'ONCE OFF': 'ACTIVE'
+        'ONCE OFF': 'EXPIRED',
+        'EXPIRED': 'ACTIVE'
       }[currentStatus];
       
       return {
@@ -50,12 +53,46 @@ const TradeshiftReview = ({ tradeshiftData }) => {
     });
   };
 
+  const handleBulkStatusChange = (newStatus) => {
+    setExpenseStatuses(prev => {
+      const updated = { ...prev };
+      selectedItems.forEach(itemId => {
+        updated[itemId] = newStatus;
+      });
+      return updated;
+    });
+    toast.success(`Updated ${selectedItems.size} items to ${newStatus}`);
+  };
+
+  const handleSelectAll = (checked) => {
+    setSelectAll(checked);
+    if (checked) {
+      const allIds = sortedData.map((item, index) => `${item.lastFourDigits}-${index}`);
+      setSelectedItems(new Set(allIds));
+    } else {
+      setSelectedItems(new Set());
+    }
+  };
+
+  const handleSelectItem = (itemId, checked) => {
+    const newSelected = new Set(selectedItems);
+    if (checked) {
+      newSelected.add(itemId);
+    } else {
+      newSelected.delete(itemId);
+    }
+    setSelectedItems(newSelected);
+    setSelectAll(newSelected.size === sortedData.length);
+  };
+
   const getStatusStyle = (status) => {
     switch (status) {
       case 'CANCELLED':
         return 'bg-red-100 text-red-800 hover:bg-red-200';
       case 'ONCE OFF':
         return 'bg-yellow-100 text-yellow-800 hover:bg-yellow-200';
+      case 'EXPIRED':
+        return 'bg-gray-100 text-gray-800 hover:bg-gray-200';
       default: // ACTIVE
         return 'bg-green-100 text-green-800 hover:bg-green-200';
     }
@@ -150,12 +187,56 @@ const TradeshiftReview = ({ tradeshiftData }) => {
             </Button>
           </div>
         </div>
+        {selectedItems.size > 0 && (
+          <div className="flex gap-2">
+            <Button
+              onClick={() => handleBulkStatusChange('ACTIVE')}
+              size="sm"
+              variant="outline"
+              className="bg-green-100 text-green-800 hover:bg-green-200 border-green-600"
+            >
+              Set Active
+            </Button>
+            <Button
+              onClick={() => handleBulkStatusChange('CANCELLED')}
+              size="sm"
+              variant="outline"
+              className="bg-red-100 text-red-800 hover:bg-red-200 border-red-600"
+            >
+              Set Cancelled
+            </Button>
+            <Button
+              onClick={() => handleBulkStatusChange('ONCE OFF')}
+              size="sm"
+              variant="outline"
+              className="bg-yellow-100 text-yellow-800 hover:bg-yellow-200 border-yellow-600"
+            >
+              Set Once Off
+            </Button>
+            <Button
+              onClick={() => handleBulkStatusChange('EXPIRED')}
+              size="sm"
+              variant="outline"
+              className="bg-gray-100 text-gray-800 hover:bg-gray-200 border-gray-600"
+            >
+              Set Expired
+            </Button>
+          </div>
+        )}
       </div>
 
       <div className="overflow-x-auto">
         <table className="min-w-full divide-y divide-gray-200 text-xs">
           <thead className="bg-gray-50">
             <tr>
+              <th scope="col" className="px-2 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                <input
+                  type="checkbox"
+                  checked={selectAll}
+                  onChange={(e) => handleSelectAll(e.target.checked)}
+                  className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                />
+              </th>
               <th scope="col" className="px-2 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer" onClick={() => handleSort('lastFourDigits')}>
                 <div className="flex items-center gap-1">
                   Last 4
@@ -219,6 +300,14 @@ const TradeshiftReview = ({ tradeshiftData }) => {
               const businessName = tradeshiftMapping[item.lastFourDigits];
               return (
                 <tr key={itemId} className="hover:bg-gray-50">
+                  <td className="px-2 py-2 whitespace-nowrap">
+                    <input
+                      type="checkbox"
+                      checked={selectedItems.has(itemId)}
+                      onChange={(e) => handleSelectItem(itemId, e.target.checked)}
+                      className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                    />
+                  </td>
                   <td className="px-2 py-2 whitespace-nowrap text-xs text-gray-900">{item.lastFourDigits}</td>
                   <td className="px-2 py-2 whitespace-nowrap text-xs text-gray-900">{item.name}</td>
                   <td className="px-2 py-2 whitespace-nowrap text-xs text-gray-900">{item.endDate}</td>
