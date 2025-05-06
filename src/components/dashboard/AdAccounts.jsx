@@ -29,7 +29,7 @@ const AdAccounts = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [generatedCodes, setGeneratedCodes] = useState({});
-  const [expandedAccounts, setExpandedAccounts] = useState({});
+  const [expandedBuyers, setExpandedBuyers] = useState({});
 
   useEffect(() => {
     const fetchAccounts = async () => {
@@ -152,208 +152,169 @@ const AdAccounts = () => {
     }
   };
 
-  const toggleAccount = (accountId) => {
-    setExpandedAccounts(prev => ({
+  const toggleBuyer = (buyerId) => {
+    setExpandedBuyers(prev => ({
       ...prev,
-      [accountId]: !prev[accountId]
+      [buyerId]: !prev[buyerId]
     }));
   };
 
-  // Group accounts by Ad Account
+  // Group accounts by Media Buyer
   const groupedAccounts = accounts.reduce((acc, account) => {
-    const adAccount = account['Ad Account'];
-    if (!acc[adAccount]) {
-      acc[adAccount] = {
-        adAccount,
-        '2FA': account['2FA'],
-        Alerts: account.Alerts,
-        'Media Buyer': account['Media Buyer'],
-        children: []
+    const mediaBuyer = account['Media Buyer'] || 'Unassigned';
+    if (!acc[mediaBuyer]) {
+      acc[mediaBuyer] = {
+        mediaBuyer,
+        accounts: []
       };
     }
-    acc[adAccount].children.push(account);
+    acc[mediaBuyer].accounts.push(account);
     return acc;
   }, {});
 
-  // Sort accounts to show those with alerts first
-  const sortedAccounts = Object.values(groupedAccounts).sort((a, b) => {
-    const aHasAlert = a.Alerts && a.Alerts.trim() !== '';
-    const bHasAlert = b.Alerts && b.Alerts.trim() !== '';
-    if (aHasAlert && !bHasAlert) return -1;
-    if (!aHasAlert && bHasAlert) return 1;
-    return 0;
-  });
+  // Sort media buyers alphabetically and sort accounts within each group
+  const sortedBuyers = Object.values(groupedAccounts).sort((a, b) => {
+    return a.mediaBuyer.localeCompare(b.mediaBuyer);
+  }).map(buyerGroup => ({
+    ...buyerGroup,
+    accounts: buyerGroup.accounts.sort((a, b) => {
+      // First sort by alert status
+      const aHasAlert = a.Alerts && a.Alerts.trim() !== '';
+      const bHasAlert = b.Alerts && b.Alerts.trim() !== '';
+      
+      if (aHasAlert !== bHasAlert) {
+        return aHasAlert ? 1 : -1; // No alerts go to the top
+      }
+      
+      // Then sort by Adspower Account within each alert status group
+      const adspowerA = (a['Adspower Account'] || '').toLowerCase();
+      const adspowerB = (b['Adspower Account'] || '').toLowerCase();
+      
+      if (adspowerA !== adspowerB) {
+        // Handle empty Adspower Account values
+        if (!adspowerA) return 1;  // Push empty values to the bottom
+        if (!adspowerB) return -1; // Push empty values to the bottom
+        return adspowerA.localeCompare(adspowerB);
+      }
+      
+      // Finally sort by Ad Account if everything else is equal
+      return a['Ad Account'].localeCompare(b['Ad Account']);
+    })
+  }));
 
   if (loading) return <div className="p-4">Loading...</div>;
   if (error) return <div className="p-4 text-red-500">Error: {error}</div>;
 
   return (
     <div className="p-4">
-      <div className="overflow-x-auto">
-        <table className="min-w-full text-xs">
-          <thead className="bg-gray-50">
-            <tr>
-              <th className="px-2 py-1 text-left font-medium text-gray-500">Ad Account</th>
-              <th className="px-2 py-1 text-left font-medium text-gray-500">Adspower Account</th>
-              <th className="px-2 py-1 text-left font-medium text-gray-500">BM</th>
-              <th className="px-2 py-1 text-left font-medium text-gray-500">Profile</th>
-              <th className="px-2 py-1 text-left font-medium text-gray-500">Media Buyer</th>
-              <th className="px-2 py-1 text-left font-medium text-gray-500">AdsPower X4</th>
-              <th className="px-2 py-1 text-left font-medium text-gray-500">Alerts</th>
-              <th className="px-2 py-1 text-left font-medium text-gray-500">2FA</th>
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-gray-200">
-            {sortedAccounts.map((account) => {
-              const hasAlert = account.Alerts && account.Alerts.trim() !== '';
-              const alertStatus = getAlertStatus(account.Alerts);
-              const generatedCode = generatedCodes[account.adAccount];
-              const isExpanded = expandedAccounts[account.adAccount];
-              const hasChildren = account.children.length > 1;
-              
-              return (
-                <React.Fragment key={account.adAccount}>
-                  <tr className={`${hasAlert ? 'bg-red-50' : ''} hover:bg-gray-50`}>
-                    <td className="px-2 py-1">
-                      <div className="flex items-center gap-1">
-                        {hasChildren && (
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            className="h-6 w-6 p-1"
-                            onClick={() => toggleAccount(account.adAccount)}
-                          >
-                            {isExpanded ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
-                          </Button>
-                        )}
-                        <span className="font-medium">{account.adAccount}</span>
-                      </div>
-                    </td>
-                    <td className="px-2 py-1">{account.children[0]['Adspower Account'] || '-'}</td>
-                    <td className="px-2 py-1">{account.children[0].BM}</td>
-                    <td className="px-2 py-1">{account.children[0].Profile}</td>
-                    <td className="px-2 py-1">{account['Media Buyer']}</td>
-                    <td className="px-2 py-1">{account.children[0]['AdsPower X4']}</td>
-                    <td className="px-2 py-1">
-                      {account.Alerts && (
-                        <div className="flex items-center gap-1">
-                          {alertStatus === 'error' && <XCircle className="h-3 w-3 text-red-500" />}
-                          {alertStatus === 'warning' && <AlertCircle className="h-3 w-3 text-yellow-500" />}
-                          {alertStatus === 'good' && <CheckCircle2 className="h-3 w-3 text-green-500" />}
-                          <span>{account.Alerts}</span>
-                        </div>
-                      )}
-                    </td>
-                    <td className="px-2 py-1">
-                      {account['2FA'] && (
-                        <div className="flex items-center gap-1">
-                          <div className="flex flex-col gap-1">
-                            <div className="flex items-center gap-1">
-                              <span className="font-mono text-sm">{account['2FA']}</span>
-                              <Button
-                                variant="ghost"
-                                size="sm"
-                                className="h-6 w-6 p-1"
-                                onClick={() => copyToClipboard(account['2FA'])}
-                              >
-                                <Copy size={14} />
-                              </Button>
-                            </div>
-                            {generatedCode && (
+      <div className="space-y-4">
+        {sortedBuyers.map((buyerGroup) => (
+          <div key={buyerGroup.mediaBuyer} className="border rounded-lg overflow-hidden">
+            <div 
+              className="bg-gray-100 p-3 flex items-center justify-between cursor-pointer"
+              onClick={() => toggleBuyer(buyerGroup.mediaBuyer)}
+            >
+              <div className="flex items-center gap-2">
+                {expandedBuyers[buyerGroup.mediaBuyer] ? 
+                  <ChevronDown size={20} /> : 
+                  <ChevronRight size={20} />
+                }
+                <h3 className="font-medium">{buyerGroup.mediaBuyer}</h3>
+                <span className="text-sm text-gray-500">
+                  ({buyerGroup.accounts.length} account{buyerGroup.accounts.length !== 1 ? 's' : ''})
+                </span>
+              </div>
+            </div>
+            
+            {expandedBuyers[buyerGroup.mediaBuyer] && (
+              <div className="overflow-x-auto">
+                <table className="min-w-full text-xs">
+                  <thead className="bg-gray-50">
+                    <tr>
+                      <th className="px-2 py-1 text-left font-medium text-gray-500">Ad Account</th>
+                      <th className="px-2 py-1 text-left font-medium text-gray-500">Adspower Account</th>
+                      <th className="px-2 py-1 text-left font-medium text-gray-500">BM</th>
+                      <th className="px-2 py-1 text-left font-medium text-gray-500">Profile</th>
+                      <th className="px-2 py-1 text-left font-medium text-gray-500">AdsPower X4</th>
+                      <th className="px-2 py-1 text-left font-medium text-gray-500">Alerts</th>
+                      <th className="px-2 py-1 text-left font-medium text-gray-500">2FA</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-gray-200">
+                    {buyerGroup.accounts.map((account) => {
+                      const hasAlert = account.Alerts && account.Alerts.trim() !== '';
+                      const alertStatus = getAlertStatus(account.Alerts);
+                      const generatedCode = generatedCodes[account['Ad Account']];
+                      
+                      return (
+                        <tr key={account['Ad Account']} className={`${hasAlert ? 'bg-red-50' : ''} hover:bg-gray-50`}>
+                          <td className="px-2 py-1">
+                            <span className="font-medium">{account['Ad Account']}</span>
+                          </td>
+                          <td className="px-2 py-1">{account['Adspower Account'] || '-'}</td>
+                          <td className="px-2 py-1">{account.BM}</td>
+                          <td className="px-2 py-1">{account.Profile}</td>
+                          <td className="px-2 py-1">{account['AdsPower X4']}</td>
+                          <td className="px-2 py-1">
+                            {account.Alerts && (
                               <div className="flex items-center gap-1">
-                                <span className="font-mono text-sm text-green-600">{generatedCode}</span>
+                                {alertStatus === 'error' && <XCircle className="h-3 w-3 text-red-500" />}
+                                {alertStatus === 'warning' && <AlertCircle className="h-3 w-3 text-yellow-500" />}
+                                {alertStatus === 'good' && <CheckCircle2 className="h-3 w-3 text-green-500" />}
+                                <span>{account.Alerts}</span>
+                              </div>
+                            )}
+                          </td>
+                          <td className="px-2 py-1">
+                            {account['2FA'] && (
+                              <div className="flex items-center gap-1">
+                                <div className="flex flex-col gap-1">
+                                  <div className="flex items-center gap-1">
+                                    <span className="font-mono text-sm">{account['2FA']}</span>
+                                    <Button
+                                      variant="ghost"
+                                      size="sm"
+                                      className="h-6 w-6 p-1"
+                                      onClick={() => copyToClipboard(account['2FA'])}
+                                    >
+                                      <Copy size={14} />
+                                    </Button>
+                                  </div>
+                                  {generatedCode && (
+                                    <div className="flex items-center gap-1">
+                                      <span className="font-mono text-sm text-green-600">{generatedCode}</span>
+                                      <Button
+                                        variant="ghost"
+                                        size="sm"
+                                        className="h-6 w-6 p-1"
+                                        onClick={() => copyToClipboard(generatedCode)}
+                                      >
+                                        <Copy size={14} />
+                                      </Button>
+                                    </div>
+                                  )}
+                                </div>
                                 <Button
                                   variant="ghost"
                                   size="sm"
                                   className="h-6 w-6 p-1"
-                                  onClick={() => copyToClipboard(generatedCode)}
+                                  onClick={() => handleGenerateCode(account)}
+                                  title="Generate new 2FA code"
                                 >
-                                  <Copy size={14} />
+                                  <RefreshCw size={14} />
                                 </Button>
                               </div>
                             )}
-                          </div>
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            className="h-6 w-6 p-1"
-                            onClick={() => handleGenerateCode(account)}
-                            title="Generate new 2FA code"
-                          >
-                            <RefreshCw size={14} />
-                          </Button>
-                        </div>
-                      )}
-                    </td>
-                  </tr>
-                  {isExpanded && account.children.slice(1).map((child, index) => (
-                    <tr key={`${account.adAccount}-${index}`} className="bg-gray-50">
-                      <td className="px-2 py-1 pl-8">
-                        <span className="text-gray-500">Duplicate</span>
-                      </td>
-                      <td className="px-2 py-1">{child['Adspower Account'] || '-'}</td>
-                      <td className="px-2 py-1">{child.BM}</td>
-                      <td className="px-2 py-1">{child.Profile}</td>
-                      <td className="px-2 py-1">{child['Media Buyer']}</td>
-                      <td className="px-2 py-1">{child['AdsPower X4']}</td>
-                      <td className="px-2 py-1">
-                        {child.Alerts && (
-                          <div className="flex items-center gap-1">
-                            {getAlertStatus(child.Alerts) === 'error' && <XCircle className="h-3 w-3 text-red-500" />}
-                            {getAlertStatus(child.Alerts) === 'warning' && <AlertCircle className="h-3 w-3 text-yellow-500" />}
-                            {getAlertStatus(child.Alerts) === 'good' && <CheckCircle2 className="h-3 w-3 text-green-500" />}
-                            <span>{child.Alerts}</span>
-                          </div>
-                        )}
-                      </td>
-                      <td className="px-2 py-1">
-                        {child['2FA'] && (
-                          <div className="flex items-center gap-1">
-                            <div className="flex flex-col gap-1">
-                              <div className="flex items-center gap-1">
-                                <span className="font-mono text-sm">{child['2FA']}</span>
-                                <Button
-                                  variant="ghost"
-                                  size="sm"
-                                  className="h-6 w-6 p-1"
-                                  onClick={() => copyToClipboard(child['2FA'])}
-                                >
-                                  <Copy size={14} />
-                                </Button>
-                              </div>
-                              {generatedCodes[child['Ad Account']] && (
-                                <div className="flex items-center gap-1">
-                                  <span className="font-mono text-sm text-green-600">{generatedCodes[child['Ad Account']]}</span>
-                                  <Button
-                                    variant="ghost"
-                                    size="sm"
-                                    className="h-6 w-6 p-1"
-                                    onClick={() => copyToClipboard(generatedCodes[child['Ad Account']])}
-                                  >
-                                    <Copy size={14} />
-                                  </Button>
-                                </div>
-                              )}
-                            </div>
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              className="h-6 w-6 p-1"
-                              onClick={() => handleGenerateCode(child)}
-                              title="Generate new 2FA code"
-                            >
-                              <RefreshCw size={14} />
-                            </Button>
-                          </div>
-                        )}
-                      </td>
-                    </tr>
-                  ))}
-                </React.Fragment>
-              );
-            })}
-          </tbody>
-        </table>
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </div>
+        ))}
       </div>
     </div>
   );
