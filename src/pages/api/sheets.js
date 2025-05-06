@@ -17,29 +17,45 @@ async function processPLData(batchResponse) {
       const monthName = monthSheet.range.split('!')[0];
       
       if (monthSheet.values && monthSheet.values.length > 1) {
-        // Map rows more efficiently with a single pass
-        const monthlyRows = monthSheet.values.slice(1).map(row => ({
-          DESCRIPTION: row[0]?.trim() || '',
-          AMOUNT: parseFloat(row[1]?.replace(/[$,]/g, '') || '0'),
-          CATEGORY: row[2]?.trim() || '',
-          'Income/Expense': row[3]?.trim() || ''
-        }));
+        // Map rows more efficiently with a single pass, matching exact sheet column order
+        const monthlyRows = monthSheet.values.slice(1).map(row => {
+          // Parse amount properly, handling empty or invalid values
+          let amount = 0;
+          if (row[1]) {
+            amount = parseFloat(row[1].replace(/[$,]/g, '')) || 0;
+          }
+
+          // Get Card/Account value, ensuring we handle undefined/null cases
+          let cardAccount = '-';
+          if (row.length >= 5 && row[4] !== undefined && row[4] !== null && row[4] !== '') {
+            cardAccount = row[4].trim();
+          }
+          
+          return {
+            Date: monthName,
+            Category: row[2]?.trim() || '',
+            'Card/Account': cardAccount,
+            Description: row[0]?.trim() || '',
+            Amount: amount,
+            'Income/Expense': row[3]?.trim() || ''
+          };
+        });
 
         // Calculate totals in a single reduce operation
         const { incomeData, expenseData, totalIncome, totalExpenses } = monthlyRows.reduce((acc, row) => {
           if (row['Income/Expense']?.toLowerCase() === 'income') {
             acc.incomeData.push(row);
-            acc.totalIncome += row.AMOUNT;
+            acc.totalIncome += row.Amount;
           } else {
             acc.expenseData.push(row);
-            acc.totalExpenses += row.AMOUNT;
+            acc.totalExpenses += row.Amount;
           }
           return acc;
         }, { incomeData: [], expenseData: [], totalIncome: 0, totalExpenses: 0 });
 
         // Group expenses by category more efficiently
         const categories = expenseData.reduce((acc, expense) => {
-          const category = expense.CATEGORY || 'Uncategorized';
+          const category = expense.Category || 'Uncategorized';
           if (!acc[category]) acc[category] = [];
           acc[category].push(expense);
           return acc;
@@ -68,13 +84,6 @@ async function processPLData(batchResponse) {
     }));
 
     const result = { summary: summaryData, monthly: monthlyData };
-
-    console.log('API sending networkTerms:', {
-      hasTerms: !!result.networkTerms,
-      termsCount: result.networkTerms?.length,
-      sampleTerm: result.networkTerms?.[0]
-    });
-
     return result;
 
   } catch (error) {
@@ -367,17 +376,17 @@ export default async function handler(req, res) {
       "'Media Buyer Spend'!A:B",
       "'Summary'!A:V",
       "'Network Payment Schedule'!A:H",
-      "'April'!A:D",
-      "'March'!A:D",
-      "'February'!A:D",
-      "'January'!A:D",
-      "'December'!A:D",
-      "'November'!A:D",
-      "'October'!A:D",
-      "'September'!A:D",
-      "'August'!A:D",
-      "'July'!A:D",
-      "'June'!A:D",
+      "'April'!A:E",
+      "'March'!A:E",
+      "'February'!A:E",
+      "'January'!A:E",
+      "'December'!A:E",
+      "'November'!A:E",
+      "'October'!A:E",
+      "'September'!A:E",
+      "'August'!A:E",
+      "'July'!A:E",
+      "'June'!A:E",
       "'Network Terms'!A:J",
       "'Invoices'!A:F",
       "'Tradeshift Check'!A:E",

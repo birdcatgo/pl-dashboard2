@@ -79,10 +79,8 @@ const ExpenseReview = ({ plData }) => {
   // Flatten the data for sorting
   let sortedData = categories.flatMap(([category, items]) => 
     items.map((item, index) => ({
-      category,
       ...item,
-      expenseId: `${category}-${index}`,
-      amount: parseFloat(item.AMOUNT)
+      expenseId: `${category}-${index}`
     }))
   );
 
@@ -90,15 +88,21 @@ const ExpenseReview = ({ plData }) => {
   if (sortConfig.key) {
     sortedData.sort((a, b) => {
       if (sortConfig.key === 'amount') {
-        return sortConfig.direction === 'asc' ? a.amount - b.amount : b.amount - a.amount;
+        return sortConfig.direction === 'asc' ? a.Amount - b.Amount : b.Amount - a.Amount;
       } else if (sortConfig.key === 'description') {
         return sortConfig.direction === 'asc' 
-          ? a.DESCRIPTION.localeCompare(b.DESCRIPTION)
-          : b.DESCRIPTION.localeCompare(a.DESCRIPTION);
+          ? a.Description.localeCompare(b.Description)
+          : b.Description.localeCompare(a.Description);
       } else if (sortConfig.key === 'category') {
         return sortConfig.direction === 'asc'
-          ? a.category.localeCompare(b.category)
-          : b.category.localeCompare(a.category);
+          ? a.Category.localeCompare(b.Category)
+          : b.Category.localeCompare(a.Category);
+      } else if (sortConfig.key === 'cardAccount') {
+        const aCard = a['Card/Account'] || '-';
+        const bCard = b['Card/Account'] || '-';
+        return sortConfig.direction === 'asc'
+          ? aCard.localeCompare(bCard)
+          : bCard.localeCompare(aCard);
       }
       return 0;
     });
@@ -113,7 +117,7 @@ const ExpenseReview = ({ plData }) => {
     <div className="space-y-4">
       <div className="flex justify-between items-center">
         <h2 className="text-xl font-semibold">
-          {mostRecentMonth.Month} {['January', 'February', 'March', 'April'].includes(mostRecentMonth.Month) ? '2025' : '2024'} Expenses
+          {mostRecentMonth.Month} Expenses
         </h2>
         <div className="text-sm text-gray-500">
           Total Expenses: {formatCurrency(mostRecentMonth.Expenses)}
@@ -132,6 +136,15 @@ const ExpenseReview = ({ plData }) => {
                 <div className="flex items-center">
                   Category
                   <SortIcon columnKey="category" />
+                </div>
+              </th>
+              <th 
+                className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100"
+                onClick={() => handleSort('cardAccount')}
+              >
+                <div className="flex items-center">
+                  Card/Account
+                  <SortIcon columnKey="cardAccount" />
                 </div>
               </th>
               <th 
@@ -163,16 +176,19 @@ const ExpenseReview = ({ plData }) => {
                 className={cancelledExpenses.has(item.expenseId) ? 'bg-red-50' : 'hover:bg-gray-50'}
               >
                 <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                  {mostRecentMonth.Month} {['January', 'February', 'March', 'April'].includes(mostRecentMonth.Month) ? '2025' : '2024'}
+                  {item.Date}
                 </td>
                 <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                  {item.category}
+                  {item.Category}
+                </td>
+                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                  {item['Card/Account']}
                 </td>
                 <td className="px-6 py-4 text-sm text-gray-900">
-                  {item.DESCRIPTION}
+                  {item.Description}
                 </td>
                 <td className="px-6 py-4 whitespace-nowrap text-sm text-right text-gray-900">
-                  {formatCurrency(item.AMOUNT)}
+                  {formatCurrency(item.Amount)}
                 </td>
                 <td className="px-6 py-4 whitespace-nowrap text-sm text-center">
                   <button
