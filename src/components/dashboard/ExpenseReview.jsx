@@ -5,7 +5,7 @@ import { Button } from "@/components/ui/button";
 import { toast } from 'sonner';
 
 const ExpenseReview = ({ plData }) => {
-  const [cancelledExpenses, setCancelledExpenses] = useState(new Set());
+  const [expenseStatuses, setExpenseStatuses] = useState({});
   const [notes, setNotes] = useState({});
   const [sortConfig, setSortConfig] = useState({
     key: null,
@@ -14,16 +14,43 @@ const ExpenseReview = ({ plData }) => {
 
   // Load saved state from localStorage
   useEffect(() => {
-    const savedCancelled = localStorage.getItem('cancelledExpenses');
+    const savedStatuses = localStorage.getItem('expenseStatuses');
     const savedNotes = localStorage.getItem('expenseNotes');
-    if (savedCancelled) setCancelledExpenses(new Set(JSON.parse(savedCancelled)));
+    if (savedStatuses) setExpenseStatuses(JSON.parse(savedStatuses));
     if (savedNotes) setNotes(JSON.parse(savedNotes));
   }, []);
 
   // Save state to localStorage
   useEffect(() => {
-    localStorage.setItem('cancelledExpenses', JSON.stringify(Array.from(cancelledExpenses)));
-  }, [cancelledExpenses]);
+    localStorage.setItem('expenseStatuses', JSON.stringify(expenseStatuses));
+  }, [expenseStatuses]);
+
+  const handleStatusChange = (expenseId) => {
+    setExpenseStatuses(prev => {
+      const currentStatus = prev[expenseId] || 'ACTIVE';
+      const nextStatus = {
+        'ACTIVE': 'CANCELLED',
+        'CANCELLED': 'ONCE OFF',
+        'ONCE OFF': 'ACTIVE'
+      }[currentStatus];
+      
+      return {
+        ...prev,
+        [expenseId]: nextStatus
+      };
+    });
+  };
+
+  const getStatusStyle = (status) => {
+    switch (status) {
+      case 'CANCELLED':
+        return 'bg-red-100 text-red-800 hover:bg-red-200';
+      case 'ONCE OFF':
+        return 'bg-yellow-100 text-yellow-800 hover:bg-yellow-200';
+      default: // ACTIVE
+        return 'bg-green-100 text-green-800 hover:bg-green-200';
+    }
+  };
 
   const handleSaveAllNotes = () => {
     try {
@@ -63,18 +90,6 @@ const ExpenseReview = ({ plData }) => {
 
   const mostRecentMonth = getMostRecentMonth();
   if (!mostRecentMonth) return <div>No expense data available</div>;
-
-  const handleCancelToggle = (expenseId) => {
-    setCancelledExpenses(prev => {
-      const newSet = new Set(prev);
-      if (newSet.has(expenseId)) {
-        newSet.delete(expenseId);
-      } else {
-        newSet.add(expenseId);
-      }
-      return newSet;
-    });
-  };
 
   const handleNoteChange = (expenseId, note) => {
     setNotes(prev => ({
@@ -212,49 +227,48 @@ const ExpenseReview = ({ plData }) => {
             </tr>
           </thead>
           <tbody className="bg-white divide-y divide-gray-200">
-            {sortedData.map((item) => (
-              <tr 
-                key={item.expenseId}
-                className={cancelledExpenses.has(item.expenseId) ? 'bg-red-50' : 'hover:bg-gray-50'}
-              >
-                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                  {item.Date}
-                </td>
-                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                  {item.Category}
-                </td>
-                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                  {item['Card/Account']}
-                </td>
-                <td className="px-6 py-4 text-sm text-gray-900">
-                  {item.Description}
-                </td>
-                <td className="px-6 py-4 whitespace-nowrap text-sm text-right text-gray-900">
-                  {formatCurrency(item.Amount)}
-                </td>
-                <td className="px-6 py-4 whitespace-nowrap text-sm text-center">
-                  <button
-                    onClick={() => handleCancelToggle(item.expenseId)}
-                    className={`px-3 py-1 rounded-full text-sm ${
-                      cancelledExpenses.has(item.expenseId)
-                        ? 'bg-red-100 text-red-800'
-                        : 'bg-gray-100 text-gray-800 hover:bg-gray-200'
-                    }`}
-                  >
-                    {cancelledExpenses.has(item.expenseId) ? 'To Be Cancelled' : 'Active'}
-                  </button>
-                </td>
-                <td className="px-6 py-4 text-sm text-gray-900">
-                  <input
-                    type="text"
-                    value={notes[item.expenseId] || ''}
-                    onChange={(e) => handleNoteChange(item.expenseId, e.target.value)}
-                    placeholder="Add notes..."
-                    className="w-full px-2 py-1 border rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
-                  />
-                </td>
-              </tr>
-            ))}
+            {sortedData.map((item) => {
+              const status = expenseStatuses[item.expenseId] || 'ACTIVE';
+              return (
+                <tr 
+                  key={item.expenseId}
+                  className={status === 'CANCELLED' ? 'bg-red-50' : 'hover:bg-gray-50'}
+                >
+                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                    {item.Date}
+                  </td>
+                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                    {item.Category}
+                  </td>
+                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                    {item['Card/Account']}
+                  </td>
+                  <td className="px-6 py-4 text-sm text-gray-900">
+                    {item.Description}
+                  </td>
+                  <td className="px-6 py-4 whitespace-nowrap text-sm text-right text-gray-900">
+                    {formatCurrency(item.Amount)}
+                  </td>
+                  <td className="px-6 py-4 whitespace-nowrap text-sm text-center">
+                    <button
+                      onClick={() => handleStatusChange(item.expenseId)}
+                      className={`px-3 py-1 rounded-full text-sm font-medium ${getStatusStyle(status)}`}
+                    >
+                      {status}
+                    </button>
+                  </td>
+                  <td className="px-6 py-4 text-sm text-gray-900">
+                    <input
+                      type="text"
+                      value={notes[item.expenseId] || ''}
+                      onChange={(e) => handleNoteChange(item.expenseId, e.target.value)}
+                      placeholder="Add notes..."
+                      className="w-full px-2 py-1 border rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    />
+                  </td>
+                </tr>
+              );
+            })}
           </tbody>
         </table>
       </div>
