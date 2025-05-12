@@ -60,6 +60,7 @@ import AdAccounts from './AdAccounts';
 import DailyUpdate from './DailyUpdate';
 import ExpenseReview from './ExpenseReview';
 import TradeshiftReview from './TradeshiftReview';
+import DailyPLUpdate from './DailyPLUpdate';
 
 export default function DashboardLayout({ 
   performanceData, 
@@ -522,19 +523,31 @@ export default function DashboardLayout({
                 <h2 className="text-lg font-semibold">Tools</h2>
                 <div className="space-y-2">
                   <button
-                    onClick={() => setActiveTab('timezone')}
+                    onClick={() => setToolsSubview('daily-update')}
                     className="w-full text-left px-4 py-3 bg-white rounded-lg shadow hover:shadow-md transition-shadow duration-200"
                   >
                     <div className="flex items-center space-x-3">
-                      <span className="text-xl">⏰</span>
+                      <span className="text-xl">📝</span>
                       <div>
-                        <h3 className="font-medium">Timezone Converter</h3>
-                        <p className="text-sm text-gray-600">Convert between NZT and PST</p>
+                        <h3 className="font-medium">Daily Updates</h3>
+                        <p className="text-sm text-gray-600">Create and send slack updates</p>
                       </div>
                     </div>
                   </button>
                   <button
-                    onClick={() => setActiveTab('ad-accounts')}
+                    onClick={() => setToolsSubview('daily-pl-update')}
+                    className="w-full text-left px-4 py-3 bg-white rounded-lg shadow hover:shadow-md transition-shadow duration-200"
+                  >
+                    <div className="flex items-center space-x-3">
+                      <span className="text-xl">📊</span>
+                      <div>
+                        <h3 className="font-medium">Daily P&L Update</h3>
+                        <p className="text-sm text-gray-600">Track and report daily P&L</p>
+                      </div>
+                    </div>
+                  </button>
+                  <button
+                    onClick={() => setToolsSubview('ad-accounts')}
                     className="w-full text-left px-4 py-3 bg-white rounded-lg shadow hover:shadow-md transition-shadow duration-200"
                   >
                     <div className="flex items-center space-x-3">
@@ -546,14 +559,14 @@ export default function DashboardLayout({
                     </div>
                   </button>
                   <button
-                    onClick={() => setActiveTab('daily-update')}
+                    onClick={() => setToolsSubview('timezone')}
                     className="w-full text-left px-4 py-3 bg-white rounded-lg shadow hover:shadow-md transition-shadow duration-200"
                   >
                     <div className="flex items-center space-x-3">
-                      <span className="text-xl">📝</span>
+                      <span className="text-xl">⏰</span>
                       <div>
-                        <h3 className="font-medium">Daily Updates</h3>
-                        <p className="text-sm text-gray-600">Create and send slack updates</p>
+                        <h3 className="font-medium">Timezone Converter</h3>
+                        <p className="text-sm text-gray-600">Convert between NZT and PST</p>
                       </div>
                     </div>
                   </button>
@@ -1176,6 +1189,12 @@ export default function DashboardLayout({
                   Daily Updates
                 </Button>
                 <Button
+                  variant={toolsSubview === 'daily-pl-update' ? 'default' : 'outline'}
+                  onClick={() => setToolsSubview('daily-pl-update')}
+                >
+                  Daily P&L Update
+                </Button>
+                <Button
                   variant={toolsSubview === 'ad-accounts' ? 'default' : 'outline'}
                   onClick={() => setToolsSubview('ad-accounts')}
                 >
@@ -1193,6 +1212,7 @@ export default function DashboardLayout({
             {/* Render the appropriate subview content */}
             <div className="bg-white rounded-lg shadow-sm border border-gray-100 p-6">
               {toolsSubview === 'daily-update' && <DailyUpdate />}
+              {toolsSubview === 'daily-pl-update' && <DailyPLUpdate performanceData={performanceData} />}
               {toolsSubview === 'ad-accounts' && <AdAccounts />}
               {toolsSubview === 'timezone' && <TimezoneConverter />}
             </div>
