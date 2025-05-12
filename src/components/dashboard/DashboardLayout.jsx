@@ -523,7 +523,10 @@ export default function DashboardLayout({
                 <h2 className="text-lg font-semibold">Tools</h2>
                 <div className="space-y-2">
                   <button
-                    onClick={() => setToolsSubview('daily-update')}
+                    onClick={() => {
+                      setActiveTab('tools');
+                      setToolsSubview('daily-update');
+                    }}
                     className="w-full text-left px-4 py-3 bg-white rounded-lg shadow hover:shadow-md transition-shadow duration-200"
                   >
                     <div className="flex items-center space-x-3">
@@ -535,7 +538,10 @@ export default function DashboardLayout({
                     </div>
                   </button>
                   <button
-                    onClick={() => setToolsSubview('daily-pl-update')}
+                    onClick={() => {
+                      setActiveTab('tools');
+                      setToolsSubview('daily-pl-update');
+                    }}
                     className="w-full text-left px-4 py-3 bg-white rounded-lg shadow hover:shadow-md transition-shadow duration-200"
                   >
                     <div className="flex items-center space-x-3">
@@ -547,7 +553,10 @@ export default function DashboardLayout({
                     </div>
                   </button>
                   <button
-                    onClick={() => setToolsSubview('ad-accounts')}
+                    onClick={() => {
+                      setActiveTab('tools');
+                      setToolsSubview('ad-accounts');
+                    }}
                     className="w-full text-left px-4 py-3 bg-white rounded-lg shadow hover:shadow-md transition-shadow duration-200"
                   >
                     <div className="flex items-center space-x-3">
@@ -559,7 +568,10 @@ export default function DashboardLayout({
                     </div>
                   </button>
                   <button
-                    onClick={() => setToolsSubview('timezone')}
+                    onClick={() => {
+                      setActiveTab('tools');
+                      setToolsSubview('timezone');
+                    }}
                     className="w-full text-left px-4 py-3 bg-white rounded-lg shadow hover:shadow-md transition-shadow duration-200"
                   >
                     <div className="flex items-center space-x-3">
@@ -1184,25 +1196,37 @@ export default function DashboardLayout({
               <div className="flex space-x-4">
                 <Button
                   variant={toolsSubview === 'daily-update' ? 'default' : 'outline'}
-                  onClick={() => setToolsSubview('daily-update')}
+                  onClick={() => {
+                    setActiveTab('tools');
+                    setToolsSubview('daily-update');
+                  }}
                 >
                   Daily Updates
                 </Button>
                 <Button
                   variant={toolsSubview === 'daily-pl-update' ? 'default' : 'outline'}
-                  onClick={() => setToolsSubview('daily-pl-update')}
+                  onClick={() => {
+                    setActiveTab('tools');
+                    setToolsSubview('daily-pl-update');
+                  }}
                 >
                   Daily P&L Update
                 </Button>
                 <Button
                   variant={toolsSubview === 'ad-accounts' ? 'default' : 'outline'}
-                  onClick={() => setToolsSubview('ad-accounts')}
+                  onClick={() => {
+                    setActiveTab('tools');
+                    setToolsSubview('ad-accounts');
+                  }}
                 >
                   Ad Accounts
                 </Button>
                 <Button
                   variant={toolsSubview === 'timezone' ? 'default' : 'outline'}
-                  onClick={() => setToolsSubview('timezone')}
+                  onClick={() => {
+                    setActiveTab('tools');
+                    setToolsSubview('timezone');
+                  }}
                 >
                   Timezone Converter
                 </Button>
