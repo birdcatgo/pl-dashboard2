@@ -25,16 +25,35 @@ const TradeshiftReview = ({ tradeshiftData }) => {
 
   // Load saved state from localStorage
   useEffect(() => {
-    const savedStatuses = localStorage.getItem('tradeshiftStatuses');
-    const savedNotes = localStorage.getItem('tradeshiftNotes');
-    if (savedStatuses) setExpenseStatuses(JSON.parse(savedStatuses));
-    if (savedNotes) setNotes(JSON.parse(savedNotes));
+    try {
+      const savedStatuses = localStorage.getItem('tradeshiftStatuses');
+      const savedNotes = localStorage.getItem('tradeshiftNotes');
+      console.log('Loading saved statuses:', savedStatuses);
+      if (savedStatuses) {
+        setExpenseStatuses(JSON.parse(savedStatuses));
+      }
+      if (savedNotes) {
+        setNotes(JSON.parse(savedNotes));
+      }
+    } catch (error) {
+      console.error('Error loading saved state:', error);
+    }
   }, []);
 
-  // Save state to localStorage
+  // Save state to localStorage whenever it changes
   useEffect(() => {
-    localStorage.setItem('tradeshiftStatuses', JSON.stringify(expenseStatuses));
+    try {
+      console.log('Saving statuses:', expenseStatuses);
+      localStorage.setItem('tradeshiftStatuses', JSON.stringify(expenseStatuses));
+    } catch (error) {
+      console.error('Error saving statuses:', error);
+    }
   }, [expenseStatuses]);
+
+  // Generate consistent item IDs
+  const getItemId = (item, index) => {
+    return `${item.lastFourDigits}-${item.name}-${index}`;
+  };
 
   const handleStatusChange = (itemId) => {
     setExpenseStatuses(prev => {
@@ -46,10 +65,13 @@ const TradeshiftReview = ({ tradeshiftData }) => {
         'EXPIRED': 'ACTIVE'
       }[currentStatus];
       
-      return {
+      const updated = {
         ...prev,
         [itemId]: nextStatus
       };
+      
+      console.log('Updated statuses:', updated);
+      return updated;
     });
   };
 
@@ -67,7 +89,7 @@ const TradeshiftReview = ({ tradeshiftData }) => {
   const handleSelectAll = (checked) => {
     setSelectAll(checked);
     if (checked) {
-      const allIds = sortedData.map((item, index) => `${item.lastFourDigits}-${index}`);
+      const allIds = sortedData.map((item, index) => getItemId(item, index));
       setSelectedItems(new Set(allIds));
     } else {
       setSelectedItems(new Set());
@@ -152,8 +174,8 @@ const TradeshiftReview = ({ tradeshiftData }) => {
   // Always sort by status (ACTIVE first), then account, then name
   sortedData.sort((a, b) => {
     // First, sort by status
-    const aStatus = expenseStatuses[`${a.lastFourDigits}-${sortedData.indexOf(a)}`] || 'ACTIVE';
-    const bStatus = expenseStatuses[`${b.lastFourDigits}-${sortedData.indexOf(b)}`] || 'ACTIVE';
+    const aStatus = expenseStatuses[getItemId(a, sortedData.indexOf(a))] || 'ACTIVE';
+    const bStatus = expenseStatuses[getItemId(b, sortedData.indexOf(b))] || 'ACTIVE';
     const statusCompare = statusPriority[aStatus] - statusPriority[bStatus];
     if (statusCompare !== 0) return statusCompare;
 
@@ -319,7 +341,7 @@ const TradeshiftReview = ({ tradeshiftData }) => {
           </thead>
           <tbody className="bg-white divide-y divide-gray-200">
             {sortedData.map((item, index) => {
-              const itemId = `${item.lastFourDigits}-${index}`;
+              const itemId = getItemId(item, index);
               const status = expenseStatuses[itemId] || 'ACTIVE';
               const businessName = tradeshiftMapping[item.lastFourDigits];
               return (

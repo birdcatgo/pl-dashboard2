@@ -57,6 +57,7 @@ import { NDA_TEMPLATE, APPENDIX_A_FIRST_30_DAYS, APPENDIX_B_POST_30_DAYS } from 
 import { MEDIA_BUYER_CONTRACTOR_AGREEMENT } from '@/lib/contract-templates';
 import TimezoneConverter from './TimezoneConverter';
 import AdAccounts from './AdAccounts';
+import DailyUpdate from './DailyUpdate';
 import ExpenseReview from './ExpenseReview';
 import TradeshiftReview from './TradeshiftReview';
 
@@ -102,6 +103,7 @@ export default function DashboardLayout({
   const [reportingSubview, setReportingSubview] = useState('eod-report');
   const [redtrackSubview, setRedtrackSubview] = useState('midday-checkin');
   const [contractorSubview, setContractorSubview] = useState('contracts');
+  const [toolsSubview, setToolsSubview] = useState('daily-update');
 
   // Update state when props change
   useEffect(() => {
@@ -515,7 +517,7 @@ export default function DashboardLayout({
                 </div>
               </div>
 
-              {/* Timezone Section */}
+              {/* Tools Section */}
               <div className="space-y-2">
                 <h2 className="text-lg font-semibold">Tools</h2>
                 <div className="space-y-2">
@@ -540,6 +542,18 @@ export default function DashboardLayout({
                       <div>
                         <h3 className="font-medium">Ad Accounts</h3>
                         <p className="text-sm text-gray-600">Manage and monitor ad accounts</p>
+                      </div>
+                    </div>
+                  </button>
+                  <button
+                    onClick={() => setActiveTab('daily-update')}
+                    className="w-full text-left px-4 py-3 bg-white rounded-lg shadow hover:shadow-md transition-shadow duration-200"
+                  >
+                    <div className="flex items-center space-x-3">
+                      <span className="text-xl">📝</span>
+                      <div>
+                        <h3 className="font-medium">Daily Updates</h3>
+                        <p className="text-sm text-gray-600">Create and send slack updates</p>
                       </div>
                     </div>
                   </button>
@@ -1132,39 +1146,55 @@ export default function DashboardLayout({
             <AdAccounts />
           </div>
         );
+      case 'daily-update':
+        return (
+          <div className="space-y-8">
+            <PageHeader 
+              title="Daily Updates" 
+              subtitle="Create and send slack updates"
+              icon={FileText}
+            />
+            <DailyUpdate />
+          </div>
+        );
       case 'tools':
         return (
           <div className="space-y-8">
             <PageHeader 
               title="Tools" 
-              subtitle="Useful tools and utilities"
+              subtitle="Utility tools and helpers"
               icon={Wrench}
             />
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <button
-                onClick={() => setActiveTab('timezone')}
-                className="w-full text-left px-4 py-3 bg-white rounded-lg shadow hover:shadow-md transition-shadow duration-200"
-              >
-                <div className="flex items-center space-x-3">
-                  <span className="text-xl">⏰</span>
-                  <div>
-                    <h3 className="font-medium">Timezone Converter</h3>
-                    <p className="text-sm text-gray-600">Convert between NZT and PST</p>
-                  </div>
-                </div>
-              </button>
-              <button
-                onClick={() => setActiveTab('ad-accounts')}
-                className="w-full text-left px-4 py-3 bg-white rounded-lg shadow hover:shadow-md transition-shadow duration-200"
-              >
-                <div className="flex items-center space-x-3">
-                  <span className="text-xl">🎯</span>
-                  <div>
-                    <h3 className="font-medium">Ad Accounts</h3>
-                    <p className="text-sm text-gray-600">Manage and monitor ad accounts</p>
-                  </div>
-                </div>
-              </button>
+            
+            {/* Tools Subviews Navigation */}
+            <div className="bg-white rounded-lg shadow-sm border border-gray-100 p-4 mb-6">
+              <div className="flex space-x-4">
+                <Button
+                  variant={toolsSubview === 'daily-update' ? 'default' : 'outline'}
+                  onClick={() => setToolsSubview('daily-update')}
+                >
+                  Daily Updates
+                </Button>
+                <Button
+                  variant={toolsSubview === 'ad-accounts' ? 'default' : 'outline'}
+                  onClick={() => setToolsSubview('ad-accounts')}
+                >
+                  Ad Accounts
+                </Button>
+                <Button
+                  variant={toolsSubview === 'timezone' ? 'default' : 'outline'}
+                  onClick={() => setToolsSubview('timezone')}
+                >
+                  Timezone Converter
+                </Button>
+              </div>
+            </div>
+
+            {/* Render the appropriate subview content */}
+            <div className="bg-white rounded-lg shadow-sm border border-gray-100 p-6">
+              {toolsSubview === 'daily-update' && <DailyUpdate />}
+              {toolsSubview === 'ad-accounts' && <AdAccounts />}
+              {toolsSubview === 'timezone' && <TimezoneConverter />}
             </div>
           </div>
         );

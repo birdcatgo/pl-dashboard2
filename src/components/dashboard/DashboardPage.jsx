@@ -1,4 +1,9 @@
 import React, { useState } from 'react';
+import AIInsightsPage from './AIInsightsPage';
+import PerformancePage from './PerformancePage';
+import DailyUpdate from './DailyUpdate';
+import TimezoneConverter from './TimezoneConverter';
+import AdAccounts from './AdAccounts';
 
 const DashboardPage = () => {
   const [activeTab, setActiveTab] = useState('ai-insights');
@@ -22,10 +27,25 @@ const DashboardPage = () => {
         >
           Performance
         </button>
+        <button
+          className={`px-4 py-2 rounded ${
+            activeTab === 'tools' ? 'bg-blue-500 text-white' : 'bg-gray-200'
+          }`}
+          onClick={() => setActiveTab('tools')}
+        >
+          Tools
+        </button>
       </div>
       
       {activeTab === 'ai-insights' && <AIInsightsPage performanceData={performanceData} invoiceData={invoiceData} />}
       {activeTab === 'performance' && <PerformancePage performanceData={performanceData} />}
+      {activeTab === 'tools' && (
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+          <TimezoneConverter />
+          <AdAccounts />
+          <DailyUpdate />
+        </div>
+      )}
     </div>
   );
 };
