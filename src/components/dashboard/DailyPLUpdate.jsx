@@ -448,41 +448,53 @@ const DailyPLUpdate = ({ performanceData }) => {
 
       // Media Buyer Performance
       if (selectedSections.mediaBuyers) {
-        message += "👥 Media Buyer Performance\n";
+        const widths = { name: 12, profit: 8 };
+        message += "```\n👥 Media Buyer Performance\n";
+        message += "Name        | Profit  |  \n";
+        message += "------------|---------|---\n";
+        
         Object.entries(currentPeriod.mediaBuyers)
           .sort(([, a], [, b]) => b.profit - a.profit)
           .forEach(([buyer, data]) => {
-            const previousData = previousPeriod.mediaBuyers[buyer] || { profit: 0 };
-            const trend = getTrendIcon(data.profit, previousData.profit);
-            message += `${buyer}: ${formatCurrency(data.profit)} ${trend}\n`;
+            const dot = data.profit > 0 ? '🟢' : data.profit < 0 ? '🔴' : '🟡';
+            const profitStr = formatCurrency(data.profit).padStart(8);
+            message += `${buyer.padEnd(12)} | ${profitStr} | ${dot}\n`;
           });
-        message += "\n";
+        message += "```\n\n";
       }
 
       // Offer Performance
       if (selectedSections.offers) {
-        message += "📦 Offer Performance\n";
+        const widths = { name: 12, profit: 8 };
+        message += "```\n📦 Offer Performance\n";
+        message += "Name        | Profit  |  \n";
+        message += "------------|---------|---\n";
+        
         Object.entries(currentPeriod.offers)
           .sort(([, a], [, b]) => b.profit - a.profit)
           .forEach(([offer, data]) => {
-            const previousData = previousPeriod.offers[offer] || { profit: 0 };
-            const trend = getTrendIcon(data.profit, previousData.profit);
-            message += `${offer}: ${formatCurrency(data.profit)} ${trend}\n`;
+            const dot = data.profit > 0 ? '🟢' : data.profit < 0 ? '🔴' : '🟡';
+            const profitStr = formatCurrency(data.profit).padStart(8);
+            message += `${offer.padEnd(12)} | ${profitStr} | ${dot}\n`;
           });
-        message += "\n";
+        message += "```\n\n";
       }
 
       // Network Performance
       if (selectedSections.networks) {
-        message += "🌐 Network Performance\n";
+        const widths = { name: 12, profit: 8 };
+        message += "```\n🌐 Network Performance\n";
+        message += "Name        | Profit  |  \n";
+        message += "------------|---------|---\n";
+        
         Object.entries(currentPeriod.networks)
           .sort(([, a], [, b]) => b.profit - a.profit)
           .forEach(([network, data]) => {
-            const previousData = previousPeriod.networks[network] || { profit: 0 };
-            const trend = getTrendIcon(data.profit, previousData.profit);
-            message += `${network}: ${formatCurrency(data.profit)} ${trend}\n`;
+            const dot = data.profit > 0 ? '🟢' : data.profit < 0 ? '🔴' : '🟡';
+            const profitStr = formatCurrency(data.profit).padStart(8);
+            message += `${network.padEnd(12)} | ${profitStr} | ${dot}\n`;
           });
-        message += "\n";
+        message += "```\n\n";
       }
     }
 
