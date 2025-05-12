@@ -5,11 +5,13 @@ import { toast } from 'sonner';
 import { format } from 'date-fns';
 
 const DEFAULT_PL_PRIORITY = "P & L reporting";
+const DEFAULT_SCHEDULE = "No Planned Interruptions";
 
 const DailyUpdate = () => {
   const [accomplished, setAccomplished] = useState('');
   const [priorities, setPriorities] = useState(DEFAULT_PL_PRIORITY);
   const [challenges, setChallenges] = useState('');
+  const [schedule, setSchedule] = useState(DEFAULT_SCHEDULE);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   // Load previous day's priorities when component mounts
@@ -57,6 +59,14 @@ const DailyUpdate = () => {
         .join('\n');
     };
 
+    const formatSchedule = (text) => {
+      return text
+        .split('\n')
+        .filter(line => line.trim())
+        .map(line => `:calendar: ${line.trim()}`)
+        .join('\n');
+    };
+
     return `:one: Accomplished Yesterday:
 ${formatList(accomplished)}
 
@@ -64,11 +74,14 @@ ${formatList(accomplished)}
 ${formatPriorities(priorities)}
 
 :three: Challenges & Support Needed:
-${formatChallenges(challenges)}`;
+${formatChallenges(challenges)}
+
+:four: My Schedule This Week:
+${formatSchedule(schedule)}`;
   };
 
   const handleSubmit = async () => {
-    if (!accomplished.trim() || !priorities.trim() || !challenges.trim()) {
+    if (!accomplished.trim() || !priorities.trim() || !challenges.trim() || !schedule.trim()) {
       toast.error('Please fill in all sections');
       return;
     }
@@ -104,10 +117,11 @@ ${formatChallenges(challenges)}`;
       localStorage.setItem(`priorities-${todayKey}`, priorities);
 
       toast.success('Daily update sent successfully!');
-      // Clear the form but keep P&L reporting as default priority
+      // Clear the form but keep P&L reporting as default priority and default schedule
       setAccomplished('');
       setPriorities(DEFAULT_PL_PRIORITY);
       setChallenges('');
+      setSchedule(DEFAULT_SCHEDULE);
     } catch (error) {
       console.error('Error sending to Slack:', {
         message: error.message,
@@ -155,6 +169,16 @@ ${formatChallenges(challenges)}`;
             value={challenges}
             onChange={(e) => setChallenges(e.target.value)}
             placeholder="Enter each challenge on a new line"
+            className="min-h-[100px]"
+          />
+        </div>
+
+        <div className="space-y-2">
+          <label className="text-sm font-medium">My Schedule This Week</label>
+          <Textarea
+            value={schedule}
+            onChange={(e) => setSchedule(e.target.value)}
+            placeholder="Enter your schedule for the week (defaults to 'No Planned Interruptions')"
             className="min-h-[100px]"
           />
         </div>
