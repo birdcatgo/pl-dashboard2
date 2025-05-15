@@ -67,17 +67,18 @@ const DailyUpdate = () => {
         .join('\n');
     };
 
-    return `:one: Accomplished Yesterday:
-${formatList(accomplished)}
-
-:two: Priorities for Today:
-${formatPriorities(priorities)}
-
-:three: Challenges & Support Needed:
-${formatChallenges(challenges)}
-
-:four: My Schedule This Week:
-${formatSchedule(schedule)}`;
+    return `*Daily Update from Ange*\n\n` +
+    `:one: Accomplished Yesterday:
+    ${formatList(accomplished)}
+    
+    :two: Priorities for Today:
+    ${formatPriorities(priorities)}
+    
+    :three: Challenges & Support Needed:
+    ${formatChallenges(challenges)}
+    
+    :four: My Schedule This Week:
+    ${formatSchedule(schedule)}`;
   };
 
   const handleSubmit = async () => {
