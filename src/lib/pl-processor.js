@@ -5,27 +5,26 @@ import _ from 'lodash';
 
 export async function processPLData(batchResponse) {
   try {
-    console.log('Starting P&L data processing with batchResponse:', {
-      hasData: !!batchResponse?.data,
-      valueRangesCount: batchResponse?.data?.valueRanges?.length,
-      allRanges: batchResponse?.data?.valueRanges?.map(r => r.range),
-      sampleData: batchResponse?.data?.valueRanges?.[0]?.values?.[0]
+    // Add debug logging for the raw response
+    console.log('Processing PL data from batch response:', {
+      hasData: !!batchResponse?.data?.valueRanges,
+      rangeCount: batchResponse?.data?.valueRanges?.length
     });
 
     const monthlyData = {};
     const summaryData = [];
 
-    // Process all value ranges
     batchResponse.data.valueRanges.forEach((range, index) => {
       // Enhanced logging for sheet detection
-      const sheetName = range.range.split('!')[0].replace(/'/g, '');
       console.log(`Processing sheet ${index}:`, {
-        sheetName,
         range: range.range,
         hasValues: !!range.values,
-        rowCount: range.values?.length,
-        sampleRow: range.values?.[0]
+        valueCount: range.values?.length
       });
+
+      // Get sheet name from range
+      const sheetName = range.range.split('!')[0];
+      console.log(`Processing sheet: ${sheetName}`);
 
       // Process if we have values
       if (range.values && range.values.length > 1) {
@@ -35,28 +34,40 @@ export async function processPLData(batchResponse) {
             return null;
           }
           return {
-            DESCRIPTION: row[0]?.trim() || '',
-            AMOUNT: parseFloat(row[1]?.replace(/[$,]/g, '') || '0'),
-            CATEGORY: row[2]?.trim() || '',
+            Description: row[0]?.trim() || '',
+            Amount: parseFloat(row[1]?.replace(/[$,]/g, '') || '0'),
+            Category: row[2]?.trim() || '',
             'Income/Expense': row[3]?.trim() || ''
           };
         }).filter(Boolean);
 
-        // Calculate totals
+        // Calculate totals with debug logging
         const { incomeData, expenseData, totalIncome, totalExpenses } = monthlyRows.reduce((acc, row) => {
+          console.log('Processing row:', {
+            description: row.Description,
+            amount: row.Amount,
+            category: row.Category,
+            type: row['Income/Expense']
+          });
+
           if (row['Income/Expense']?.toLowerCase() === 'income') {
             acc.incomeData.push(row);
-            acc.totalIncome += row.AMOUNT;
+            acc.totalIncome += row.Amount;
           } else {
             acc.expenseData.push(row);
-            acc.totalExpenses += row.AMOUNT;
+            acc.totalExpenses += row.Amount;
           }
           return acc;
         }, { incomeData: [], expenseData: [], totalIncome: 0, totalExpenses: 0 });
 
-        // Group expenses by category
+        // Group expenses by category with debug logging
         const categories = expenseData.reduce((acc, expense) => {
-          const category = expense.CATEGORY || 'Uncategorized';
+          const category = expense.Category || 'Uncategorized';
+          console.log('Grouping expense by category:', {
+            description: expense.Description,
+            amount: expense.Amount,
+            category
+          });
           if (!acc[category]) acc[category] = [];
           acc[category].push(expense);
           return acc;
@@ -71,6 +82,15 @@ export async function processPLData(batchResponse) {
           totalExpenses
         };
 
+        // Log the processed data for this month
+        console.log(`Processed data for ${sheetName}:`, {
+          incomeCount: incomeData.length,
+          expenseCount: expenseData.length,
+          totalIncome,
+          totalExpenses,
+          categoryCount: Object.keys(categories).length
+        });
+
         const netProfit = totalIncome - totalExpenses;
         const netPercent = totalIncome > 0 ? (netProfit / totalIncome) * 100 : 0;
 
@@ -81,35 +101,22 @@ export async function processPLData(batchResponse) {
           NetProfit: netProfit,
           'Net%': netPercent
         });
-
-        console.log(`Processed ${sheetName} data:`, {
-          totalIncome,
-          totalExpenses,
-          netProfit,
-          netPercent,
-          rowCount: monthlyRows.length,
-          hasIncomeData: incomeData.length > 0,
-          hasExpenseData: expenseData.length > 0
-        });
       }
     });
 
-    const result = { summary: summaryData, monthly: monthlyData };
-
-    // Enhanced final logging
-    console.log('Final processed P&L data:', {
+    // Log the final processed data
+    console.log('Final processed PL data:', {
+      monthCount: Object.keys(monthlyData).length,
       summaryCount: summaryData.length,
-      monthlyCount: Object.keys(monthlyData).length,
-      availableMonths: Object.keys(monthlyData),
-      hasMarchData: !!monthlyData['March'],
-      marchData: monthlyData['March'],
-      sampleMonthData: monthlyData[Object.keys(monthlyData)[0]]
+      availableMonths: Object.keys(monthlyData)
     });
 
-    return result;
-
+    return {
+      monthly: monthlyData,
+      summary: summaryData
+    };
   } catch (error) {
-    console.error('Error in processPLData:', error);
-    throw new Error('Failed to process P&L data: ' + error.message);
+    console.error('Error processing PL data:', error);
+    throw error;
   }
 }

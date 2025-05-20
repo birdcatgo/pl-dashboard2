@@ -367,17 +367,17 @@ const ExpenseCategory = ({ title, monthlyData, plData }) => {
 
   // Ensure data is in chronological order (April, March, Feb)
   const orderedData = [
-    monthlyData.find(d => d.month === 'April 2025'),
-    monthlyData.find(d => d.month === 'March 2025'),
-    monthlyData.find(d => d.month === 'February 2025')
+    monthlyData.find(d => d.month.includes('April')),
+    monthlyData.find(d => d.month.includes('March')),
+    monthlyData.find(d => d.month.includes('February'))
   ].filter(Boolean);
 
   if (!orderedData.length) {
     console.log('No data available for display:', {
       monthlyData,
-      aprilData: monthlyData.find(d => d.month === 'April 2025'),
-      marchData: monthlyData.find(d => d.month === 'March 2025'),
-      febData: monthlyData.find(d => d.month === 'February 2025')
+      aprilData: monthlyData.find(d => d.month.includes('April')),
+      marchData: monthlyData.find(d => d.month.includes('March')),
+      febData: monthlyData.find(d => d.month.includes('February'))
     });
   }
 
@@ -432,8 +432,8 @@ const ExpenseCategory = ({ title, monthlyData, plData }) => {
               const monthSortOrder = { 'April': 4, 'March': 3, 'February': 2 };
               return monthSortOrder[monthB] - monthSortOrder[monthA];
             })[0]?.[1]?.expenseData?.filter(expense => {
-              const category = expense.CATEGORY?.toLowerCase() || '';
-              const description = expense.DESCRIPTION?.toLowerCase() || '';
+              const category = expense.Category?.toLowerCase() || '';
+              const description = expense.Description?.toLowerCase() || '';
               return category.includes('subscription') || 
                      category.includes('software') || 
                      category.includes('saas') || 
@@ -1133,70 +1133,99 @@ const BreakEvenAnalysis = ({ monthlyData }) => {
 const ExpenseComparisonTable = ({ monthlyData, plData }) => {
   const [expandedCategory, setExpandedCategory] = useState(null);
   
-  // Add helper function for name normalization
-  const normalizeExpenseName = (name) => {
-    if (!name) return '';
-    return name
-      .toLowerCase()
-      .replace(/[.,\-_&\/\\|]+/g, ' ')
-      .replace(/\.(com|io|ai|net|org)$/g, '')
-      .replace(/\b(inc|llc|ltd|subscription|license|platform)\b/g, '')
-      .trim()
-      .replace(/\s+/g, ' ');
-  };
-
-  // Add helper function for finding similar names
-  const findSimilarExpense = (expenses = [], name) => {
-    if (!expenses || !name) return null;
-    const normalizedName = normalizeExpenseName(name);
-    return expenses.find(e => normalizeExpenseName(e.name) === normalizedName);
-  };
-
-  // Initialize categories with empty arrays
-  const initialCategories = {
-    payroll: [],
-    advertising: [],
-    subscriptions: [],
-    other: []
-  };
-
   // Process expenses by category
-  const categories = monthlyData.reduce((acc, { month }) => {
-    const monthName = format(month, 'MMMM');
-    const monthExpenses = plData.monthly[monthName]?.expenseData || [];
+  const categories = useMemo(() => {
+    if (!plData?.monthly) return {};
 
-    monthExpenses.forEach(expense => {
-      const category = expense.CATEGORY?.toLowerCase() || '';
-      const name = expense.DESCRIPTION || '';
-      let targetCategory;
+    const categoryMap = {
+      payroll: [],
+      advertising: [],
+      subscriptions: [],
+      other: []
+    };
 
-      if (category.includes('payroll') || category.includes('salary')) {
-        targetCategory = 'payroll';
-      } else if (category.includes('advertising') || category.includes('ad spend')) {
-        targetCategory = 'advertising';
-      } else if (category.includes('subscription') || category.includes('software')) {
-        targetCategory = 'subscriptions';
-      } else {
-        targetCategory = 'other';
-      }
+    // Process each month's data
+    Object.entries(plData.monthly).forEach(([month, data]) => {
+      if (!data?.expenseData) return;
 
-      // Use parseAmount helper instead of direct parsing
-      const amount = parseAmount(expense.AMOUNT);
-      const existingExpense = findSimilarExpense(acc[targetCategory], name);
+      data.expenseData.forEach(expense => {
+        const category = expense.Category?.toLowerCase() || '';
+        const description = expense.Description?.toLowerCase() || '';
+        const amount = parseAmount(expense.Amount);
+        let targetCategory;
 
-      if (existingExpense) {
-        existingExpense.amounts[monthName] = (existingExpense.amounts[monthName] || 0) + amount;
-      } else {
-        acc[targetCategory].push({
-          name,
-          normalizedName: normalizeExpenseName(name),
-          amounts: { [monthName]: amount }
-        });
-      }
+        // Categorize the expense
+        if (category.includes('payroll') || 
+            category.includes('salary') || 
+            category.includes('commission') || 
+            category.includes('bonus')) {
+          targetCategory = 'payroll';
+        } else if (category.includes('facebook') ||
+                  category.includes('ad spend') ||
+                  category.includes('advertising') ||
+                  category.includes('media buy') ||
+                  category.includes('google') ||
+                  category.includes('tiktok') ||
+                  category.includes('youtube') ||
+                  category.includes('ads') ||
+                  category.includes('marketing') ||
+                  category.includes('promotion')) {
+          targetCategory = 'advertising';
+        } else if (category.includes('subscription') ||
+                  category.includes('software') ||
+                  category.includes('saas') ||
+                  category.includes('service') ||
+                  description.includes('subscription') ||
+                  description.includes('software') ||
+                  description.includes('license')) {
+          targetCategory = 'subscriptions';
+        } else {
+          targetCategory = 'other';
+        }
+
+        // Find existing expense or create new one
+        const existingExpense = categoryMap[targetCategory].find(e => 
+          e.name.toLowerCase() === expense.Description?.toLowerCase()
+        );
+
+        if (existingExpense) {
+          existingExpense.amounts[month] = (existingExpense.amounts[month] || 0) + amount;
+        } else {
+          categoryMap[targetCategory].push({
+            name: expense.Description || 'Unnamed Expense',
+            amounts: { [month]: amount }
+          });
+        }
+      });
     });
 
-    return acc;
-  }, initialCategories);
+    return categoryMap;
+  }, [plData]);
+
+  // Get the last 3 months in chronological order
+  const lastThreeMonths = useMemo(() => {
+    if (!plData?.monthly) return [];
+    
+    const months = Object.keys(plData.monthly)
+      .filter(month => ['April', 'March', 'February'].includes(month))
+      .sort((a, b) => {
+        const monthOrder = { 'April': 3, 'March': 2, 'February': 1 };
+        return monthOrder[b] - monthOrder[a];
+      });
+
+    return months;
+  }, [plData]);
+
+  // Calculate category totals
+  const categoryTotals = useMemo(() => {
+    const totals = {};
+    Object.entries(categories).forEach(([category, expenses]) => {
+      totals[category] = expenses.reduce((sum, expense) => {
+        return sum + Object.values(expense.amounts).reduce((monthSum, amount) => monthSum + amount, 0);
+      }, 0) / lastThreeMonths.length; // Average monthly total
+    });
+    return totals;
+  }, [categories, lastThreeMonths]);
 
   return (
     <div className="mt-8 border-t pt-6">
@@ -1215,6 +1244,7 @@ const ExpenseComparisonTable = ({ monthlyData, plData }) => {
                 </span>
               </div>
               <div className="flex items-center space-x-4">
+                <span className="font-medium">{formatCurrency(categoryTotals[category])}/mo avg</span>
                 <span className="text-gray-500">
                   {expandedCategory === category ? '▼' : '▶'}
                 </span>
@@ -1223,27 +1253,38 @@ const ExpenseComparisonTable = ({ monthlyData, plData }) => {
 
             {expandedCategory === category && (
               <div className="divide-y divide-gray-200">
-                <div className="grid grid-cols-4 gap-4 px-4 py-2 bg-gray-50">
-                  <div className="text-xs font-medium text-gray-500 uppercase">Description</div>
-                  {monthlyData.map(({ month }) => (
-                    <div key={month} className="text-xs font-medium text-gray-500 uppercase text-right">
-                      {format(month, 'MMM yyyy')}
-                    </div>
+                <div className="grid grid-cols-4 gap-4 px-4 py-2 bg-gray-50 text-xs font-medium text-gray-500 uppercase">
+                  <div>Description</div>
+                  {lastThreeMonths.map(month => (
+                    <div key={month} className="text-right">{month} 2025</div>
                   ))}
                 </div>
-                {expenses.map((expense, index) => (
-                  <div key={index} className="grid grid-cols-4 gap-4 px-4 py-3 hover:bg-gray-50">
-                    <div className="font-medium">{expense.name}</div>
-                    {monthlyData.map(({ month }) => {
-                      const monthName = format(month, 'MMMM');
-                      return (
-                        <div key={month} className="text-right text-gray-600">
-                          {formatCurrency(expense.amounts[monthName] || 0)}
-                        </div>
-                      );
-                    })}
-                  </div>
-                ))}
+                {expenses
+                  .sort((a, b) => a.name.localeCompare(b.name))
+                  .map((expense, index) => (
+                    <div key={index} className="grid grid-cols-4 gap-4 px-4 py-2 text-sm hover:bg-gray-50">
+                      <div className="font-medium">{expense.name}</div>
+                      {lastThreeMonths.map(month => {
+                        const amount = expense.amounts[month] || 0;
+                        const prevMonth = lastThreeMonths[lastThreeMonths.indexOf(month) + 1];
+                        const prevAmount = prevMonth ? expense.amounts[prevMonth] || 0 : 0;
+                        const growth = prevAmount ? 
+                          (((amount - prevAmount) / prevAmount) * 100).toFixed(1) : 
+                          '0';
+                        
+                        return (
+                          <div key={month} className="text-right">
+                            <div>{formatCurrency(amount)}</div>
+                            {growth !== '0' && (
+                              <div className={`text-xs ${growth.includes('-') ? 'text-green-600' : 'text-red-600'}`}>
+                                {growth.includes('-') ? '↓' : '↑'} {Math.abs(parseFloat(growth))}%
+                              </div>
+                            )}
+                          </div>
+                        );
+                      })}
+                    </div>
+                  ))}
               </div>
             )}
           </div>
@@ -1256,40 +1297,52 @@ const ExpenseComparisonTable = ({ monthlyData, plData }) => {
 const IncomeComparisonTable = ({ monthlyData, plData }) => {
   const [expandedCategory, setExpandedCategory] = useState(null);
   
-  // Single category for network revenue
-  const networkRevenue = {
-    name: 'Network Revenue',
-    sources: []
-  };
-  
-  // Collect all revenue
-  monthlyData.forEach(({ month }) => {
-    const monthName = format(month, 'MMMM');
-    const monthIncome = plData.monthly[monthName]?.incomeData || [];
-    
-    monthIncome.forEach(income => {
-      const name = income.DESCRIPTION;
-      const amount = parseAmount(income.AMOUNT);
-      const existingSource = networkRevenue.sources.find(s => s.name === name);
+  // Process revenue data
+  const revenueData = useMemo(() => {
+    if (!plData?.monthly) return { sources: [], total: 0 };
 
-      if (existingSource) {
-        existingSource.amounts[monthName] = (existingSource.amounts[monthName] || 0) + amount;
-      } else {
-        networkRevenue.sources.push({
-          name,
-          amounts: { [monthName]: amount }
-        });
-      }
+    const sources = new Map();
+    let total = 0;
+
+    // Process each month's income data
+    Object.entries(plData.monthly).forEach(([month, data]) => {
+      if (!data?.incomeData) return;
+
+      data.incomeData.forEach(income => {
+        const name = income.Description || 'Unnamed Income';
+        const amount = parseAmount(income.Amount);
+        
+        if (!sources.has(name)) {
+          sources.set(name, {
+            name,
+            amounts: {}
+          });
+        }
+        
+        sources.get(name).amounts[month] = amount;
+        total += amount;
+      });
     });
-  });
 
-  // Calculate total monthly revenue
-  const categoryTotal = monthlyData.reduce((total, { month }) => {
-    const monthName = format(month, 'MMMM');
-    return total + networkRevenue.sources.reduce((sum, source) => 
-      sum + (source.amounts[monthName] || 0), 0
-    );
-  }, 0) / monthlyData.length;
+    return {
+      sources: Array.from(sources.values()),
+      total: total / Object.keys(plData.monthly).length // Average monthly total
+    };
+  }, [plData]);
+
+  // Get the last 3 months in chronological order
+  const lastThreeMonths = useMemo(() => {
+    if (!plData?.monthly) return [];
+    
+    const months = Object.keys(plData.monthly)
+      .filter(month => ['April', 'March', 'February'].includes(month))
+      .sort((a, b) => {
+        const monthOrder = { 'April': 3, 'March': 2, 'February': 1 };
+        return monthOrder[b] - monthOrder[a];
+      });
+
+    return months;
+  }, [plData]);
 
   return (
     <div className="mt-8 border-t pt-6">
@@ -1302,11 +1355,11 @@ const IncomeComparisonTable = ({ monthlyData, plData }) => {
           <div className="flex items-center space-x-4">
             <span className="font-medium">Network Revenue</span>
             <span className="text-sm text-gray-500">
-              {networkRevenue.sources.length} sources
+              {revenueData.sources.length} sources
             </span>
           </div>
           <div className="flex items-center space-x-4">
-            <span className="font-medium">{formatCurrency(categoryTotal)}/mo avg</span>
+            <span className="font-medium">{formatCurrency(revenueData.total)}/mo avg</span>
             <span className="text-gray-500">
               {expandedCategory ? '▼' : '▶'}
             </span>
@@ -1317,20 +1370,19 @@ const IncomeComparisonTable = ({ monthlyData, plData }) => {
           <div className="divide-y divide-gray-200">
             <div className="grid grid-cols-4 gap-4 px-4 py-2 bg-gray-50 text-xs font-medium text-gray-500 uppercase">
               <div>Source</div>
-              {monthlyData.map(({ month }) => (
-                <div key={month} className="text-right">{format(month, 'MMM yyyy')}</div>
+              {lastThreeMonths.map(month => (
+                <div key={month} className="text-right">{month} 2025</div>
               ))}
             </div>
-            {networkRevenue.sources
+            {revenueData.sources
               .sort((a, b) => a.name.localeCompare(b.name))
               .map((source, index) => (
                 <div key={index} className="grid grid-cols-4 gap-4 px-4 py-2 text-sm hover:bg-gray-50">
                   <div className="font-medium">{source.name}</div>
-                  {monthlyData.map(({ month }) => {
-                    const monthName = format(month, 'MMMM');
-                    const amount = source.amounts[monthName] || 0;
-                    const prevMonth = monthlyData[monthlyData.indexOf({ month }) - 1];
-                    const prevAmount = prevMonth ? source.amounts[format(prevMonth.month, 'MMMM')] || 0 : 0;
+                  {lastThreeMonths.map(month => {
+                    const amount = source.amounts[month] || 0;
+                    const prevMonth = lastThreeMonths[lastThreeMonths.indexOf(month) + 1];
+                    const prevAmount = prevMonth ? source.amounts[prevMonth] || 0 : 0;
                     const growth = prevAmount ? 
                       (((amount - prevAmount) / prevAmount) * 100).toFixed(1) : 
                       '0';
@@ -1566,123 +1618,91 @@ const ProfitTrendChart = ({ plData }) => {
   const profitTrendData = useMemo(() => {
     if (!plData?.monthly) return [];
 
-    const monthOrder = ['July', 'August', 'September', 'October', 'November', 'December', 'January', 'February', 'March', 'April'];
+    // Define the correct month order with years
+    const monthOrder = [
+      'July 2024', 'August 2024', 'September 2024', 'October 2024', 
+      'November 2024', 'December 2024', 'January 2025', 'February 2025', 
+      'March 2025', 'April 2025'
+    ];
     
-    return monthOrder.map(month => {
+    return monthOrder.map(monthYear => {
+      const [month, year] = monthYear.split(' ');
       const data = plData.monthly[month];
       if (!data) return null;
 
-      const parseAmount = (amount) => {
-        if (!amount) return 0;
-        if (typeof amount === 'number') return amount;
-        return parseFloat(amount.replace(/[$,]/g, '')) || 0;
-      };
-
-      // Calculate total revenue excluding cash injections
+      // Calculate revenue (excluding cash injections)
       const revenue = data.incomeData?.reduce((sum, income) => {
-        const category = (income.CATEGORY || '').toLowerCase();
-        const description = (income.DESCRIPTION || '').toLowerCase();
+        const category = (income.Category || '').toLowerCase();
+        const description = (income.Description || '').toLowerCase();
         
-        // Skip cash injections when calculating revenue
+        // Skip cash injections
         if (category.includes('cash injection') || 
             description.includes('cash injection')) {
           return sum;
         }
-        return sum + parseAmount(income.AMOUNT);
+        return sum + parseAmount(income.Amount);
       }, 0) || 0;
       
-      // Calculate cash injections (only from income now)
+      // Calculate cash injections
       const cashInjections = data.incomeData?.reduce((sum, income) => {
-        const category = (income.CATEGORY || '').toLowerCase();
-        const description = (income.DESCRIPTION || '').toLowerCase();
+        const category = (income.Category || '').toLowerCase();
+        const description = (income.Description || '').toLowerCase();
         
         if (category.includes('cash injection') || 
             description.includes('cash injection')) {
-          return sum + parseAmount(income.AMOUNT);
+          return sum + parseAmount(income.Amount);
         }
         return sum;
       }, 0) || 0;
 
-      // Calculate payroll expenses
-      const payroll = data.expenseData?.reduce((sum, expense) => {
-        const category = expense.CATEGORY?.toLowerCase() || '';
-        if (category.includes('payroll') ||
-            category.includes('salary') ||
-            category.includes('commission') ||
+      // Calculate expenses by category
+      const expenses = data.expenseData?.reduce((acc, expense) => {
+        const category = (expense.Category || '').toLowerCase();
+        const description = (expense.Description || '').toLowerCase();
+        const amount = parseAmount(expense.Amount);
+
+        if (category.includes('payroll') || 
+            category.includes('salary') || 
+            category.includes('commission') || 
             category.includes('bonus')) {
-          return sum + parseAmount(expense.AMOUNT);
+          acc.payroll += amount;
+        } else if (category.includes('facebook') ||
+                  category.includes('ad spend') ||
+                  category.includes('advertising') ||
+                  category.includes('media buy') ||
+                  category.includes('google') ||
+                  category.includes('tiktok') ||
+                  category.includes('youtube') ||
+                  category.includes('ads') ||
+                  category.includes('marketing') ||
+                  category.includes('promotion')) {
+          acc.adSpend += amount;
+        } else if (category.includes('subscription') ||
+                  category.includes('software') ||
+                  category.includes('saas') ||
+                  category.includes('service') ||
+                  description.includes('subscription') ||
+                  description.includes('software') ||
+                  description.includes('license')) {
+          acc.subscriptions += amount;
+        } else {
+          acc.otherExpenses += amount;
         }
-        return sum;
-      }, 0) || 0;
+        return acc;
+      }, { payroll: 0, adSpend: 0, subscriptions: 0, otherExpenses: 0 }) || { 
+        payroll: 0, adSpend: 0, subscriptions: 0, otherExpenses: 0 
+      };
 
-      // Calculate ad spend
-      const adSpend = data.expenseData?.reduce((sum, expense) => {
-        const category = expense.CATEGORY?.toLowerCase() || '';
-        if (category.includes('facebook') ||
-            category.includes('ad spend') ||
-            category.includes('advertising') ||
-            category.includes('media buy') ||
-            category.includes('google') ||
-            category.includes('tiktok') ||
-            category.includes('youtube') ||
-            category.includes('ads') ||
-            category.includes('marketing') ||
-            category.includes('promotion')) {
-          return sum + parseAmount(expense.AMOUNT);
-        }
-        return sum;
-      }, 0) || 0;
-
-      // Calculate subscriptions
-      const subscriptions = data.expenseData?.reduce((sum, expense) => {
-        const category = expense.CATEGORY?.toLowerCase() || '';
-        if (category.includes('subscription') ||
-            category.includes('software') ||
-            category.includes('saas') ||
-            category.includes('service')) {
-          return sum + parseAmount(expense.AMOUNT);
-        }
-        return sum;
-      }, 0) || 0;
-
-      // Calculate other expenses (including SBA loans now)
-      const otherExpenses = data.expenseData?.reduce((sum, expense) => {
-        const category = expense.CATEGORY?.toLowerCase() || '';
-        const description = (expense.DESCRIPTION || '').toLowerCase();
-        
-        if (!category.includes('payroll') &&
-            !category.includes('salary') &&
-            !category.includes('commission') &&
-            !category.includes('bonus') &&
-            !category.includes('facebook') &&
-            !category.includes('ad spend') &&
-            !category.includes('advertising') &&
-            !category.includes('media buy') &&
-            !category.includes('subscription') &&
-            !category.includes('software') &&
-            !category.includes('saas') &&
-            !category.includes('service') ||
-            description.includes('sba loan')) {  // Include SBA loans in misc expenses
-          return sum + parseAmount(expense.AMOUNT);
-        }
-        return sum;
-      }, 0) || 0;
-
-      const totalExpenses = payroll + adSpend + subscriptions + otherExpenses;
+      const totalExpenses = Object.values(expenses).reduce((sum, amount) => sum + amount, 0);
       const profit = revenue - totalExpenses;
-      const profitMargin = ((profit / revenue) * 100).toFixed(1);
-      
-      // Determine the correct year based on the month
-      const year = ['January', 'February', 'March', 'April'].includes(month) ? '2025' : '2024';
+      const profitMargin = revenue ? ((profit / revenue) * 100).toFixed(1) : '0.0';
 
       return {
-        month: `${month} ${year}`,
+        month: monthYear,
         revenue,
         cashInjections,
-        adSpend,
-        payroll,
-        subscriptions,
-        otherExpenses,
+        ...expenses,
+        totalExpenses,
         profit,
         profitMargin
       };
@@ -1762,7 +1782,7 @@ const ProfitTrendChart = ({ plData }) => {
         </ResponsiveContainer>
       </div>
 
-      {/* Updated Summary Table */}
+      {/* Summary Table */}
       <div className="overflow-x-auto">
         <table className="w-full text-sm">
           <thead>
@@ -1792,24 +1812,20 @@ const ProfitTrendChart = ({ plData }) => {
             </tr>
           </thead>
           <tbody className="divide-y divide-gray-200">
-            {profitTrendData.map((data, index) => {
-              const totalExpenses = data.adSpend + data.payroll + data.subscriptions + data.otherExpenses;
-
-              return (
-                <tr key={index} className="hover:bg-gray-50">
-                  <td className="px-3 py-2 whitespace-nowrap">{data.month}</td>
-                  <td className="px-3 py-2 text-right font-medium text-green-600">{formatCurrency(data.revenue)}</td>
-                  <td className="px-3 py-2 text-right text-gray-500 text-xs">{formatCurrency(data.cashInjections)}</td>
-                  <td className="px-3 py-2 text-right text-red-600 font-medium border-l bg-gray-100">{formatCurrency(totalExpenses)}</td>
-                  <td className="px-3 py-2 text-right text-gray-500 text-xs">{formatCurrency(data.adSpend)}</td>
-                  <td className="px-3 py-2 text-right text-gray-500 text-xs">{formatCurrency(data.payroll)}</td>
-                  <td className="px-3 py-2 text-right text-gray-500 text-xs">{formatCurrency(data.subscriptions)}</td>
-                  <td className="px-3 py-2 text-right text-gray-500 text-xs">{formatCurrency(data.otherExpenses)}</td>
-                  <td className="px-3 py-2 text-right font-bold border-l bg-gray-50">{formatCurrency(data.profit)}</td>
-                  <td className="px-3 py-2 text-right bg-gray-50 font-bold">{data.profitMargin}%</td>
-                </tr>
-              );
-            })}
+            {profitTrendData.map((data, index) => (
+              <tr key={index} className="hover:bg-gray-50">
+                <td className="px-3 py-2 whitespace-nowrap">{data.month}</td>
+                <td className="px-3 py-2 text-right font-medium text-green-600">{formatCurrency(data.revenue)}</td>
+                <td className="px-3 py-2 text-right text-gray-500 text-xs">{formatCurrency(data.cashInjections)}</td>
+                <td className="px-3 py-2 text-right text-red-600 font-medium border-l bg-gray-100">{formatCurrency(data.totalExpenses)}</td>
+                <td className="px-3 py-2 text-right text-gray-500 text-xs">{formatCurrency(data.adSpend)}</td>
+                <td className="px-3 py-2 text-right text-gray-500 text-xs">{formatCurrency(data.payroll)}</td>
+                <td className="px-3 py-2 text-right text-gray-500 text-xs">{formatCurrency(data.subscriptions)}</td>
+                <td className="px-3 py-2 text-right text-gray-500 text-xs">{formatCurrency(data.otherExpenses)}</td>
+                <td className="px-3 py-2 text-right font-bold border-l bg-gray-50">{formatCurrency(data.profit)}</td>
+                <td className="px-3 py-2 text-right bg-gray-50 font-bold">{data.profitMargin}%</td>
+              </tr>
+            ))}
           </tbody>
         </table>
         <div className="mt-2 text-xs text-gray-500">
@@ -1824,43 +1840,62 @@ const processMonthlyData = (monthlyData) => {
   if (!monthlyData) return [];
 
   return Object.entries(monthlyData).map(([month, data]) => {
-    const revenue = data.totalIncome || 0;
-    const expenses = data.totalExpenses || 0;
-    const profit = revenue - expenses;
-    const profitMargin = revenue ? ((profit / revenue) * 100).toFixed(1) : '0.0';
+    // Calculate revenue from income data
+    const revenue = data.incomeData?.reduce((sum, income) => {
+      const amount = parseAmount(income.Amount);
+      return sum + amount;
+    }, 0) || 0;
 
-    // Get expense categories with expanded category matching
+    // Calculate expenses by category
     const expensesByCategory = data.expenseData?.reduce((acc, expense) => {
-      const category = expense.CATEGORY?.toLowerCase() || '';
-      const description = expense.DESCRIPTION?.toLowerCase() || '';
-      const amount = parseAmount(expense.AMOUNT);
+      const category = expense.Category?.toLowerCase() || '';
+      const description = expense.Description?.toLowerCase() || '';
+      const amount = parseAmount(expense.Amount);
 
-      if (category.includes('advertising') || category.includes('ad spend')) {
-        acc.adSpend += amount;
-      } else if (category.includes('payroll') || category.includes('salary')) {
+      // Log each expense being processed
+      console.log('Processing expense:', {
+        category,
+        description,
+        amount,
+        rawExpense: expense
+      });
+
+      if (category.includes('payroll') || 
+          category.includes('salary') || 
+          category.includes('commission') || 
+          category.includes('bonus')) {
         acc.payroll += amount;
-      } else if (
-        category.includes('subscription') || 
-        category.includes('software') || 
-        category.includes('saas') || 
-        category.includes('service') ||
-        description.includes('subscription') ||
-        description.includes('software') ||
-        description.includes('license')
-      ) {
+      } else if (category.includes('facebook') ||
+                category.includes('ad spend') ||
+                category.includes('advertising') ||
+                category.includes('media buy') ||
+                category.includes('google') ||
+                category.includes('tiktok') ||
+                category.includes('youtube') ||
+                category.includes('ads') ||
+                category.includes('marketing') ||
+                category.includes('promotion')) {
+        acc.adSpend += amount;
+      } else if (category.includes('subscription') ||
+                category.includes('software') ||
+                category.includes('saas') ||
+                category.includes('service') ||
+                description.includes('subscription') ||
+                description.includes('software') ||
+                description.includes('license')) {
         acc.subscriptions += amount;
       } else {
-        acc.otherExpenses += amount;
+        acc.miscellaneous += amount;
       }
       return acc;
-    }, { adSpend: 0, payroll: 0, subscriptions: 0, otherExpenses: 0 });
+    }, { payroll: 0, adSpend: 0, subscriptions: 0, miscellaneous: 0 });
 
-    // Calculate cash injections using parseAmount
-    const cashInjections = data.incomeData?.reduce((sum, income) => {
-      const description = income.DESCRIPTION?.toLowerCase() || '';
-      const amount = parseAmount(income.AMOUNT);
-      return description.includes('investment') || description.includes('injection') ? sum + amount : sum;
-    }, 0);
+    // Calculate total expenses
+    const totalExpenses = Object.values(expensesByCategory).reduce((sum, amount) => sum + amount, 0);
+
+    // Calculate profit and margin
+    const profit = revenue - totalExpenses;
+    const profitMargin = revenue ? ((profit / revenue) * 100).toFixed(1) : '0.0';
 
     // Update year assignment for March
     const year = ['January', 'February', 'March', 'April'].includes(month) ? '2025' : '2024';
@@ -1868,11 +1903,10 @@ const processMonthlyData = (monthlyData) => {
     return {
       month: `${month} ${year}`,
       revenue,
-      expenses,
-      profit,
-      profitMargin,
       ...expensesByCategory,
-      cashInjections
+      total: totalExpenses,
+      profit,
+      profitMargin
     };
   });
 };
@@ -2010,39 +2044,69 @@ const ExpenseOverview = ({ plData, cashFlowData, invoicesData, networkTerms }) =
     console.log('Processing monthly data:', {
       availableMonths: Object.keys(plData.monthly),
       hasMarchData: !!plData.monthly['March'],
-      marchData: plData.monthly['March']
+      marchData: plData.monthly['March'],
+      marchExpenseData: plData.monthly['March']?.expenseData,
+      marchTotalExpenses: plData.monthly['March']?.totalExpenses
     });
 
     return targetMonths.map(monthStr => {
       const [month, year] = monthStr.split(' ');
       const monthData = plData.monthly[month];
       
+      if (!monthData) {
+        console.log(`No data available for ${monthStr}`);
+        return {
+          month: new Date(`${month} 1, ${year}`),
+          revenue: 0,
+          payroll: 0,
+          adSpend: 0,
+          subscriptions: 0,
+          miscellaneous: 0,
+          total: 0
+        };
+      }
+
       // Enhanced debug logging for each month
       console.log(`Processing ${monthStr}:`, {
         hasData: !!monthData,
         totalIncome: monthData?.totalIncome,
         totalExpenses: monthData?.totalExpenses,
+        expenseData: monthData?.expenseData,
         rawData: monthData
       });
 
       // Calculate revenue first
-      const monthlyRevenue = parseAmount(monthData?.totalIncome) || 0;
+      const monthlyRevenue = monthData?.totalIncome || 0;
 
-      // Calculate payroll
+      // Calculate payroll with debug logging
       const payroll = monthData?.expenseData?.reduce((sum, expense) => {
-        const category = expense.CATEGORY?.toLowerCase() || '';
+        if (!expense || !expense.Category) return sum;
+        const category = expense.Category.toLowerCase();
+        const amount = parseAmount(expense.Amount);
+        console.log(`Processing payroll expense:`, {
+          category,
+          amount,
+          description: expense.Description
+        });
         if (category.includes('payroll') ||
             category.includes('salary') ||
             category.includes('commission') ||
             category.includes('bonus')) {
-          return sum + parseAmount(expense.AMOUNT);
+          return sum + amount;
         }
         return sum;
       }, 0) || 0;
 
-      // Calculate ad spend
+      // Calculate ad spend with debug logging
       const adSpend = monthData?.expenseData?.reduce((sum, expense) => {
-        const category = expense.CATEGORY?.toLowerCase() || '';
+        if (!expense || !expense.Category) return sum;
+        const category = expense.Category.toLowerCase();
+        const amount = parseAmount(expense.Amount);
+        console.log(`Processing ad spend expense:`, {
+          category,
+          amount,
+          description: expense.Description
+        });
         if (category.includes('facebook') ||
             category.includes('ad spend') ||
             category.includes('advertising') ||
@@ -2053,25 +2117,44 @@ const ExpenseOverview = ({ plData, cashFlowData, invoicesData, networkTerms }) =
             category.includes('ads') ||
             category.includes('marketing') ||
             category.includes('promotion')) {
-          return sum + parseAmount(expense.AMOUNT);
+          return sum + amount;
         }
         return sum;
       }, 0) || 0;
 
-      // Calculate subscriptions
+      // Calculate subscriptions with debug logging
       const subscriptions = monthData?.expenseData?.reduce((sum, expense) => {
-        const category = expense.CATEGORY?.toLowerCase() || '';
+        if (!expense || !expense.Category) return sum;
+        const category = expense.Category.toLowerCase();
+        const description = expense.Description?.toLowerCase() || '';
+        const amount = parseAmount(expense.Amount);
+        console.log(`Processing subscription expense:`, {
+          category,
+          description,
+          amount
+        });
         if (category.includes('subscription') ||
             category.includes('software') ||
             category.includes('saas') ||
-            category.includes('service')) {
-          return sum + parseAmount(expense.AMOUNT);
+            category.includes('service') ||
+            description.includes('subscription') ||
+            description.includes('software') ||
+            description.includes('license')) {
+          return sum + amount;
         }
         return sum;
       }, 0) || 0;
 
+      // Calculate miscellaneous with debug logging
       const miscellaneous = monthData?.expenseData?.reduce((sum, expense) => {
-        const category = expense.CATEGORY?.toLowerCase() || '';
+        if (!expense || !expense.Category) return sum;
+        const category = expense.Category.toLowerCase();
+        const amount = parseAmount(expense.Amount);
+        console.log(`Processing miscellaneous expense:`, {
+          category,
+          amount,
+          description: expense.Description
+        });
         if (!category.includes('payroll') &&
             !category.includes('salary') &&
             !category.includes('commission') &&
@@ -2084,7 +2167,7 @@ const ExpenseOverview = ({ plData, cashFlowData, invoicesData, networkTerms }) =
             !category.includes('software') &&
             !category.includes('saas') &&
             !category.includes('service')) {
-          return sum + parseAmount(expense.AMOUNT);
+          return sum + amount;
         }
         return sum;
       }, 0) || 0;
@@ -2204,7 +2287,7 @@ const ExpenseOverview = ({ plData, cashFlowData, invoicesData, networkTerms }) =
                 title="Miscellaneous Expenses"
                 monthlyData={monthlyData.map(d => ({
                   month: d.month,
-                  amount: d.otherExpenses
+                  amount: d.miscellaneous
                 }))}
               />
 
