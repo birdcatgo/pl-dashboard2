@@ -11,13 +11,31 @@ const formatCurrency = (amount) => {
   }).format(amount);
 };
 
-const ExpenseCategory = ({ title, monthlyData, monthlyExpenses, plData }) => {
+const ExpenseCategory = ({ title, monthlyData, plData }) => {
   const [showDetails, setShowDetails] = useState(false);
   const [selectedMonth, setSelectedMonth] = useState(null);
-  const isAdvertising = title === "Advertising Spend";
 
-  const totalAmount = monthlyData.reduce((sum, month) => sum + month.amount, 0);
+  // Calculate totals and trends
+  const totalAmount = monthlyData.reduce((sum, month) => sum + (month.amount || 0), 0);
   const averageAmount = totalAmount / monthlyData.length;
+
+  // Get the most recent two months for trend calculation
+  const sortedMonths = [...monthlyData].sort((a, b) => {
+    const monthOrder = { 'April': 4, 'March': 3, 'February': 2, 'January': 1 };
+    return monthOrder[b.month] - monthOrder[a.month];
+  });
+
+  const currentMonth = sortedMonths[0];
+  const previousMonth = sortedMonths[1];
+
+  const calculateTrend = (current, previous) => {
+    if (!previous || previous === 0) return 0;
+    return ((current - previous) / previous * 100).toFixed(1);
+  };
+
+  const trend = calculateTrend(currentMonth?.amount || 0, previousMonth?.amount || 0);
+  const trendColor = trend > 0 ? 'text-red-600' : 'text-green-600';
+  const trendIcon = trend > 0 ? '↑' : '↓';
 
   const handleMonthClick = (month) => {
     setSelectedMonth(month);
@@ -25,36 +43,42 @@ const ExpenseCategory = ({ title, monthlyData, monthlyExpenses, plData }) => {
   };
 
   return (
-    <div className="mt-8">
-      <div className="flex items-center justify-between mb-4">
-        <h3 className="text-lg font-medium text-gray-900">{title}</h3>
-        <button
-          onClick={() => setShowDetails(!showDetails)}
-          className="text-gray-500 hover:text-gray-700"
-        >
-          {showDetails ? <ChevronDown className="h-5 w-5" /> : <ChevronRight className="h-5 w-5" />}
-        </button>
-      </div>
-
-      <div className="grid grid-cols-3 gap-4 mb-4">
-        <div className="bg-white p-4 rounded-lg border">
-          <p className="text-sm text-gray-500">Total {title}</p>
-          <p className="text-xl font-semibold">{formatCurrency(totalAmount)}</p>
-        </div>
-        <div className="bg-white p-4 rounded-lg border">
-          <p className="text-sm text-gray-500">Monthly Average</p>
-          <p className="text-xl font-semibold">{formatCurrency(averageAmount)}</p>
-        </div>
-        <div className="bg-white p-4 rounded-lg border">
-          <p className="text-sm text-gray-500">Trend</p>
-          <p className="text-xl font-semibold">
-            {monthlyData.length >= 2 
-              ? ((monthlyData[monthlyData.length - 1].amount - monthlyData[monthlyData.length - 2].amount) 
-                / monthlyData[monthlyData.length - 2].amount * 100).toFixed(1) + '%'
-              : 'N/A'}
+    <div className="bg-white rounded-lg border p-4 mb-4">
+      <div className="flex justify-between items-center">
+        <div>
+          <h3 className="text-lg font-medium text-gray-900">{title}</h3>
+          <p className="text-sm text-gray-500">
+            Average: {formatCurrency(averageAmount)}
           </p>
         </div>
+        <div className="text-right">
+          <div className="text-2xl font-bold text-gray-900">
+            {formatCurrency(totalAmount)}
+          </div>
+          {trend !== 0 && (
+            <div className={`text-sm ${trendColor}`}>
+              {trendIcon} {Math.abs(trend)}% vs last month
+            </div>
+          )}
+        </div>
       </div>
+
+      <button
+        onClick={() => setShowDetails(!showDetails)}
+        className="mt-2 text-sm text-blue-600 hover:text-blue-800 flex items-center"
+      >
+        {showDetails ? (
+          <>
+            <ChevronDown className="h-4 w-4 mr-1" />
+            Hide Details
+          </>
+        ) : (
+          <>
+            <ChevronRight className="h-4 w-4 mr-1" />
+            Show Details
+          </>
+        )}
+      </button>
 
       {showDetails && (
         <div className="mt-4">
@@ -74,13 +98,13 @@ const ExpenseCategory = ({ title, monthlyData, monthlyExpenses, plData }) => {
                   onClick={() => handleMonthClick(month)}
                 >
                   <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
-                    {month.month}
+                    {month.month} {month.year}
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap text-sm text-right text-gray-900">
-                    {formatCurrency(month.amount)}
+                    {formatCurrency(month.amount || 0)}
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap text-sm text-right text-gray-900">
-                    {((month.amount / monthlyData[index].revenue) * 100).toFixed(1)}%
+                    {month.revenue ? ((month.amount / month.revenue) * 100).toFixed(1) : '0.0'}%
                   </td>
                 </tr>
               ))}

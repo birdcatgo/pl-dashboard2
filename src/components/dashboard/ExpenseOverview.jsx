@@ -1840,71 +1840,39 @@ const processMonthlyData = (monthlyData) => {
   if (!monthlyData) return [];
 
   return Object.entries(monthlyData).map(([month, data]) => {
-    // Calculate revenue from income data
+    // Calculate revenue from income items
     const revenue = data.incomeData?.reduce((sum, income) => {
-      const amount = parseAmount(income.Amount);
-      return sum + amount;
+      // Only include items marked as Income
+      if (income['Income/Expense'] === 'Income') {
+        return sum + parseAmount(income.AMOUNT);
+      }
+      return sum;
     }, 0) || 0;
 
-    // Calculate expenses by category
-    const expensesByCategory = data.expenseData?.reduce((acc, expense) => {
-      const category = expense.Category?.toLowerCase() || '';
-      const description = expense.Description?.toLowerCase() || '';
-      const amount = parseAmount(expense.Amount);
-
-      // Log each expense being processed
-      console.log('Processing expense:', {
-        category,
-        description,
-        amount,
-        rawExpense: expense
-      });
-
-      if (category.includes('payroll') || 
-          category.includes('salary') || 
-          category.includes('commission') || 
-          category.includes('bonus')) {
-        acc.payroll += amount;
-      } else if (category.includes('facebook') ||
-                category.includes('ad spend') ||
-                category.includes('advertising') ||
-                category.includes('media buy') ||
-                category.includes('google') ||
-                category.includes('tiktok') ||
-                category.includes('youtube') ||
-                category.includes('ads') ||
-                category.includes('marketing') ||
-                category.includes('promotion')) {
-        acc.adSpend += amount;
-      } else if (category.includes('subscription') ||
-                category.includes('software') ||
-                category.includes('saas') ||
-                category.includes('service') ||
-                description.includes('subscription') ||
-                description.includes('software') ||
-                description.includes('license')) {
-        acc.subscriptions += amount;
-      } else {
-        acc.miscellaneous += amount;
+    // Calculate expenses from expense items
+    const expenses = data.expenseData?.reduce((sum, expense) => {
+      // Only include items marked as Expense
+      if (expense['Income/Expense'] === 'Expense') {
+        return sum + parseAmount(expense.AMOUNT);
       }
-      return acc;
-    }, { payroll: 0, adSpend: 0, subscriptions: 0, miscellaneous: 0 });
+      return sum;
+    }, 0) || 0;
 
-    // Calculate total expenses
-    const totalExpenses = Object.values(expensesByCategory).reduce((sum, amount) => sum + amount, 0);
-
-    // Calculate profit and margin
-    const profit = revenue - totalExpenses;
+    const profit = revenue - expenses;
     const profitMargin = revenue ? ((profit / revenue) * 100).toFixed(1) : '0.0';
 
     // Update year assignment for March
     const year = ['January', 'February', 'March', 'April'].includes(month) ? '2025' : '2024';
     
     return {
-      month: `${month} ${year}`,
+      month,
+      year,
       revenue,
-      ...expensesByCategory,
-      total: totalExpenses,
+      payroll: 0,
+      adSpend: 0,
+      subscriptions: 0,
+      miscellaneous: 0,
+      total: expenses,
       profit,
       profitMargin
     };

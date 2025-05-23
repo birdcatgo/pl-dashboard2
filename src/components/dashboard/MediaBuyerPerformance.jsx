@@ -1,4 +1,4 @@
-import React, { useMemo, useState, useEffect } from 'react';
+import React, { useMemo, useState, useEffect, useCallback } from 'react';
 import { Card, CardContent } from '../ui/card';
 import PerformanceMetrics from './PerformanceMetrics';
 import {
@@ -12,11 +12,13 @@ import {
   Legend as RechartsLegend
 } from 'recharts';
 import MultiSelect from '../ui/multi-select';
-import { TrendingUp, TrendingDown, ArrowRight, Activity } from 'lucide-react';
+import { TrendingUp, TrendingDown, ArrowRight, Activity, Info } from 'lucide-react';
 import { Switch } from "@/components/ui/switch";
-import { format, parseISO, isWithinInterval } from 'date-fns';
+import { format, parseISO, isWithinInterval, startOfDay, endOfDay, subDays } from 'date-fns';
 import { Checkbox } from '../ui/checkbox';
 import EnhancedDateSelector from './EnhancedDateSelector';
+import { formatCurrency, formatPercentage } from '../../utils/formatters';
+import { calculateChange } from '../../utils/calculations';
 
 const MEDIA_BUYERS = [
   'Ishaan',
@@ -227,66 +229,82 @@ const TrendGraph = ({ data, color = 'blue' }) => {
   );
 };
 
-const MediaBuyerPerformance = ({ performanceData, dateRange }) => {
+const MediaBuyerPerformance = ({ performanceData, dateRange: initialDateRange }) => {
   const [selectedBuyers, setSelectedBuyers] = useState(['all']);
   const [selectedNetworks, setSelectedNetworks] = useState(['all']);
   const [expandedBuyers, setExpandedBuyers] = useState(new Set());
-  const [isCumulative, setIsCumulative] = useState(false);
   const [selectedOffers, setSelectedOffers] = useState(new Set());
+  const [isCumulative, setIsCumulative] = useState(false);
+  const [dateRange, setDateRange] = useState(() => {
+    // If initialDateRange is provided, use it
+    if (initialDateRange) return initialDateRange;
+    
+    // Otherwise, default to last 7 days
+    const now = new Date();
+    return {
+      startDate: startOfDay(subDays(now, 6)),
+      endDate: endOfDay(now),
+      period: 'last7'
+    };
+  });
+
+  // Update internal date range when prop changes
+  useEffect(() => {
+    if (initialDateRange) {
+      setDateRange(initialDateRange);
+    }
+  }, [initialDateRange]);
 
   // First filter data by date range - Optimize the date comparison
   const filteredByDate = useMemo(() => {
     if (!performanceData?.length) return [];
-
-    try {
-      // Pre-calculate the comparison dates once
-      const startDate = new Date(dateRange.startDate);
-      const endDate = new Date(dateRange.endDate);
+    
+    return performanceData.filter(entry => {
+      if (!entry.Date) return false;
       
-      // Validate dates
-      if (isNaN(startDate.getTime()) || isNaN(endDate.getTime())) {
-        console.error('Invalid date range:', { startDate, endDate });
-        return [];
-      }
-
-      startDate.setUTCHours(0, 0, 0, 0);
-      endDate.setUTCHours(23, 59, 59, 999);
-
-      // Create a cache for parsed dates to avoid repeated parsing
-      const dateCache = new Map();
-
-      return performanceData.filter(entry => {
-        if (!entry.Date) return false;
-
-        try {
-          // Use cached date if available
-          let entryDate = dateCache.get(entry.Date);
-          if (!entryDate) {
-            const [month, day, year] = entry.Date.split('/').map(num => parseInt(num, 10));
-            if (isNaN(month) || isNaN(day) || isNaN(year)) {
-              console.error('Invalid date format:', entry.Date);
-              return false;
-            }
-            entryDate = new Date(year, month - 1, day);
-            if (isNaN(entryDate.getTime())) {
-              console.error('Invalid parsed date:', entryDate);
-              return false;
-            }
-            entryDate.setUTCHours(0, 0, 0, 0);
-            dateCache.set(entry.Date, entryDate);
-          }
-
-          return entryDate >= startDate && entryDate <= endDate;
-        } catch (error) {
-          console.error('Error processing date:', error, entry);
+      // Parse the date string into a Date object
+      let entryDate;
+      try {
+        // Try parsing as ISO string first
+        entryDate = new Date(entry.Date);
+        
+        // If invalid, try MM/DD/YYYY format
+        if (isNaN(entryDate.getTime()) && entry.Date.includes('/')) {
+          const [month, day, year] = entry.Date.split('/').map(num => parseInt(num, 10));
+          entryDate = new Date(year, month - 1, day);
+        }
+        
+        // If still invalid, try YYYY-MM-DD format
+        if (isNaN(entryDate.getTime()) && entry.Date.includes('-')) {
+          const [year, month, day] = entry.Date.split('-').map(num => parseInt(num, 10));
+          entryDate = new Date(year, month - 1, day);
+        }
+        
+        // Check if the date is valid
+        if (isNaN(entryDate.getTime())) {
+          console.warn('Invalid date:', entry.Date);
           return false;
         }
-      });
-    } catch (error) {
-      console.error('Error in filteredByDate:', error);
-      return [];
-    }
-  }, [performanceData, dateRange.startDate, dateRange.endDate]);
+        
+        // Normalize dates to start/end of day for comparison
+        const normalizedEntryDate = startOfDay(entryDate);
+        const normalizedStartDate = startOfDay(dateRange.startDate);
+        const normalizedEndDate = endOfDay(dateRange.endDate);
+        
+        // Check if the date is within the selected range
+        return normalizedEntryDate >= normalizedStartDate && normalizedEntryDate <= normalizedEndDate;
+      } catch (error) {
+        console.error('Error parsing date:', entry.Date, error);
+        return false;
+      }
+    });
+  }, [performanceData, dateRange]);
+
+  // Handle date range changes
+  const handleDateRangeChange = (newDateRange) => {
+    console.log('Date range changed in MediaBuyerPerformance:', newDateRange);
+    setDateRange(newDateRange);
+  };
 
   // Add error boundary for data processing
   const processedData = useMemo(() => {
@@ -695,8 +713,6 @@ const MediaBuyerPerformance = ({ performanceData, dateRange }) => {
 
   return (
     <div className="space-y-6">
-      {/* Date Selector - Removed as it's provided by the parent component */}
-      
       {/* Slack Report Button */}
       <div className="bg-green-50 border border-green-200 rounded-lg p-4 flex justify-between items-center mb-6">
         <div>

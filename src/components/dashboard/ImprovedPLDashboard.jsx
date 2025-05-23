@@ -203,6 +203,19 @@ const ImprovedPLDashboard = ({ plData, summaryData }) => {
     }
   }, [plData]);
 
+  // Get the selected month's data
+  const selectedMonthData = plData?.monthly?.[selectedMonth];
+
+  console.log('ImprovedPLDashboard data:', {
+    selectedMonth,
+    selectedMonthData,
+    incomeData: selectedMonthData?.incomeData,
+    expenseData: selectedMonthData?.expenseData,
+    categories: selectedMonthData?.categories,
+    totalIncome: selectedMonthData?.totalIncome,
+    totalExpenses: selectedMonthData?.totalExpenses
+  });
+
   return (
     <div className="space-y-6">
       <PLWrapper 
@@ -210,6 +223,7 @@ const ImprovedPLDashboard = ({ plData, summaryData }) => {
         monthlyData={plData?.monthly || {}}
         selectedMonth={selectedMonth}
         onMonthChange={setSelectedMonth}
+        selectedMonthData={selectedMonthData}
       />
     </div>
   );

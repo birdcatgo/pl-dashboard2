@@ -1,6 +1,6 @@
 import React, { useMemo, useState } from 'react';
 import { Card } from '../ui/card';
-import { format, startOfMonth, endOfMonth, isSameDay } from 'date-fns';
+import { format, startOfMonth, endOfMonth, isSameDay, startOfDay, endOfDay, isWithinInterval } from 'date-fns';
 import { TrendingUp, DollarSign, Target, ChevronDown, ChevronRight, ChevronDownSquare, ChevronRightSquare, ChevronUpSquare, HelpCircle } from 'lucide-react';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Input } from '../ui/input';
@@ -33,11 +33,7 @@ const EODReport = ({ performanceData }) => {
     const eduOffers = new Set();
 
     performanceData.forEach(entry => {
-      // Check if the entry is from 2025
       if (!entry.Date) return;
-      const [month, day, year] = entry.Date.split('/');
-      const entryDate = new Date(year, month - 1, day);
-      if (entryDate < new Date('2025-01-01') || entryDate > new Date('2025-12-31')) return;
 
       const parseValue = (value) => {
         if (typeof value === 'string') {
@@ -82,13 +78,13 @@ const EODReport = ({ performanceData }) => {
     };
   }, [performanceData]);
 
-  // Get 2025 data with filters
+  // Get data with filters
   const yearData = useMemo(() => {
     if (!performanceData || !Array.isArray(performanceData)) {
       return [];
     }
 
-    // Filter the data based on selected filters
+    // Filter the data based on selected filters only (no date filtering)
     const filteredData = performanceData.filter(entry => {
       const matchesNetwork = networkFilter === 'all' || entry.Network === networkFilter;
       const matchesOffer = offerFilter === 'all' || 
@@ -105,74 +101,72 @@ const EODReport = ({ performanceData }) => {
       const [month, day, year] = entry.Date.split('/');
       const entryDate = new Date(year, month - 1, day);
       
-      if (entryDate >= new Date('2025-01-01') && entryDate <= new Date('2025-12-31')) {
-        const dateKey = format(entryDate, 'yyyy-MM-dd');
-        const monthKey = format(entryDate, 'yyyy-MM');
-        
-        if (!acc[monthKey]) {
-          acc[monthKey] = {
-            monthName: format(entryDate, 'MMMM yyyy'),
-            totalRevenue: 0,
-            totalSpend: 0,
-            totalProfit: 0,
-            days: {}
-          };
-        }
-        
-        if (!acc[monthKey].days[dateKey]) {
-          acc[monthKey].days[dateKey] = {
-            date: entryDate,
-            totalRevenue: 0,
-            totalSpend: 0,
-            totalProfit: 0,
-            details: new Map()
-          };
-        }
-        
-        const revenue = typeof entry['Total Revenue'] === 'string' 
-          ? parseFloat(entry['Total Revenue'].replace(/[$,]/g, '')) 
-          : typeof entry['Total Revenue'] === 'number' 
-            ? entry['Total Revenue'] 
-            : 0;
+      const dateKey = format(entryDate, 'yyyy-MM-dd');
+      const monthKey = format(entryDate, 'yyyy-MM');
+      
+      if (!acc[monthKey]) {
+        acc[monthKey] = {
+          monthName: format(entryDate, 'MMMM yyyy'),
+          totalRevenue: 0,
+          totalSpend: 0,
+          totalProfit: 0,
+          days: {}
+        };
+      }
+      
+      if (!acc[monthKey].days[dateKey]) {
+        acc[monthKey].days[dateKey] = {
+          date: entryDate,
+          totalRevenue: 0,
+          totalSpend: 0,
+          totalProfit: 0,
+          details: new Map()
+        };
+      }
+      
+      const revenue = typeof entry['Total Revenue'] === 'string' 
+        ? parseFloat(entry['Total Revenue'].replace(/[$,]/g, '')) 
+        : typeof entry['Total Revenue'] === 'number' 
+          ? entry['Total Revenue'] 
+          : 0;
 
-        const spend = typeof entry['Ad Spend'] === 'string'
-          ? parseFloat(entry['Ad Spend'].replace(/[$,]/g, ''))
-          : typeof entry['Ad Spend'] === 'number'
-            ? entry['Ad Spend']
-            : 0;
+      const spend = typeof entry['Ad Spend'] === 'string'
+        ? parseFloat(entry['Ad Spend'].replace(/[$,]/g, ''))
+        : typeof entry['Ad Spend'] === 'number'
+          ? entry['Ad Spend']
+          : 0;
 
-        const profit = revenue - spend;
-        
-        // Update month totals
-        acc[monthKey].totalRevenue += revenue;
-        acc[monthKey].totalSpend += spend;
-        acc[monthKey].totalProfit += profit;
-        
-        // Update day totals
-        acc[monthKey].days[dateKey].totalRevenue += revenue;
-        acc[monthKey].days[dateKey].totalSpend += spend;
-        acc[monthKey].days[dateKey].totalProfit += profit;
-        
-        // Create a unique key for this combination
-        const detailKey = `${entry.Network}|${entry.Offer}|${entry['Media Buyer']}`;
-        
-        if (acc[monthKey].days[dateKey].details.has(detailKey)) {
-          // Update existing combination
-          const existing = acc[monthKey].days[dateKey].details.get(detailKey);
-          existing.revenue += revenue;
-          existing.spend += spend;
-          existing.profit += profit;
-        } else {
-          // Add new combination
-          acc[monthKey].days[dateKey].details.set(detailKey, {
-            network: entry.Network,
-            offer: entry.Offer,
-            mediaBuyer: entry['Media Buyer'],
-            revenue: revenue,
-            spend: spend,
-            profit: profit
-          });
-        }
+      const profit = revenue - spend;
+      
+      // Update month totals
+      acc[monthKey].totalRevenue += revenue;
+      acc[monthKey].totalSpend += spend;
+      acc[monthKey].totalProfit += profit;
+      
+      // Update day totals
+      acc[monthKey].days[dateKey].totalRevenue += revenue;
+      acc[monthKey].days[dateKey].totalSpend += spend;
+      acc[monthKey].days[dateKey].totalProfit += profit;
+      
+      // Create a unique key for this combination
+      const detailKey = `${entry.Network}|${entry.Offer}|${entry['Media Buyer']}`;
+      
+      if (acc[monthKey].days[dateKey].details.has(detailKey)) {
+        // Update existing combination
+        const existing = acc[monthKey].days[dateKey].details.get(detailKey);
+        existing.revenue += revenue;
+        existing.spend += spend;
+        existing.profit += profit;
+      } else {
+        // Add new combination
+        acc[monthKey].days[dateKey].details.set(detailKey, {
+          network: entry.Network,
+          offer: entry.Offer,
+          mediaBuyer: entry['Media Buyer'],
+          revenue: revenue,
+          spend: spend,
+          profit: profit
+        });
       }
       return acc;
     }, {});

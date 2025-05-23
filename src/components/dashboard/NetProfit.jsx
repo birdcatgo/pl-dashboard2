@@ -79,21 +79,46 @@ const NetProfit = ({ performanceData, dateRange, cashFlowData }) => {
       
       performanceData.forEach(row => {
         try {
-          // Safely handle date parsing
-          let date;
-          if (row.Date.includes('/')) {
-            const [month, day, year] = row.Date.split('/');
-            date = new Date(parseInt(year), parseInt(month) - 1, parseInt(day));
-          } else if (row.Date.includes('-')) {
-            date = new Date(row.Date);
-          } else {
-            console.error('Unrecognized date format:', row.Date);
+          // Skip rows with missing or invalid dates
+          if (!row.Date) {
+            console.warn('Skipping row with missing date:', row);
             return;
           }
 
+          // Try parsing as MM/DD/YYYY format first
+          let date;
+          if (typeof row.Date === 'string') {
+            if (row.Date.includes('/')) {
+              const parts = row.Date.split('/');
+              if (parts.length === 3) {
+                const [month, day, year] = parts.map(num => parseInt(num, 10));
+                if (!isNaN(month) && !isNaN(day) && !isNaN(year)) {
+                  // Handle 2-digit years
+                  const fullYear = year < 100 ? 2000 + year : year;
+                  date = new Date(fullYear, month - 1, day);
+                }
+              }
+            } 
+            // Try parsing as YYYY-MM-DD format
+            else if (row.Date.includes('-')) {
+              date = new Date(row.Date);
+            }
+            // Try parsing as M/D/YYYY format (without leading zeros)
+            else {
+              const parts = row.Date.split('/');
+              if (parts.length === 3) {
+                const [month, day, year] = parts.map(num => parseInt(num, 10));
+                if (!isNaN(month) && !isNaN(day) && !isNaN(year)) {
+                  const fullYear = year < 100 ? 2000 + year : year;
+                  date = new Date(fullYear, month - 1, day);
+                }
+              }
+            }
+          }
+
           // Skip invalid dates
-          if (isNaN(date.getTime())) {
-            console.error('Invalid date:', row.Date);
+          if (!date || isNaN(date.getTime())) {
+            console.warn('Skipping row with invalid date format:', row.Date);
             return;
           }
 
@@ -122,7 +147,7 @@ const NetProfit = ({ performanceData, dateRange, cashFlowData }) => {
             totals[monthKey].netProfit = totals[monthKey].revenue - totals[monthKey].expenses;
           }
         } catch (rowError) {
-          console.error('Error processing row:', row, rowError);
+          console.warn('Error processing row:', row, rowError);
         }
       });
 
@@ -143,6 +168,7 @@ const NetProfit = ({ performanceData, dateRange, cashFlowData }) => {
       setMonthlyTotals(sortedTotals);
     } catch (error) {
       console.error('Error processing performance data:', error);
+      setMonthlyTotals({}); // Set empty object on error to prevent undefined state
     }
   }, [performanceData, dateRange]);
 

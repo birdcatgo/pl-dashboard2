@@ -4,26 +4,40 @@ import { TrendingUp, TrendingDown, DollarSign, CreditCard, Calendar, Briefcase }
 import { format } from 'date-fns';
 
 const CashPosition = ({ cashFlowData, networkPaymentsData, invoicesData }) => {
-  // Process invoices data
+  // Process invoices data with better error handling
   const processedInvoices = useMemo(() => {
-    if (!Array.isArray(invoicesData)) return [];
+    if (!Array.isArray(invoicesData)) {
+      console.warn('invoicesData is not an array:', invoicesData);
+      return [];
+    }
     
     const today = new Date();
-    return invoicesData.map(invoice => ({
-      network: invoice.Network,
-      amount: parseFloat(invoice.Amount || 0),
-      dueDate: new Date(invoice.DueDate),
-      periodStart: new Date(invoice.PeriodStart),
-      periodEnd: new Date(invoice.PeriodEnd),
-      invoiceNumber: invoice.InvoiceNumber,
-      isOverdue: new Date(invoice.DueDate) < today
-    })).sort((a, b) => a.dueDate - b.dueDate);
+    return invoicesData.map(invoice => {
+      try {
+        return {
+          network: invoice.Network || 'Unknown Network',
+          amount: parseFloat(String(invoice.Amount || 0).replace(/[$,]/g, '')) || 0,
+          dueDate: invoice.DueDate ? new Date(invoice.DueDate) : null,
+          periodStart: invoice.PeriodStart ? new Date(invoice.PeriodStart) : null,
+          periodEnd: invoice.PeriodEnd ? new Date(invoice.PeriodEnd) : null,
+          invoiceNumber: invoice.InvoiceNumber || 'N/A',
+          isOverdue: invoice.DueDate ? new Date(invoice.DueDate) < today : false
+        };
+      } catch (error) {
+        console.error('Error processing invoice:', invoice, error);
+        return null;
+      }
+    }).filter(Boolean).sort((a, b) => (a.dueDate || new Date()) - (b.dueDate || new Date()));
   }, [invoicesData]);
 
-  // Separate overdue and upcoming invoices
+  // Separate overdue and upcoming invoices with better validation
   const { overdueInvoices, upcomingInvoices } = useMemo(() => {
     const today = new Date();
     return processedInvoices.reduce((acc, invoice) => {
+      if (!invoice.dueDate) {
+        console.warn('Invoice missing due date:', invoice);
+        return acc;
+      }
       if (invoice.dueDate < today) {
         acc.overdueInvoices.push(invoice);
       } else {
@@ -33,93 +47,77 @@ const CashPosition = ({ cashFlowData, networkPaymentsData, invoicesData }) => {
     }, { overdueInvoices: [], upcomingInvoices: [] });
   }, [processedInvoices]);
 
-  // Calculate totals
+  // Calculate totals with null checks
   const totals = useMemo(() => ({
-    overdueTotal: overdueInvoices.reduce((sum, inv) => sum + inv.amount, 0),
-    upcomingTotal: upcomingInvoices.reduce((sum, inv) => sum + inv.amount, 0)
+    overdueTotal: overdueInvoices.reduce((sum, inv) => sum + (inv.amount || 0), 0),
+    upcomingTotal: upcomingInvoices.reduce((sum, inv) => sum + (inv.amount || 0), 0)
   }), [overdueInvoices, upcomingInvoices]);
 
-  // Add detailed debug logging for invoice data
-  console.log('CashPosition Invoice Data:', {
-    invoicesData,
-    isArray: Array.isArray(invoicesData),
-    length: invoicesData?.length,
-    sample: invoicesData?.[0],
-    rawData: invoicesData,
-    parsedSample: invoicesData?.[0] ? {
-      status: invoicesData[0].Status,
-      dueDate: invoicesData[0].DueDate,
-      amount: invoicesData[0].Amount,
-      network: invoicesData[0].Network
-    } : null
-  });
+  // Get cash in bank with improved account detection
+  const cashInBank = useMemo(() => {
+    if (!cashFlowData?.financialResources) {
+      console.warn('No financial resources data available');
+      return 0;
+    }
 
-  // Add debug logging
-  console.log('CashPosition received:', {
-    cashFlowData,
-    networkPaymentsData,
-    invoicesData: invoicesData || []
-  });
+    return cashFlowData.financialResources.reduce((total, resource) => {
+      if (!resource.account || !resource.available) return total;
+      
+      const accountName = resource.account.toLowerCase();
+      const isCash = accountName.includes('cash') || 
+                    accountName.includes('savings') ||
+                    accountName.includes('checking') ||
+                    accountName.includes('bank');
+      
+      const balance = parseFloat(String(resource.available).replace(/[$,]/g, '')) || 0;
+      return isCash ? total + balance : total;
+    }, 0);
+  }, [cashFlowData]);
 
-  console.log('Invoice Data:', networkPaymentsData?.map(invoice => ({
-    network: invoice.Network,
-    amount: invoice.Amount,
-    status: invoice.Status,
-    periodStart: invoice.PeriodStart,
-    periodEnd: invoice.PeriodEnd
-  })));
+  // Calculate total credit card debt with better validation
+  const totalCreditCardDebt = useMemo(() => {
+    if (!cashFlowData?.financialResources) return 0;
 
-  const formatCurrency = (value) => {
-    return new Intl.NumberFormat('en-US', {
-      style: 'currency',
-      currency: 'USD',
-      minimumFractionDigits: 0,
-      maximumFractionDigits: 0,
-    }).format(value);
-  };
+    return cashFlowData.financialResources.reduce((total, resource) => {
+      if (!resource.account || !resource.limit || !resource.available) return total;
+      
+      const accountName = resource.account.toLowerCase();
+      const isCreditCard = accountName.includes('credit') || 
+                          accountName.includes('card') ||
+                          accountName.includes('visa') ||
+                          accountName.includes('mastercard');
+      
+      if (!isCreditCard) return total;
 
-  // Get cash in bank from financial resources
-  console.log('CashPosition - Financial Resources:', cashFlowData?.financialResources);
+      const limit = parseFloat(String(resource.limit).replace(/[$,]/g, '')) || 0;
+      const available = parseFloat(String(resource.available).replace(/[$,]/g, '')) || 0;
+      return total + (limit - available);
+    }, 0);
+  }, [cashFlowData]);
 
-  const cashInBank = cashFlowData?.financialResources?.reduce((total, resource) => {
-    console.log('Processing resource:', resource);
-    const balance = parseFloat(resource.available?.toString().replace(/[$,]/g, '') || '0');
-    const isCash = resource.account?.toLowerCase().includes('cash') || 
-                  resource.account?.toLowerCase().includes('savings');
-    console.log('Resource details:', {
-      account: resource.account,
-      balance,
-      isCash,
-      contribution: isCash ? balance : 0
-    });
-    return isCash ? total + balance : total;
-  }, 0) || 0;
+  // Calculate average monthly expenses from actual data if available
+  const averageMonthlyExpenses = useMemo(() => {
+    if (!cashFlowData?.monthlyExpenses) {
+      console.warn('No monthly expenses data available, using default');
+      return 65000; // Default value if no data available
+    }
 
-  // Calculate total credit card debt
-  const totalCreditCardDebt = cashFlowData?.financialResources?.reduce((total, resource) => {
-    console.log('Processing credit card:', resource);
-    if (!resource.limit || !resource.available) return total;
-    const limit = parseFloat(resource.limit.toString().replace(/[$,]/g, ''));
-    const available = parseFloat(resource.available.toString().replace(/[$,]/g, ''));
-    console.log('Credit card details:', {
-      account: resource.account,
-      limit,
-      available,
-      debt: limit - available
-    });
-    return resource.limit > 0 ? total + (limit - available) : total;
-  }, 0) || 0;
+    const expenses = Array.isArray(cashFlowData.monthlyExpenses) 
+      ? cashFlowData.monthlyExpenses 
+      : Object.values(cashFlowData.monthlyExpenses);
 
-  console.log('Final calculations:', {
-    cashInBank,
-    totalCreditCardDebt
-  });
+    if (expenses.length === 0) return 65000;
 
-  // Fixed monthly expenses
-  const averageMonthlyExpenses = 65000;
+    const total = expenses.reduce((sum, expense) => {
+      const amount = parseFloat(String(expense.amount || expense.AMOUNT || 0).replace(/[$,]/g, '')) || 0;
+      return sum + amount;
+    }, 0);
 
-  // Calculate net position
-  const totalCredits = cashInBank + totals.overdueTotal + totals.upcomingTotal;
+    return total / expenses.length;
+  }, [cashFlowData]);
+
+  // Calculate net position with null checks
+  const totalCredits = cashInBank + (totals.overdueTotal || 0) + (totals.upcomingTotal || 0);
   const totalOwing = totalCreditCardDebt + averageMonthlyExpenses;
   const netPosition = totalCredits - totalOwing;
 
@@ -324,7 +322,7 @@ const CashPosition = ({ cashFlowData, networkPaymentsData, invoicesData }) => {
                           <div className="text-xs text-gray-500">
                             {networkGroup.invoices.map((inv, i) => (
                               <div key={i} className="flex justify-between text-xs">
-                                <span>#{inv.invoiceNumber}: {inv.periodStart.toLocaleDateString()} - {inv.periodEnd.toLocaleDateString()}</span>
+                                <span>#{inv.invoiceNumber}: {inv.periodStart?.toLocaleDateString()} - {inv.periodEnd?.toLocaleDateString()}</span>
                                 <span className="ml-4">{formatCurrency(inv.amount)}</span>
                               </div>
                             ))}
@@ -369,15 +367,15 @@ const CashPosition = ({ cashFlowData, networkPaymentsData, invoicesData }) => {
                             </span>
                           </div>
                           <div className="text-sm text-green-600">
-                            Due: {networkGroup.earliestDueDate.toLocaleDateString()}
+                            Due: {networkGroup.earliestDueDate?.toLocaleDateString()}
                             {networkGroup.invoices.length > 1 && 
-                              ` - ${networkGroup.latestDueDate.toLocaleDateString()}`
+                              ` - ${networkGroup.latestDueDate?.toLocaleDateString()}`
                             }
                           </div>
                           <div className="text-xs text-gray-500">
                             {networkGroup.invoices.map((inv, i) => (
                               <div key={i} className="flex justify-between text-xs">
-                                <span>#{inv.invoiceNumber}: {inv.periodStart.toLocaleDateString()} - {inv.periodEnd.toLocaleDateString()}</span>
+                                <span>#{inv.invoiceNumber}: {inv.periodStart?.toLocaleDateString()} - {inv.periodEnd?.toLocaleDateString()}</span>
                                 <span className="ml-4">{formatCurrency(inv.amount)}</span>
                               </div>
                             ))}

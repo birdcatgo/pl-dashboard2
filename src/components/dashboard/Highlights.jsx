@@ -2,7 +2,7 @@ import React, { useMemo, useState } from 'react';
 import { HelpCircle, TrendingUp, TrendingDown, CircleDot, Minus, Info, ChevronDown } from 'lucide-react';
 import DataTable from '@/components/ui/DataTable';
 import StatusPill from '@/components/ui/StatusPill';
-import { format } from 'date-fns';
+import { format, startOfDay, endOfDay } from 'date-fns';
 
   const formatCurrency = (value) => {
   if (!value) return '$0';
@@ -239,74 +239,190 @@ const TimePeriodSelector = ({ selectedPeriod, onPeriodChange }) => {
   );
 };
 
-const Highlights = ({ performanceData }) => {
-  // Add state for filters only (removed viewMode)
-  const [selectedBuyer, setSelectedBuyer] = React.useState(null);
-  const [selectedOffer, setSelectedOffer] = React.useState(null);
+const Highlights = ({ performanceData, dateRange }) => {
+  const [selectedBuyer, setSelectedBuyer] = useState(null);
+  const [selectedOffer, setSelectedOffer] = useState(null);
 
-  // Define media buyers to exclude
-  const excludedMediaBuyers = [
-    'Daniel', 'Asheesh', 'Dave', 'Unknown',
-    'Shawn', 'Alex', 'Vahe', 'Youssef'
-  ];
+  // Filter data based on date range
+  const filteredData = useMemo(() => {
+    if (!performanceData?.length) return [];
 
-  // Get unique media buyers and offers for filter buttons
-  const { uniqueBuyers, uniqueOffers } = useMemo(() => {
-    if (!performanceData) return { uniqueBuyers: [], uniqueOffers: [] };
-    
-    const buyers = new Set();
-    const offers = new Set();
-    
-    // Get the date 30 days ago
-    const thirtyDaysAgo = new Date();
-    thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
-    
-    performanceData.forEach(row => {
-      const rowDate = new Date(row.Date);
-      // Only include buyers who have activity in the last 30 days
-      if (row['Media Buyer'] && 
-          !excludedMediaBuyers.includes(row['Media Buyer']) && 
-          rowDate >= thirtyDaysAgo &&
-          parseFloat(row['Ad Spend']) > 0) {
-        buyers.add(row['Media Buyer']);
-      }
-      if (row.Offer) {
-        // Normalize offer name - combine EDU offers
-        const normalizedOffer = row.Offer.startsWith('EDU') ? 'EDU' : row.Offer;
-        offers.add(normalizedOffer);
+    return performanceData.filter(entry => {
+      if (!entry.Date) return false;
+      
+      // Parse the date string into a Date object
+      let entryDate;
+      try {
+        // Try parsing as ISO string first
+        entryDate = new Date(entry.Date);
+        
+        // If invalid, try MM/DD/YYYY format
+        if (isNaN(entryDate.getTime()) && entry.Date.includes('/')) {
+          const [month, day, year] = entry.Date.split('/').map(num => parseInt(num, 10));
+          entryDate = new Date(year, month - 1, day);
+        }
+        
+        // If still invalid, try YYYY-MM-DD format
+        if (isNaN(entryDate.getTime()) && entry.Date.includes('-')) {
+          const [year, month, day] = entry.Date.split('-').map(num => parseInt(num, 10));
+          entryDate = new Date(year, month - 1, day);
+        }
+        
+        // Check if the date is valid
+        if (isNaN(entryDate.getTime())) {
+          console.warn('Invalid date:', entry.Date);
+          return false;
+        }
+        
+        // Normalize dates to start/end of day for comparison
+        const normalizedEntryDate = startOfDay(entryDate);
+        const normalizedStartDate = startOfDay(dateRange.startDate);
+        const normalizedEndDate = endOfDay(dateRange.endDate);
+        
+        // Check if the date is within the selected range
+        return normalizedEntryDate >= normalizedStartDate && normalizedEntryDate <= normalizedEndDate;
+      } catch (error) {
+        console.error('Error parsing date:', entry.Date, error);
+        return false;
       }
     });
-    
-    return {
-      uniqueBuyers: Array.from(buyers).sort(),
-      uniqueOffers: Array.from(offers).sort()
-    };
-  }, [performanceData]);
+  }, [performanceData, dateRange]);
 
-  // Get date range from performance data
-  const getDateRange = (data) => {
-    if (!data || data.length === 0) return null;
-    
-    const dates = data
-      .map(row => new Date(row.Date))
-      .filter(date => !isNaN(date.getTime()));
-    
-    if (dates.length === 0) return null;
-    
-    const startDate = new Date(Math.min(...dates));
-    const endDate = new Date(Math.max(...dates));
-    
-    return {
-      start: startDate,
-      end: endDate
-    };
-  };
+  // Get unique buyers and offers
+  const { buyers, offers } = useMemo(() => {
+    const buyersSet = new Set();
+    const offersSet = new Set();
 
-  const dateRange = getDateRange(performanceData);
-  const formatDateRange = () => {
-    if (!dateRange) return '';
-    return `${dateRange.start.toLocaleDateString()} - ${dateRange.end.toLocaleDateString()}`;
-  };
+    filteredData.forEach(entry => {
+      if (entry['Media Buyer']) buyersSet.add(entry['Media Buyer']);
+      if (entry.Offer) offersSet.add(entry.Offer);
+    });
+
+    return {
+      buyers: Array.from(buyersSet).sort(),
+      offers: Array.from(offersSet).sort()
+    };
+  }, [filteredData]);
+
+  // Calculate metrics
+  const metrics = useMemo(() => {
+    if (!filteredData.length) return {};
+
+    return filteredData.reduce((acc, entry) => {
+      const revenue = parseFloat(entry['Total Revenue'] || 0);
+      const spend = parseFloat(entry['Ad Spend'] || 0);
+      const profit = revenue - spend;
+
+      return {
+        totalRevenue: (acc.totalRevenue || 0) + revenue,
+        totalSpend: (acc.totalSpend || 0) + spend,
+        totalProfit: (acc.totalProfit || 0) + profit,
+        roi: ((acc.totalProfit || 0) + profit) / ((acc.totalSpend || 0) + spend) * 100
+      };
+    }, {});
+  }, [filteredData]);
+
+  // Get daily trends
+  const dailyTrends = useMemo(() => {
+    if (!filteredData.length) return [];
+
+    const trends = filteredData.reduce((acc, entry) => {
+      const date = entry.Date;
+      if (!acc[date]) {
+        acc[date] = {
+          revenue: 0,
+          spend: 0,
+          profit: 0
+        };
+      }
+
+      acc[date].revenue += parseFloat(entry['Total Revenue'] || 0);
+      acc[date].spend += parseFloat(entry['Ad Spend'] || 0);
+      acc[date].profit += parseFloat(entry['Total Revenue'] || 0) - parseFloat(entry['Ad Spend'] || 0);
+
+      return acc;
+    }, {});
+
+    return Object.entries(trends)
+      .map(([date, data]) => ({
+        date,
+        ...data
+      }))
+      .sort((a, b) => new Date(a.date) - new Date(b.date));
+  }, [filteredData]);
+
+  // Get buyer performance
+  const buyerPerformance = useMemo(() => {
+    if (!filteredData.length) return [];
+
+    const performance = filteredData.reduce((acc, entry) => {
+      const buyer = entry['Media Buyer'];
+      if (!acc[buyer]) {
+        acc[buyer] = {
+          buyer,
+          revenue: 0,
+          spend: 0,
+          profit: 0,
+          offers: new Set()
+        };
+      }
+
+      acc[buyer].revenue += parseFloat(entry['Total Revenue'] || 0);
+      acc[buyer].spend += parseFloat(entry['Ad Spend'] || 0);
+      acc[buyer].profit += parseFloat(entry['Total Revenue'] || 0) - parseFloat(entry['Ad Spend'] || 0);
+      if (entry.Offer) acc[buyer].offers.add(entry.Offer);
+
+      return acc;
+    }, {});
+
+    return Object.values(performance)
+      .map(data => ({
+        ...data,
+        offers: Array.from(data.offers),
+        roi: data.spend ? (data.profit / data.spend) * 100 : 0
+      }))
+      .sort((a, b) => b.profit - a.profit);
+  }, [filteredData]);
+
+  // Get offer performance
+  const offerPerformance = useMemo(() => {
+    if (!filteredData.length) return [];
+
+    const performance = filteredData.reduce((acc, entry) => {
+      const offer = entry.Offer;
+      if (!offer) return acc;
+
+      if (!acc[offer]) {
+        acc[offer] = {
+          offer,
+          revenue: 0,
+          spend: 0,
+          profit: 0,
+          buyers: new Set()
+        };
+      }
+
+      acc[offer].revenue += parseFloat(entry['Total Revenue'] || 0);
+      acc[offer].spend += parseFloat(entry['Ad Spend'] || 0);
+      acc[offer].profit += parseFloat(entry['Total Revenue'] || 0) - parseFloat(entry['Ad Spend'] || 0);
+      if (entry['Media Buyer']) acc[offer].buyers.add(entry['Media Buyer']);
+
+      return acc;
+    }, {});
+
+    return Object.values(performance)
+      .map(data => ({
+        ...data,
+        buyers: Array.from(data.buyers),
+        roi: data.spend ? (data.profit / data.spend) * 100 : 0
+      }))
+      .sort((a, b) => b.profit - a.profit);
+  }, [filteredData]);
+
+  // Format date range text
+  const dateRangeText = useMemo(() => {
+    return `${format(dateRange.startDate, 'MMM d')} to ${format(dateRange.endDate, 'MMM d, yyyy')}`;
+  }, [dateRange]);
 
   // Add detailed debugging
   console.log('Raw performance data length:', performanceData?.length);
@@ -364,12 +480,12 @@ const Highlights = ({ performanceData }) => {
 
     // Calculate metrics for current period
     const currentActiveBuyers = new Set(currentPeriod
-      .filter(row => row['Media Buyer'] && !excludedMediaBuyers.includes(row['Media Buyer']))
+      .filter(row => row['Media Buyer'])
       .map(row => row['Media Buyer'])).size;
 
     // Calculate metrics for previous period
     const previousActiveBuyers = new Set(previousPeriod
-      .filter(row => row['Media Buyer'] && !excludedMediaBuyers.includes(row['Media Buyer']))
+      .filter(row => row['Media Buyer'])
       .map(row => row['Media Buyer'])).size;
 
     // Calculate changes
@@ -396,7 +512,6 @@ const Highlights = ({ performanceData }) => {
       const isValid = row && 
         typeof row === 'object' && 
         row['Media Buyer'] && // Must have a media buyer
-        !excludedMediaBuyers.includes(row['Media Buyer']) && // Must NOT be in excluded list
         parseFloat(row['Ad Spend']) > 0 && // Must have ad spend
         rowDate >= thirtyDaysAgo && // Must be within last 30 days
         (!selectedBuyer || row['Media Buyer'] === selectedBuyer) && // Apply buyer filter
@@ -575,16 +690,11 @@ const Highlights = ({ performanceData }) => {
   const unprofitableBuyers = data.filter(row => row.Margin <= 0);
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-8">
       <div className="flex items-center justify-between">
-        <div>
-          <h2 className="text-xl font-semibold text-gray-900">Performance Highlights</h2>
-          <p className="text-sm text-gray-500 mt-1">
-            Last 30 days vs Previous 30 days
-          </p>
-        </div>
+        <h2 className="text-2xl font-bold">Performance Highlights</h2>
         <div className="text-sm text-gray-500">
-          Last updated: {new Date().toLocaleDateString()}
+          Showing data from {dateRangeText}
         </div>
       </div>
 
@@ -645,7 +755,7 @@ const Highlights = ({ performanceData }) => {
           >
             All Buyers
           </button>
-          {uniqueBuyers.map(buyer => (
+          {buyers.map(buyer => (
             <button
               key={buyer}
               onClick={() => setSelectedBuyer(buyer)}
@@ -658,7 +768,7 @@ const Highlights = ({ performanceData }) => {
               {buyer}
             </button>
           ))}
-                    </div>
+        </div>
         <div className="flex flex-wrap gap-1">
           <button
             onClick={() => setSelectedOffer(null)}
@@ -670,7 +780,7 @@ const Highlights = ({ performanceData }) => {
           >
             All Offers
           </button>
-          {uniqueOffers.map(offer => (
+          {offers.map(offer => (
             <button
               key={offer}
               onClick={() => setSelectedOffer(offer)}

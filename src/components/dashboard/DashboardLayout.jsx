@@ -406,21 +406,6 @@ export default function DashboardLayout({
                   <button
                     onClick={() => {
                       setActiveTab('reporting');
-                      setReportingSubview('redtrack');
-                    }}
-                    className="w-full text-left px-4 py-3 bg-white rounded-lg shadow hover:shadow-md transition-shadow duration-200"
-                  >
-                    <div className="flex items-center space-x-3">
-                      <span className="text-xl">⏰</span>
-                      <div>
-                        <h3 className="font-medium">Redtrack Check In</h3>
-                        <p className="text-sm text-gray-600">Track campaign performance throughout the day</p>
-                      </div>
-                    </div>
-                  </button>
-                  <button
-                    onClick={() => {
-                      setActiveTab('reporting');
                       setReportingSubview('highlights');
                     }}
                     className="w-full text-left px-4 py-3 bg-white rounded-lg shadow hover:shadow-md transition-shadow duration-200"
@@ -751,7 +736,7 @@ export default function DashboardLayout({
           <div className="space-y-8">
             <PageHeader 
               title="Reporting" 
-              subtitle="Performance reports and analytics"
+              subtitle="Performance metrics and analytics"
               icon={LineChart}
             />
             
@@ -777,12 +762,6 @@ export default function DashboardLayout({
                   Media Buyers
                 </Button>
                 <Button
-                  variant={reportingSubview === 'redtrack' ? 'default' : 'outline'}
-                  onClick={() => setReportingSubview('redtrack')}
-                >
-                  Redtrack Check In
-                </Button>
-                <Button
                   variant={reportingSubview === 'highlights' ? 'default' : 'outline'}
                   onClick={() => setReportingSubview('highlights')}
                 >
@@ -791,10 +770,24 @@ export default function DashboardLayout({
               </div>
             </div>
 
+            {/* Date Selector only for Offer Performance and Media Buyers views */}
+            {(reportingSubview === 'offer-performance' || reportingSubview === 'media-buyers') && (
+              <div className="bg-white rounded-lg shadow-sm border border-gray-100 p-6 mb-6">
+                <EnhancedDateSelector 
+                  onDateChange={handleDateChange}
+                  selectedPeriod={dateRange.period}
+                  defaultRange="last7"
+                  latestDate={getLatestDataDate(performanceData?.data)}
+                />
+              </div>
+            )}
+
             {/* Render the appropriate subview content */}
             <div className="bg-white rounded-lg shadow-sm border border-gray-100 p-6">
               {reportingSubview === 'eod-report' && (
-                <EODReport performanceData={performanceData?.data || []} />
+                <EODReport 
+                  performanceData={performanceData?.data || []}
+                />
               )}
               {reportingSubview === 'offer-performance' && (
                 <div className="space-y-8">
@@ -825,45 +818,12 @@ export default function DashboardLayout({
                   </div>
                 </div>
               )}
-              {reportingSubview === 'redtrack' && (
-                <div className="space-y-6">
-                  {/* Redtrack Subviews Navigation */}
-                  <div className="flex space-x-4 mb-6">
-                    <Button
-                      variant={redtrackSubview === 'midday-checkin' ? 'default' : 'outline'}
-                      onClick={() => setRedtrackSubview('midday-checkin')}
-                    >
-                      Mid-Day Check In
-                    </Button>
-                    <Button
-                      variant={redtrackSubview === 'todays-trend' ? 'default' : 'outline'}
-                      onClick={() => setRedtrackSubview('todays-trend')}
-                    >
-                      Today's Trend
-                    </Button>
-                    <Button
-                      variant={redtrackSubview === 'daily-trends' ? 'default' : 'outline'}
-                      onClick={() => setRedtrackSubview('daily-trends')}
-                    >
-                      Daily Trends History
-                    </Button>
-                    <Button
-                      variant={redtrackSubview === 'trend-history' ? 'default' : 'outline'}
-                      onClick={() => setRedtrackSubview('trend-history')}
-                    >
-                      Trend History
-                    </Button>
-                  </div>
-
-                  {redtrackSubview === 'midday-checkin' && <MidDayCheckIn />}
-                  {redtrackSubview === 'todays-trend' && <TodaysTrend />}
-                  {redtrackSubview === 'daily-trends' && <DailyTrends />}
-                  {redtrackSubview === 'trend-history' && <TrendHistory />}
-                </div>
-              )}
               {reportingSubview === 'highlights' && (
                 <div className="space-y-6">
-                  <Highlights performanceData={performanceData?.data || []} />
+                  <Highlights 
+                    performanceData={performanceData?.data || []}
+                    dateRange={dateRange}
+                  />
                 </div>
               )}
             </div>
@@ -1249,16 +1209,16 @@ export default function DashboardLayout({
 
   // Add this function to get the latest date from performance data
   const getLatestDataDate = (data) => {
-    if (!data?.length) return new Date('2025-03-29'); // Return the latest known date in the dataset
-    
+    if (!data?.length) return new Date(); // fallback to today
     const dates = data
       .map(entry => {
         if (!entry.Date) return null;
         const [month, day, year] = entry.Date.split('/').map(num => parseInt(num, 10));
-        return new Date(year, month - 1, day);
+        const d = new Date(year, month - 1, day);
+        return isNaN(d.getTime()) ? null : d;
       })
       .filter(Boolean);
-    
+    if (!dates.length) return new Date(); // fallback to today
     return new Date(Math.max(...dates.map(d => d.getTime())));
   };
 
@@ -1346,25 +1306,14 @@ export default function DashboardLayout({
 
           {/* Main Content Area with Light Background */}
           <div className="space-y-8">
-          {['media-buyers', 'network'].includes(activeTab) && (
-              <div className="bg-white rounded-lg shadow-sm border border-gray-100 p-6">
-            <EnhancedDateSelector 
-              onDateChange={handleDateChange}
-              selectedPeriod={dateRange.period}
-              defaultRange="last7"
-                  latestDate={getLatestDataDate(performanceData?.data)}
-            />
-              </div>
-          )}
-
             {/* Content Sections with Improved Spacing */}
             <div className="bg-white rounded-lg shadow-sm border border-gray-100 p-6">
               {/* Main Content */}
-          <div className="mt-6">{renderTabContent()}</div>
+              <div className="mt-6">{renderTabContent()}</div>
             </div>
+          </div>
         </div>
-      </div>
-    </main>
+      </main>
     </div>
   );
 };

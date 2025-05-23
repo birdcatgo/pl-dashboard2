@@ -9,12 +9,47 @@ const TrendGraph = ({
   negativeColor = '#E74C3C',
   tooltip
 }) => {
-  const maxValue = Math.max(...data.map(Math.abs));
-  const points = data.map((value, index) => {
-    const x = (index / (data.length - 1)) * width;
-    const y = height - (value / maxValue) * height;
+  // Validate and filter data
+  if (!data || !Array.isArray(data) || data.length === 0) {
+    return (
+      <div className="bg-[#F7F8FA] rounded-md p-2 border border-gray-100 w-[100px] h-[40px] flex items-center justify-center">
+        <span className="text-gray-400 text-sm">—</span>
+      </div>
+    );
+  }
+
+  // Filter out invalid values and ensure we have valid numbers
+  const validData = data
+    .map(v => {
+      const num = parseFloat(v);
+      return isNaN(num) ? 0 : num;
+    })
+    .filter(v => v !== null && v !== undefined);
+
+  if (validData.length < 2) {
+    return (
+      <div className="bg-[#F7F8FA] rounded-md p-2 border border-gray-100 w-[100px] h-[40px] flex items-center justify-center">
+        <span className="text-gray-400 text-sm">—</span>
+      </div>
+    );
+  }
+
+  // Calculate min and max for scaling
+  const min = Math.min(...validData);
+  const max = Math.max(...validData);
+  const range = max - min || 1; // Prevent division by zero
+
+  // Generate points with padding
+  const padding = 4;
+  const points = validData.map((value, index) => {
+    const x = padding + (index / (validData.length - 1)) * (width - 2 * padding);
+    const y = height - padding - ((value - min) / range) * (height - 2 * padding);
     return `${x},${y}`;
   }).join(' ');
+
+  // Determine line color based on trend
+  const lastValue = validData[validData.length - 1];
+  const lineColor = lastValue >= 0 ? positiveColor : negativeColor;
 
   return (
     <div className="relative group">
@@ -23,9 +58,11 @@ const TrendGraph = ({
           <polyline
             points={points}
             fill="none"
-            stroke={data[data.length - 1] >= 0 ? positiveColor : negativeColor}
+            stroke={lineColor}
             strokeWidth="2"
             className="transition-all duration-200"
+            strokeLinecap="round"
+            strokeLinejoin="round"
           />
         </svg>
       </div>

@@ -165,7 +165,9 @@ const MediaBuyerPL = ({ performanceData }) => {
         try {
           if (entry.Date.includes('/')) {
             const [month, day, year] = entry.Date.split('/').map(num => parseInt(num, 10));
-            parsedDate = new Date(year, month - 1, day);
+            // Ensure we're using the correct year
+            const fullYear = year < 100 ? 2000 + year : year;
+            parsedDate = new Date(fullYear, month - 1, day);
           } else {
             parsedDate = new Date(entry.Date);
           }
@@ -239,6 +241,7 @@ const MediaBuyerPL = ({ performanceData }) => {
     return _.chain(dailyTotals)
       .groupBy(day => {
         try {
+          // Use the actual date from the data to determine the year
           return format(day.date, 'yyyy-MM');
         } catch (error) {
           console.error('Error formatting date:', day.date, error);
@@ -266,17 +269,14 @@ const MediaBuyerPL = ({ performanceData }) => {
             baseProfit: _.sumBy(days, 'baseProfit'),
             mediaBuyerCommission: _.sumBy(days, 'mediaBuyerCommission'),
             ringbaExpense: _.sumBy(days, 'ringbaExpense'),
-            dailyExpenses: totalDailyExpenses, // Use the total amount
-            // For summary table (includes daily expenses)
+            dailyExpenses: totalDailyExpenses,
             finalProfitWithDaily: _.sumBy(days, 'finalProfit') - totalDailyExpenses,
-            // For breakdown table (excludes daily expenses)
             finalProfitWithoutDaily: _.sumBy(days, 'finalProfit'),
-            // Calculate ROI using finalProfitWithDaily for summary table
             roi: _.sumBy(days, 'totalAdSpend') ? 
               ((_.sumBy(days, 'finalProfit') - totalDailyExpenses) / _.sumBy(days, 'totalAdSpend')) * 100 : 0,
             days: days.map(day => ({
               ...day,
-              dailyExpenses: dailyExpenseAmount // Update each day's daily expenses
+              dailyExpenses: dailyExpenseAmount
             }))
           };
 
@@ -286,7 +286,7 @@ const MediaBuyerPL = ({ performanceData }) => {
           return null;
         }
       })
-      .filter(Boolean) // Remove any null entries from failed month processing
+      .filter(Boolean)
       .orderBy(['monthStart'], ['desc'])
       .value();
   }, [performanceData]);

@@ -1,7 +1,7 @@
 import React from 'react';
 import { Card } from '../ui/card';
 import { CalendarDays } from 'lucide-react';
-import { startOfDay, endOfDay, subDays, startOfMonth, endOfMonth, startOfYear } from 'date-fns';
+import { startOfDay, endOfDay, subDays, startOfMonth, endOfMonth, startOfYear, isValid } from 'date-fns';
 
 const EnhancedDateSelector = ({ 
   onDateChange, 
@@ -9,65 +9,86 @@ const EnhancedDateSelector = ({
   latestDate
 }) => {
   const getDateRange = (period) => {
-    const now = latestDate || new Date();
-    let startDate, endDate;
-    
-    switch (period) {
-      case 'last7':
-        startDate = startOfDay(subDays(now, 6));
-        endDate = endOfDay(now);
-        break;
-      case 'last30':
-        startDate = startOfDay(subDays(now, 29));
-        endDate = endOfDay(now);
-        break;
-      case 'thisMonth':
-        startDate = startOfMonth(now);
-        endDate = endOfMonth(now);
-        break;
-      case 'lastMonth': {
-        const lastMonth = subDays(startOfMonth(now), 1);
-        startDate = startOfMonth(lastMonth);
-        endDate = endOfMonth(lastMonth);
-        break;
-      }
-      case 'last60':
-        startDate = startOfDay(subDays(now, 59));
-        endDate = endOfDay(now);
-        break;
-      case 'last90':
-        startDate = startOfDay(subDays(now, 89));
-        endDate = endOfDay(now);
-        break;
-      case 'ytd':
-        startDate = startOfYear(now);
-        endDate = endOfDay(now);
-        break;
-      default:
-        startDate = startOfDay(subDays(now, 6));
-        endDate = endOfDay(now);
+    // Ensure we have a valid date to work with
+    const now = latestDate && isValid(latestDate) ? latestDate : new Date();
+    if (!isValid(now) || isNaN(now.getTime())) {
+      console.error('Invalid date provided to EnhancedDateSelector:', now, latestDate);
+      return null;
     }
 
-    // Debug log
-    console.log('Date range calculated:', {
-      period,
-      startDate: startDate.toISOString(),
-      endDate: endDate.toISOString(),
-      now: now.toISOString(),
-      latestDate: latestDate.toISOString()
-    });
+    let startDate, endDate;
+    
+    try {
+      switch (period) {
+        case 'last7':
+          startDate = startOfDay(subDays(now, 6));
+          endDate = endOfDay(now);
+          break;
+        case 'last30':
+          startDate = startOfDay(subDays(now, 29));
+          endDate = endOfDay(now);
+          break;
+        case 'thisMonth':
+          startDate = startOfMonth(now);
+          endDate = endOfMonth(now);
+          break;
+        case 'lastMonth': {
+          const lastMonth = subDays(startOfMonth(now), 1);
+          startDate = startOfMonth(lastMonth);
+          endDate = endOfMonth(lastMonth);
+          break;
+        }
+        case 'last60':
+          startDate = startOfDay(subDays(now, 59));
+          endDate = endOfDay(now);
+          break;
+        case 'last90':
+          startDate = startOfDay(subDays(now, 89));
+          endDate = endOfDay(now);
+          break;
+        case 'ytd':
+          startDate = startOfYear(now);
+          endDate = endOfDay(now);
+          break;
+        default:
+          startDate = startOfDay(subDays(now, 6));
+          endDate = endOfDay(now);
+      }
 
-    return {
-      startDate,
-      endDate,
-      period
-    };
+      // Validate the calculated dates
+      if (!isValid(startDate) || !isValid(endDate)) {
+        console.error('Invalid date range calculated:', { startDate, endDate, period });
+        return null;
+      }
+
+      // Debug log
+      console.log('Date range calculated:', {
+        period,
+        startDate: startDate.toISOString(),
+        endDate: endDate.toISOString(),
+        now: now.toISOString(),
+        latestDate: latestDate ? latestDate.toISOString() : 'not provided'
+      });
+
+      return {
+        startDate,
+        endDate,
+        period
+      };
+    } catch (error) {
+      console.error('Error calculating date range:', error);
+      return null;
+    }
   };
 
   const handlePeriodSelect = (period) => {
     const newRange = getDateRange(period);
-    console.log('Selected period:', period, newRange);
-    onDateChange(newRange);
+    if (newRange) {
+      console.log('Selected period:', period, newRange);
+      onDateChange(newRange);
+    } else {
+      console.error('Failed to calculate date range for period:', period);
+    }
   };
 
   const periods = [
