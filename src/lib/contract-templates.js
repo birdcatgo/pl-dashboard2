@@ -111,7 +111,10 @@ During the term of this Agreement and for a period of 12 months following its te
    - Solicit or attempt to solicit any of Company's clients
    - Use any Company confidential information for personal gain
 
-11. Acknowledgment
+11. Compensation
+Contractor shall receive [COMMISSION]% of net profit from campaigns managed.
+
+12. Acknowledgment
 Contractor acknowledges that they have read, understand, and agree to comply with all terms of this Agreement.
 
 Contractor: ________________________
@@ -128,16 +131,13 @@ This Agreement is made and entered into as of [DATE] by and between:
 
 Contractor: [CONTRACTOR_NAME]
 Position: [POSITION]
-Base Pay: [BASE_PAY]
-Frequency: [FREQUENCY]
-Commission: [COMMISSION]
+Compensation: [COMMISSION]% of net profit
 
 1. Position and Duties
    The Contractor shall serve as a [POSITION] and shall perform all duties and responsibilities associated with this position.
 
 2. Compensation
-   a) Base Pay: [BASE_PAY] per [FREQUENCY]
-   b) Commission: [COMMISSION] of net profit
+   The Contractor shall receive [COMMISSION]% of net profit from campaigns managed.
 
 3. Term
    This Agreement shall commence on [START_DATE] and continue for a period of 30 days.
@@ -170,16 +170,13 @@ This Agreement is made and entered into as of [DATE] by and between:
 
 Contractor: [CONTRACTOR_NAME]
 Position: [POSITION]
-Base Pay: [BASE_PAY]
-Frequency: [FREQUENCY]
-Commission: [COMMISSION]
+Compensation: [COMMISSION]% of net profit
 
 1. Position and Duties
    The Contractor shall serve as a [POSITION] and shall perform all duties and responsibilities associated with this position.
 
 2. Compensation
-   a) Base Pay: [BASE_PAY] per [FREQUENCY]
-   b) Commission: [COMMISSION] of net profit
+   The Contractor shall receive [COMMISSION]% of net profit from campaigns managed.
 
 3. Term
    This Agreement shall commence on [START_DATE] and continue until terminated by either party.

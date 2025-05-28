@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import DataTable from '@/components/ui/DataTable';
-import { FileText, Download, Eye, Edit, Check, X } from 'lucide-react';
+import { FileText, Download, Eye, Edit, Check, X, Plus } from 'lucide-react';
 import {
   Dialog,
   DialogContent,
@@ -14,6 +14,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { NDA_TEMPLATE, MEDIA_BUYER_CONTRACTOR_AGREEMENT, APPENDIX_A_FIRST_30_DAYS, APPENDIX_B_POST_30_DAYS } from '@/lib/contract-templates';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { jsPDF } from 'jspdf';
+import AddContractor from './AddContractor';
 
 const ContractPreview = ({ content, contractor, onDownload }) => {
   if (!contractor) {
@@ -31,8 +32,6 @@ const ContractPreview = ({ content, contractor, onDownload }) => {
       day: 'numeric'
     }))
     .replace(/\[CONTRACTOR_NAME\]/g, contractor.name)
-    .replace(/\[BASE_PAY\]/g, formatCurrency(contractor.basePay))
-    .replace(/\[FREQUENCY\]/g, contractor.frequency)
     .replace(/\[COMMISSION\]/g, contractor.commission)
     .replace(/\[START_DATE\]/g, new Date().toLocaleDateString('en-US', {
       year: 'numeric',
@@ -78,11 +77,29 @@ const formatCurrency = (value) => {
   }).format(numericValue);
 };
 
-const ContractorContracts = ({ contractorData }) => {
+const ContractorContracts = () => {
+  const [contractors, setContractors] = useState([]);
   const [selectedContract, setSelectedContract] = useState(null);
   const [editedContent, setEditedContent] = useState('');
   const [isEditing, setIsEditing] = useState(false);
   const [showInstructions, setShowInstructions] = useState(true);
+
+  const handleAddContractor = (newContractor) => {
+    setContractors([...contractors, newContractor]);
+  };
+
+  const handleGenerateAllContracts = (contractor) => {
+    const contracts = [
+      { type: 'nda', name: 'NDA' },
+      { type: 'mediaBuyer', name: 'Media Buyer Agreement' },
+      { type: 'thirtyDay', name: '30-Day Contract' },
+      { type: 'postThirtyDay', name: 'Post 30-Day Contract' }
+    ];
+
+    contracts.forEach(contract => {
+      handleDownload(contractor, contract.type);
+    });
+  };
 
   const emailTemplate = `Hi [CONTRACTOR_NAME],
 
@@ -125,8 +142,6 @@ Thanks heaps,`;
     return template
       .replace(/\[DATE\]/g, formattedDate)
       .replace(/\[CONTRACTOR_NAME\]/g, contractor.name)
-      .replace(/\[BASE_PAY\]/g, formatCurrency(contractor.basePay))
-      .replace(/\[FREQUENCY\]/g, contractor.frequency)
       .replace(/\[COMMISSION\]/g, contractor.commission)
       .replace(/\[START_DATE\]/g, formattedDate)
       .replace(/\[STATE\]/g, 'California')
@@ -141,16 +156,124 @@ Thanks heaps,`;
     // Create new PDF document
     const doc = new jsPDF();
     
-    // Set font size and type
-    doc.setFontSize(12);
+    // Set default font to Arial
+    doc.setFont('helvetica');
+    
+    // Add document title
+    doc.setFontSize(16);
+    doc.setFont('helvetica', 'bold');
+    let title = '';
+    switch (contractType) {
+      case 'nda':
+        title = 'Non-Disclosure Agreement';
+        break;
+      case 'mediaBuyer':
+        title = 'Media Buyer Contractor Agreement';
+        break;
+      case 'thirtyDay':
+        title = 'Appendix A – First 30 Days Contractor Agreement';
+        break;
+      case 'postThirtyDay':
+        title = 'Appendix B – Post 30 Days Contractor Agreement';
+        break;
+    }
+    doc.text(title, 105, 20, { align: 'center' });
+    
+    // Add company information
+    doc.setFontSize(11);
+    doc.setFont('helvetica', 'bold');
+    doc.text('Convert 2 Freedom LLC', 105, 30, { align: 'center' });
+    doc.setFont('helvetica', 'normal');
+    doc.text('4801 Laguna Blvd Ste 105 #751', 105, 35, { align: 'center' });
+    doc.text('Elk Grove, CA 95758', 105, 40, { align: 'center' });
+    
+    // Add date
+    const today = new Date().toLocaleDateString('en-US', {
+      year: 'numeric',
+      month: 'long',
+      day: 'numeric'
+    });
+    doc.setFont('helvetica', 'bold');
+    doc.text('Date:', 20, 50);
+    doc.setFont('helvetica', 'normal');
+    doc.text(today, 40, 50);
+    
+    // Add contractor information
+    if (contractType === 'nda') {
+      doc.setFont('helvetica', 'bold');
+      doc.text('Contractor:', 20, 60);
+      doc.setFont('helvetica', 'normal');
+      doc.text(contractor.name, 50, 60);
+      doc.setFont('helvetica', 'bold');
+      doc.text('Email:', 20, 65);
+      doc.setFont('helvetica', 'normal');
+      doc.text(contractor.email || 'N/A', 50, 65);
+    } else if (contractType !== 'mediaBuyer') {
+      // Only add the agreement text for non-NDA and non-Media Buyer contracts
+      doc.text('This Agreement is made and entered into as of the above date by and between:', 20, 60);
+      
+      doc.setFont('helvetica', 'bold');
+      doc.text('Contractor:', 20, 70);
+      doc.setFont('helvetica', 'normal');
+      doc.text(contractor.name, 50, 70);
+      
+      doc.setFont('helvetica', 'bold');
+      doc.text('Position:', 20, 75);
+      doc.setFont('helvetica', 'normal');
+      doc.text('Media Buyer', 50, 75);
+      
+      doc.setFont('helvetica', 'bold');
+      doc.text('Compensation:', 20, 80);
+      doc.setFont('helvetica', 'normal');
+      doc.text(`${contractor.commission}% of net profit`, 50, 80);
+    } else {
+      // Media Buyer contract - just basic info
+      doc.setFont('helvetica', 'bold');
+      doc.text('Contractor:', 20, 60);
+      doc.setFont('helvetica', 'normal');
+      doc.text(contractor.name, 50, 60);
+      
+      doc.setFont('helvetica', 'bold');
+      doc.text('Position:', 20, 65);
+      doc.setFont('helvetica', 'normal');
+      doc.text('Media Buyer', 50, 65);
+      
+      doc.setFont('helvetica', 'bold');
+      doc.text('Compensation:', 20, 70);
+      doc.setFont('helvetica', 'normal');
+      doc.text(`${contractor.commission}% of net profit`, 50, 70);
+    }
+    
+    // Add a line separator
+    doc.setDrawColor(200, 200, 200);
+    doc.line(20, contractType === 'nda' ? 70 : (contractType === 'mediaBuyer' ? 75 : 85), 190, contractType === 'nda' ? 70 : (contractType === 'mediaBuyer' ? 75 : 85));
+    
+    // Format the content with proper styling
+    const formattedContent = content
+      .replace(/^(\d+\.\s+[A-Z][^:\n]+):/gm, (match) => {
+        return '\n\n' + match; // Double line before section headers
+      })
+      .replace(/^([A-Z][^:\n]+):/gm, (match) => {
+        return '\n\n' + match; // Double line before non-numbered headers
+      })
+      .replace(/^\s*•\s*/gm, '    • '); // Indent bullet points
+    
+    // Remove any duplicate signature blocks and redundant sections
+    const cleanedContent = formattedContent
+      // Remove duplicate signature blocks
+      .replace(/(IN WITNESS WHEREOF.*?Company Representative:.*?Date:.*?)(?=\n\nIN WITNESS WHEREOF|$)/gs, '$1')
+      // Remove redundant intro text for Media Buyer contract
+      .replace(/This Agreement is made and entered into as of the above date by and between:.*?Media Buyer Contractor Agreement/gs, 'Media Buyer Contractor Agreement')
+      // Remove duplicate contractor info in NDA
+      .replace(/Contractor:.*?Email:.*?(?=\n\n\d+\.\s+Definition)/gs, '');
     
     // Split the content into lines that fit the page width
-    const lines = doc.splitTextToSize(content, 180);
+    const lines = doc.splitTextToSize(cleanedContent, 170);
     
     // Initialize variables for pagination
     let currentPage = 1;
-    let yPosition = 20;
-    const lineHeight = 7;
+    let yPosition = contractType === 'nda' ? 80 : (contractType === 'mediaBuyer' ? 85 : 95); // Start content below header info
+    const lineHeight = 7; // Standard line height
     
     // Add lines to PDF, creating new pages as needed
     lines.forEach(line => {
@@ -161,10 +284,44 @@ Thanks heaps,`;
         yPosition = 20;
       }
       
+      // Style section headers
+      if (line.match(/^\d+\.\s+[A-Z][^:\n]+:/) || line.match(/^[A-Z][^:\n]+:/)) {
+        doc.setFont('helvetica', 'bold');
+        doc.setFontSize(12);
+      } else {
+        doc.setFont('helvetica', 'normal');
+        doc.setFontSize(11);
+      }
+      
       // Add the line of text
-      doc.text(line, 15, yPosition);
+      doc.text(line, 20, yPosition);
       yPosition += lineHeight;
     });
+
+    // Add a line separator before signature section
+    doc.setDrawColor(200, 200, 200);
+    doc.line(20, yPosition + 5, 190, yPosition + 5);
+    
+    // Add "IN WITNESS WHEREOF" section
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(11);
+    doc.text('IN WITNESS WHEREOF, the parties have executed this Agreement as of the date first written above.', 20, yPosition + 20);
+    
+    // Add signature blocks
+    const signatureY = yPosition + 35;
+    
+    // Contractor signature block
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(11);
+    doc.text('Contractor Signature: ________________________', 20, signatureY);
+    doc.text('Date: ________________________', 20, signatureY + 10);
+    
+    // Company signature block
+    doc.text('Company Representative: Nick Torson', 20, signatureY + 25);
+    doc.text(`Date: ${today}`, 20, signatureY + 35);
+    
+    // Add signature image
+    doc.addImage('/signatures/nick-signature.png', 'PNG', 20, signatureY + 20, 40, 20);
 
     // Save the PDF
     doc.save(`${contractor.name}-${contractType}-contract.pdf`);
@@ -188,12 +345,7 @@ Thanks heaps,`;
     {
       header: "Commission",
       accessorKey: "commission",
-      cell: (row) => row.commission
-    },
-    {
-      header: "Contract Type",
-      accessorKey: "contractType",
-      cell: (row) => row.contractType
+      cell: (row) => `${row.commission}%`
     },
     {
       header: "Email",
@@ -218,6 +370,14 @@ Thanks heaps,`;
       accessorKey: "actions",
       cell: (row) => (
         <div className="flex justify-center gap-2">
+          <Button 
+            variant="outline" 
+            size="sm"
+            onClick={() => handleGenerateAllContracts(row)}
+          >
+            <FileText className="h-4 w-4 mr-2" />
+            Generate All
+          </Button>
           <Button 
             variant="outline" 
             size="sm"
@@ -252,19 +412,7 @@ Thanks heaps,`;
             }}
           >
             <FileText className="h-4 w-4 mr-2" />
-            30 Day
-          </Button>
-          <Button 
-            variant="outline" 
-            size="sm"
-            onClick={() => {
-              setSelectedContract({ contractor: row, type: 'postThirtyDay' });
-              setEditedContent(generateContract(row, 'postThirtyDay'));
-              setIsEditing(false);
-            }}
-          >
-            <FileText className="h-4 w-4 mr-2" />
-            Post 30 Day
+            30-Day
           </Button>
         </div>
       )
@@ -272,56 +420,63 @@ Thanks heaps,`;
   ];
 
   return (
-    <div className="space-y-2">
-      <Card>
-        <CardHeader className="py-2">
-          <CardTitle className="text-lg">Contractor Information</CardTitle>
-        </CardHeader>
-        <CardContent className="py-2">
-          <DataTable
-            columns={columns}
-            data={contractorData || []}
-          />
-        </CardContent>
-      </Card>
+    <Card>
+      <CardHeader>
+        <CardTitle>Contractor Contracts</CardTitle>
+      </CardHeader>
+      <CardContent>
+        <AddContractor onAdd={handleAddContractor} />
+        
+        <DataTable
+          columns={columns}
+          data={contractors}
+          searchable
+          pagination
+        />
 
-      <Dialog open={!!selectedContract} onOpenChange={() => setSelectedContract(null)}>
-        <DialogContent className="max-w-4xl max-h-[90vh] flex flex-col p-2">
-          <DialogHeader className="py-1">
-            <DialogTitle className="text-lg">
-              {selectedContract?.contractor?.name} - {selectedContract?.type === 'nda' ? 'NDA' : 
-                selectedContract?.type === 'mediaBuyer' ? 'Media Buyer Agreement' :
-                selectedContract?.type === 'thirtyDay' ? '30 Day Contract' : 'Post 30 Day Contract'}
-            </DialogTitle>
-          </DialogHeader>
-          <div className="flex-1 flex flex-col overflow-hidden">
-            <div className="sticky top-0 bg-white z-50 flex justify-end gap-2 py-2 px-2 border-b">
-              <Button variant="outline" size="sm" onClick={() => setIsEditing(!isEditing)}>
-                {isEditing ? <Eye className="h-4 w-4 mr-1" /> : <Edit className="h-4 w-4 mr-1" />}
+        <Dialog open={!!selectedContract} onOpenChange={() => setSelectedContract(null)}>
+          <DialogContent className="max-w-4xl">
+            <DialogHeader>
+              <DialogTitle>
+                {selectedContract?.type === 'nda' && 'NDA Preview'}
+                {selectedContract?.type === 'mediaBuyer' && 'Media Buyer Agreement Preview'}
+                {selectedContract?.type === 'thirtyDay' && '30-Day Contract Preview'}
+              </DialogTitle>
+            </DialogHeader>
+            
+            <div className="flex justify-end mb-4">
+              <Button
+                variant="outline"
+                onClick={() => setIsEditing(!isEditing)}
+                className="mr-2"
+              >
                 {isEditing ? 'Preview' : 'Edit'}
               </Button>
-              <Button size="sm" onClick={() => handleDownload(selectedContract.contractor, selectedContract.type)}>
-                <Download className="h-4 w-4 mr-1" />
+              <Button
+                onClick={() => handleDownload(selectedContract?.contractor, selectedContract?.type)}
+              >
+                <Download className="h-4 w-4 mr-2" />
                 Download
               </Button>
             </div>
-            <div className="flex-1 overflow-y-auto mt-2 px-2">
-              {isEditing ? (
-                <Textarea
-                  value={editedContent}
-                  onChange={(e) => setEditedContent(e.target.value)}
-                  className="min-h-[400px] font-mono text-sm"
-                />
-              ) : (
-                <div className="whitespace-pre-wrap font-mono text-sm border p-1 rounded-md min-h-[400px]">
-                  {editedContent}
-                </div>
-              )}
-            </div>
-          </div>
-        </DialogContent>
-      </Dialog>
-    </div>
+
+            {isEditing ? (
+              <Textarea
+                value={editedContent}
+                onChange={(e) => setEditedContent(e.target.value)}
+                className="min-h-[500px] font-mono"
+              />
+            ) : (
+              <ContractPreview
+                content={editedContent}
+                contractor={selectedContract?.contractor}
+                onDownload={() => handleDownload(selectedContract?.contractor, selectedContract?.type)}
+              />
+            )}
+          </DialogContent>
+        </Dialog>
+      </CardContent>
+    </Card>
   );
 };
 
