@@ -61,6 +61,7 @@ import DailyUpdate from './DailyUpdate';
 import ExpenseReview from './ExpenseReview';
 import TradeshiftReview from './TradeshiftReview';
 import DailyPLUpdate from './DailyPLUpdate';
+import NetworkPayTerms from './NetworkPayTerms';
 
 export default function DashboardLayout({ 
   performanceData, 
@@ -564,6 +565,21 @@ export default function DashboardLayout({
                       <div>
                         <h3 className="font-medium">Timezone Converter</h3>
                         <p className="text-sm text-gray-600">Convert between NZT and PST</p>
+                      </div>
+                    </div>
+                  </button>
+                  <button
+                    onClick={() => {
+                      setActiveTab('tools');
+                      setToolsSubview('network-pay-terms');
+                    }}
+                    className="w-full text-left px-4 py-3 bg-white rounded-lg shadow hover:shadow-md transition-shadow duration-200"
+                  >
+                    <div className="flex items-center space-x-3">
+                      <span className="text-xl">📅</span>
+                      <div>
+                        <h3 className="font-medium">Network Pay Terms</h3>
+                        <p className="text-sm text-gray-600">Manage network payment terms</p>
                       </div>
                     </div>
                   </button>
@@ -1190,6 +1206,15 @@ export default function DashboardLayout({
                 >
                   Timezone Converter
                 </Button>
+                <Button
+                  variant={toolsSubview === 'network-pay-terms' ? 'default' : 'outline'}
+                  onClick={() => {
+                    setActiveTab('tools');
+                    setToolsSubview('network-pay-terms');
+                  }}
+                >
+                  Network Pay Terms
+                </Button>
               </div>
             </div>
 
@@ -1199,6 +1224,7 @@ export default function DashboardLayout({
               {toolsSubview === 'daily-pl-update' && <DailyPLUpdate performanceData={performanceData} />}
               {toolsSubview === 'ad-accounts' && <AdAccounts />}
               {toolsSubview === 'timezone' && <TimezoneConverter />}
+              {toolsSubview === 'network-pay-terms' && <NetworkPayTerms performanceData={performanceData} />}
             </div>
           </div>
         );

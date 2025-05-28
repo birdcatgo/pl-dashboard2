@@ -416,6 +416,7 @@ export default async function handler(req, res) {
       "'July'!A:E",
       "'June'!A:E",
       "'Network Terms'!A:J",
+      "'Network Exposure'!A:H",
       "'Invoices'!A:F",
       "'Tradeshift Check'!A:I",
       "'Monthly Expenses'!A:D",
@@ -469,7 +470,8 @@ export default async function handler(req, res) {
       plData: null,
       tradeshiftData: [],
       commissions: [],
-      employeeData: []
+      employeeData: [],
+      networkExposure: []
     };
 
     // Log all sheet names and their responses
@@ -502,6 +504,7 @@ export default async function handler(req, res) {
       julyResponse,
       juneResponse,
       networkTermsResponse,
+      networkExposureResponse,
       invoicesResponse,
       tradeshiftResponse,
       monthlyExpensesResponse,
@@ -545,6 +548,20 @@ export default async function handler(req, res) {
         firstRow: tradeshiftResponse?.values?.[0],
         sampleRows: tradeshiftResponse?.values?.slice(0, 3),
         fullResponse: tradeshiftResponse
+      }
+    });
+
+    // Add specific logging for Network Exposure sheet
+    console.log('Network Exposure Sheet Details:', {
+      sheetName: 'Network Exposure',
+      range: "'Network Exposure'!A:H",
+      response: {
+        hasResponse: !!networkExposureResponse,
+        hasValues: !!networkExposureResponse?.values,
+        valuesLength: networkExposureResponse?.values?.length,
+        firstRow: networkExposureResponse?.values?.[0],
+        sampleRows: networkExposureResponse?.values?.slice(0, 3),
+        fullResponse: networkExposureResponse
       }
     });
 
@@ -752,6 +769,24 @@ export default async function handler(req, res) {
         count: processedData.employeeData.length,
         sample: processedData.employeeData[0]
       });
+
+      // Process Network Exposure data
+      const networkExposureData = networkExposureResponse?.values?.slice(1).map(row => ({
+        name: row[0] || '',
+        invoiceNumber: row[1] || '',
+        c2fAmountDue: parseFloat(row[2]?.replace(/[^0-9.-]+/g, '')) || 0,
+        periodStart: row[3] || '',
+        periodEnd: row[4] || '',
+        networkAmountDue: parseFloat(row[5]?.replace(/[^0-9.-]+/g, '')) || 0,
+        payPeriod: row[6] || '',
+        netTerms: parseInt(row[7]) || 0
+      })) || [];
+
+      // Add networkExposureData to processedData
+      processedData = {
+        ...processedData,
+        networkExposure: networkExposureData
+      };
 
     } catch (processingError) {
       console.error('Error processing data:', processingError);
