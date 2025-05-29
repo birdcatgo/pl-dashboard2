@@ -469,7 +469,8 @@ export default async function handler(req, res) {
       plData: null,
       tradeshiftData: [],
       commissions: [],
-      employeeData: []
+      employeeData: [],
+      networkExposure: []
     };
 
     // Log all sheet names and their responses
@@ -752,6 +753,31 @@ export default async function handler(req, res) {
         count: processedData.employeeData.length,
         sample: processedData.employeeData[0]
       });
+
+      // Process network exposure
+      processedData.networkExposure = (networkPaymentsResponse?.values || []).slice(1).map(row => ({
+        network: row[0] || '',
+        offer: row[1] || '',
+        paymentTerms: row[2] || '',
+        dailyCap: parseFloat((row[3] || '0').replace(/[$,]/g, '')) || 0,
+        dailyBudget: parseFloat((row[4] || '0').replace(/[$,]/g, '')) || 0,
+        currentExposure: parseFloat((row[5] || '0').replace(/[$,]/g, '')) || 0,
+        availableBudget: parseFloat((row[6] || '0').replace(/[$,]/g, '')) || 0,
+        riskLevel: row[7] || '',
+      }));
+
+      // Enrich networkTerms with exposure data
+      if (processedData.networkTerms && processedData.networkTerms.length > 0 && processedData.networkExposure && processedData.networkExposure.length > 0) {
+        processedData.networkTerms = processedData.networkTerms.map(term => {
+          const exposure = processedData.networkExposure.find(exp =>
+            exp.network === term.networkName && exp.offer === term.offer
+          );
+          return {
+            ...term,
+            exposure: exposure || null
+          };
+        });
+      }
 
     } catch (processingError) {
       console.error('Error processing data:', processingError);

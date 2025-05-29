@@ -19,13 +19,13 @@ const DailyPLUpdate = ({ performanceData }) => {
   const [notes, setNotes] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [dateRange, setDateRange] = useState({
-    startDate: null,
-    endDate: null,
+    startDate: new Date(),
+    endDate: new Date(),
     period: 'yesterday'
   });
   const [insightDateRange, setInsightDateRange] = useState({
-    startDate: null,
-    endDate: null,
+    startDate: new Date(),
+    endDate: new Date(),
     period: 'last7'
   });
   const [selectedInsights, setSelectedInsights] = useState(new Set());
@@ -42,7 +42,7 @@ const DailyPLUpdate = ({ performanceData }) => {
       })
       .filter(Boolean);
     
-    return new Date(Math.max(...dates.map(d => d.getTime())));
+    return dates.length ? new Date(Math.max(...dates.map(d => d.getTime()))) : new Date();
   };
 
   // Get the earliest date from performance data
@@ -57,7 +57,7 @@ const DailyPLUpdate = ({ performanceData }) => {
       })
       .filter(Boolean);
     
-    return new Date(Math.min(...dates.map(d => d.getTime())));
+    return dates.length ? new Date(Math.min(...dates.map(d => d.getTime()))) : new Date();
   };
 
   // Helper function to validate dates
@@ -72,7 +72,7 @@ const DailyPLUpdate = ({ performanceData }) => {
   // Helper function to calculate previous period dates
   const calculatePreviousPeriodDates = (startDate, endDate) => {
     if (!validateDates(startDate, endDate)) {
-      return { previousStartDate: null, previousEndDate: null };
+      return { previousStartDate: new Date(), previousEndDate: new Date() };
     }
     
     const periodLength = endDate.getTime() - startDate.getTime();
@@ -93,40 +93,36 @@ const DailyPLUpdate = ({ performanceData }) => {
 
     switch (period) {
       case 'yesterday':
-        startDate = latestDate;
-        endDate = latestDate;
+        startDate = subDays(latestDate, 1);
+        endDate = subDays(latestDate, 1);
         break;
       case 'last7':
-        startDate = new Date(latestDate);
-        startDate.setDate(startDate.getDate() - 6);
+        startDate = subDays(latestDate, 6);
         endDate = latestDate;
         break;
       case 'last30':
-        startDate = new Date(latestDate);
-        startDate.setDate(startDate.getDate() - 29);
+        startDate = subDays(latestDate, 29);
         endDate = latestDate;
         break;
       case 'last60':
-        startDate = new Date(latestDate);
-        startDate.setDate(startDate.getDate() - 59);
+        startDate = subDays(latestDate, 59);
         endDate = latestDate;
         break;
       case 'last90':
-        startDate = new Date(latestDate);
-        startDate.setDate(startDate.getDate() - 89);
+        startDate = subDays(latestDate, 89);
         endDate = latestDate;
         break;
       case 'mtd':
-        startDate = new Date(latestDate.getFullYear(), latestDate.getMonth(), 1);
+        startDate = startOfMonth(latestDate);
         endDate = latestDate;
         break;
       case 'ytd':
-        startDate = new Date(latestDate.getFullYear(), 0, 1);
+        startDate = startOfYear(latestDate);
         endDate = latestDate;
         break;
       default:
-        startDate = latestDate;
-        endDate = latestDate;
+        startDate = subDays(latestDate, 1);
+        endDate = subDays(latestDate, 1);
     }
 
     if (!validateDates(startDate, endDate)) {
@@ -162,9 +158,11 @@ const DailyPLUpdate = ({ performanceData }) => {
     }
   };
 
-  // Initialize date ranges when component mounts
+  // Initialize date ranges when component mounts or performanceData changes
   useEffect(() => {
-    handleDateRangeChange('yesterday');
+    if (performanceData?.data?.length) {
+      handleDateRangeChange('yesterday');
+    }
   }, [performanceData]);
 
   // Calculate metrics for a specific date range

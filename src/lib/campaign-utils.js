@@ -1,9 +1,12 @@
 export const parseCampaignName = (name) => {
   if (!name) return { name: '-', network: 'Unknown', offer: 'Unknown', adAccount: 'Unknown', mediaBuyer: 'Unknown' };
 
+  // Normalize the name by trimming whitespace
+  const normalizedName = name.trim();
+
   // Complete list of networks
   const knownNetworks = [
-    'ACA', 'Clickbank', 'Comments', 'Cost Guide', 'Digistore', 'IDSG',
+    'ACA', 'Banner', 'Banner Edge', 'Clickbank', 'Comments', 'Cost Guide', 'Digistore', 'IDSG',
     'Lead Economy', 'Leadnomics', 'Maxweb', 'Monarch', 'Pointer', 'Pure Ads',
     'Smart Financial', 'Suited', 'TLG', 'Transparent Ads', 'Wisdom'
   ];
@@ -47,7 +50,7 @@ export const parseCampaignName = (name) => {
   ];
 
   // Split by " - " or " | " to extract components
-  const parts = name.split(/ - | \| /).map(part => part.trim());
+  const parts = normalizedName.split(/ - | \| /).map(part => part.trim());
   
   // Default values
   let network = 'Unknown';
@@ -57,42 +60,77 @@ export const parseCampaignName = (name) => {
   
   // Special case handling for specific campaign patterns
   
-  // 1. Handle "Snap Degree EDU - Transparent Ads - Thomas 5 Mike"
-  if (name.includes('Snap Degree EDU') && name.includes('Transparent Ads')) {
+  // 1. Handle Banner and Banner Edge early - normalize both to "Banner"
+  if (normalizedName.toLowerCase().includes('banner edge') || 
+      parts.some(part => part.toLowerCase().includes('banner edge'))) {
+    network = 'Banner';
+  } else if (normalizedName.toLowerCase().includes('banner') || 
+             parts.some(part => part.toLowerCase().trim() === 'banner')) {
+    network = 'Banner';
+  }
+  
+  // 2. Handle "Snap Degree EDU - Transparent Ads - Thomas 5 Mike"
+  if (normalizedName.includes('Snap Degree EDU') && normalizedName.includes('Transparent Ads')) {
     network = 'Transparent Ads';
     offer = 'EDU';
     adAccount = 'Thomas 05';
     mediaBuyer = 'Mike';
-    return { name, network, offer, adAccount, mediaBuyer };
+    return { name: normalizedName, network, offer, adAccount, mediaBuyer };
   }
   
-  // 2. Handle all "Aggro ACA" campaigns - they're all Mike's campaigns with ACA offer on Suited network
-  if (name.startsWith('Aggro ACA')) {
+  // 3. Handle all "Aggro ACA" campaigns - they're all Mike's campaigns with ACA offer on Suited network
+  if (normalizedName.startsWith('Aggro ACA')) {
     network = 'Suited';
     offer = 'ACA';
     mediaBuyer = 'Mike';
-    return { name, network, offer, adAccount, mediaBuyer };
+    return { name: normalizedName, network, offer, adAccount, mediaBuyer };
   }
   
-  // 3. Handle "Wisdom - InsureMyCar - Adrianna 03 - DL - Mike"
-  if (name.includes('Wisdom') && name.includes('InsureMyCar') && name.includes('Adrianna 03')) {
+  // 4. Handle "Wisdom - InsureMyCar - Adrianna 03 - DL - Mike"
+  if (normalizedName.includes('Wisdom') && normalizedName.includes('InsureMyCar') && normalizedName.includes('Adrianna 03')) {
     network = 'Wisdom';
     offer = 'InsureMyCar';
     adAccount = 'Adrianna 03';
     mediaBuyer = 'Mike';
-    return { name, network, offer, adAccount, mediaBuyer };
+    return { name: normalizedName, network, offer, adAccount, mediaBuyer };
   }
   
-  // First pass: Try to identify network and media buyer
+  // First pass: Try to identify network and media buyer (only if not already set by special cases)
+  if (network === 'Unknown') {
+    parts.forEach(part => {
+      const trimmedPart = part.trim();
+      
+      // Check for network (exact match first, then partial)
+      const matchingNetwork = knownNetworks.find(n => {
+        const normalizedNetwork = n.toLowerCase();
+        const normalizedPart = trimmedPart.toLowerCase();
+        
+        // Handle Banner/Banner Edge specifically
+        if ((normalizedNetwork === 'banner' || normalizedNetwork === 'banner edge') && 
+            (normalizedPart === 'banner' || normalizedPart === 'banner edge' || 
+             normalizedPart.includes('banner'))) {
+          return true;
+        }
+        
+        // Handle Leadnomics/Leadnomic specifically
+        if ((normalizedNetwork === 'leadnomics' || normalizedNetwork === 'leadnomic') && 
+            (normalizedPart === 'leadnomics' || normalizedPart === 'leadnomic' || 
+             normalizedPart.includes('leadnom'))) {
+          return true;
+        }
+        
+        // Standard matching
+        return trimmedPart === n || trimmedPart.includes(n) || n.includes(trimmedPart);
+      });
+      
+      if (matchingNetwork) {
+        // Normalize Banner Edge to Banner
+        network = matchingNetwork === 'Banner Edge' ? 'Banner' : matchingNetwork;
+      }
+    });
+  }
+  
   parts.forEach(part => {
-    // Check for network (exact match first, then partial)
-    const matchingNetwork = knownNetworks.find(n => 
-      part === n || part.includes(n) || n.includes(part)
-    );
-    if (matchingNetwork) {
-      network = matchingNetwork;
-    }
-    
     // Check for media buyer (exact match first, then partial)
     const matchingMediaBuyer = knownMediaBuyers.find(m => 
       part === m || part.includes(m) || m.includes(part)
@@ -130,7 +168,7 @@ export const parseCampaignName = (name) => {
   }
   
   // Special case: Handle Suited Health YHPF
-  if (name.includes('Suited Health YHPF')) {
+  if (normalizedName.includes('Suited Health YHPF')) {
     network = 'Suited';
     offer = 'Your Health Pro Finder';
   }
@@ -188,7 +226,7 @@ export const parseCampaignName = (name) => {
   }
   
   return {
-    name,
+    name: normalizedName,
     network,
     offer,
     adAccount,
