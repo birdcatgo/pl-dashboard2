@@ -1,4 +1,8 @@
+<<<<<<< HEAD
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
+=======
+import React, { useState, useEffect, useMemo } from 'react';
+>>>>>>> 43ad076127e60c10b1c540715a44cdf0a4a9c6bc
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import {
@@ -17,6 +21,7 @@ export default function NetworkPayTerms({ performanceData }) {
   const [networks, setNetworks] = useState([]);
   const [loading, setLoading] = useState(true);
   const [sortConfig, setSortConfig] = useState({
+<<<<<<< HEAD
     primary: {
       key: 'c2fAmountDue',
       direction: 'desc'
@@ -106,17 +111,27 @@ export default function NetworkPayTerms({ performanceData }) {
     };
   };
 
+=======
+    key: 'c2fAmountDue',
+    direction: 'desc'
+  });
+
+>>>>>>> 43ad076127e60c10b1c540715a44cdf0a4a9c6bc
   const fetchData = async () => {
     try {
       setLoading(true);
       console.log('Fetching network data...');
       
+<<<<<<< HEAD
       const networkResponse = await fetch('/api/network-exposure', {
         method: 'GET',
         headers: {
           'Content-Type': 'application/json',
         },
       });
+=======
+      const networkResponse = await fetch('/api/network-exposure');
+>>>>>>> 43ad076127e60c10b1c540715a44cdf0a4a9c6bc
       
       console.log('Network response status:', networkResponse.status);
       
@@ -129,10 +144,16 @@ export default function NetworkPayTerms({ performanceData }) {
       const networkData = await networkResponse.json();
       console.log('Received network data:', networkData);
 
+<<<<<<< HEAD
       if (!networkData.networks || Object.keys(networkData.networks).length === 0) {
         console.warn('No network data available');
         setNetworks([]);
         return;
+=======
+      if (!networkData.networks) {
+        console.error('Invalid network data format:', networkData);
+        throw new Error('Invalid data format received from server');
+>>>>>>> 43ad076127e60c10b1c540715a44cdf0a4a9c6bc
       }
 
       // Flatten the grouped networks while preserving the pay period
@@ -145,7 +166,10 @@ export default function NetworkPayTerms({ performanceData }) {
       });
       
       console.log('Processed networks:', allNetworks);
+<<<<<<< HEAD
       console.log('Sample network with exposure:', allNetworks.find(n => n.c2fAmountDue > 0));
+=======
+>>>>>>> 43ad076127e60c10b1c540715a44cdf0a4a9c6bc
       setNetworks(allNetworks);
     } catch (error) {
       console.error('Error fetching data:', error);
@@ -154,7 +178,10 @@ export default function NetworkPayTerms({ performanceData }) {
         description: error.message || 'Failed to fetch data. Please try again.',
         variant: 'destructive',
       });
+<<<<<<< HEAD
       setNetworks([]); // Set empty array on error
+=======
+>>>>>>> 43ad076127e60c10b1c540715a44cdf0a4a9c6bc
     } finally {
       setLoading(false);
     }
@@ -172,6 +199,7 @@ export default function NetworkPayTerms({ performanceData }) {
   };
 
   const calculateExpectedPaymentDate = (periodEnd, netTerms) => {
+<<<<<<< HEAD
     // Validate inputs
     if (!periodEnd || !netTerms) {
       console.warn('Invalid inputs for calculateExpectedPaymentDate:', { periodEnd, netTerms });
@@ -194,10 +222,15 @@ export default function NetworkPayTerms({ performanceData }) {
       return 'N/A';
     }
 
+=======
+    const endDate = new Date(periodEnd);
+    endDate.setDate(endDate.getDate() + netTerms);
+>>>>>>> 43ad076127e60c10b1c540715a44cdf0a4a9c6bc
     return endDate.toISOString().split('T')[0];
   };
 
   const calculateDaysUntilPayment = (expectedPaymentDate) => {
+<<<<<<< HEAD
     // Handle invalid or N/A payment dates
     if (!expectedPaymentDate || expectedPaymentDate === 'N/A') {
       return 'N/A';
@@ -212,6 +245,10 @@ export default function NetworkPayTerms({ performanceData }) {
       return 'N/A';
     }
 
+=======
+    const today = new Date();
+    const paymentDate = new Date(expectedPaymentDate);
+>>>>>>> 43ad076127e60c10b1c540715a44cdf0a4a9c6bc
     const diffTime = paymentDate - today;
     return Math.ceil(diffTime / (1000 * 60 * 60 * 24));
   };
@@ -269,6 +306,7 @@ export default function NetworkPayTerms({ performanceData }) {
     };
   };
 
+<<<<<<< HEAD
   const handleSort = useCallback((key) => {
     setSortConfig(prevConfig => {
       // If clicking the same key as primary sort
@@ -384,19 +422,76 @@ export default function NetworkPayTerms({ performanceData }) {
   }, [networks]);
 
   // Memoize volume distribution
+=======
+  const handleSort = (key) => {
+    let direction = 'asc';
+    if (sortConfig.key === key && sortConfig.direction === 'asc') {
+      direction = 'desc';
+    }
+    setSortConfig({ key, direction });
+  };
+
+  const getSortedData = () => {
+    if (!networks.length) return [];
+
+    return [...networks].sort((a, b) => {
+      let aValue = a[sortConfig.key];
+      let bValue = b[sortConfig.key];
+
+      if (typeof aValue === 'string') {
+        return sortConfig.direction === 'asc' 
+          ? aValue.localeCompare(bValue)
+          : bValue.localeCompare(aValue);
+      }
+
+      return sortConfig.direction === 'asc'
+        ? aValue - bValue
+        : bValue - aValue;
+    });
+  };
+
+  const getSortIcon = (columnKey) => {
+    if (sortConfig.key !== columnKey) {
+      return <ArrowUpDown className="h-3 w-3 text-gray-400" />;
+    }
+    return sortConfig.direction === 'asc' 
+      ? <ArrowUp className="h-3 w-3 text-gray-600" />
+      : <ArrowDown className="h-3 w-3 text-gray-600" />;
+  };
+
+  const getTrendIcon = (trend) => {
+    switch (trend) {
+      case 'increasing':
+        return <TrendingUp className="h-4 w-4 text-green-500" />;
+      case 'decreasing':
+        return <TrendingDown className="h-4 w-4 text-red-500" />;
+      default:
+        return <Minus className="h-4 w-4 text-gray-500" />;
+    }
+  };
+
+>>>>>>> 43ad076127e60c10b1c540715a44cdf0a4a9c6bc
   const volumeDistribution = useMemo(() => {
     if (!networks.length) return null;
 
     // First, normalize the pay period values to ensure consistent categorization
     const normalizedNetworks = networks.map(network => ({
       ...network,
+<<<<<<< HEAD
       payPeriod: (network.payPeriod || '').toLowerCase().trim()
+=======
+      payPeriod: network.payPeriod.toLowerCase().trim()
+>>>>>>> 43ad076127e60c10b1c540715a44cdf0a4a9c6bc
     }));
 
     const distribution = normalizedNetworks.reduce((acc, network) => {
       // Determine the period category
       let period;
+<<<<<<< HEAD
       if (network.payPeriod.includes('bi') || network.payPeriod.includes('bi-monthly') || network.payPeriod.includes('bi-weekly')) {
+=======
+      if (network.payPeriod.includes('bi') || network.payPeriod.includes('bi-monthly')) {
+>>>>>>> 43ad076127e60c10b1c540715a44cdf0a4a9c6bc
         period = 'bi-monthly';
       } else if (network.payPeriod.includes('month')) {
         period = 'monthly';
@@ -413,11 +508,19 @@ export default function NetworkPayTerms({ performanceData }) {
           networks: []
         };
       }
+<<<<<<< HEAD
       acc[period].total += network.c2fAmountDue || 0;
       acc[period].count += 1;
       acc[period].networks.push({
         name: network.name,
         amount: network.c2fAmountDue || 0,
+=======
+      acc[period].total += network.c2fAmountDue;
+      acc[period].count += 1;
+      acc[period].networks.push({
+        name: network.name,
+        amount: network.c2fAmountDue,
+>>>>>>> 43ad076127e60c10b1c540715a44cdf0a4a9c6bc
         netTerms: network.netTerms
       });
       return acc;
@@ -425,20 +528,30 @@ export default function NetworkPayTerms({ performanceData }) {
 
     const totalExposure = Object.values(distribution).reduce((sum, period) => sum + period.total, 0);
 
+<<<<<<< HEAD
     // Handle division by zero for percentages
     const calculatePercentage = (amount) => {
       if (totalExposure === 0) return 0;
       return (amount / totalExposure) * 100;
     };
 
+=======
+>>>>>>> 43ad076127e60c10b1c540715a44cdf0a4a9c6bc
     return {
       distribution,
       totalExposure,
       riskMetrics: {
+<<<<<<< HEAD
         weeklyPercentage: calculatePercentage(distribution.weekly?.total || 0),
         monthlyPercentage: calculatePercentage(distribution.monthly?.total || 0),
         biMonthlyPercentage: calculatePercentage(distribution['bi-monthly']?.total || 0),
         otherPercentage: calculatePercentage(distribution.other?.total || 0)
+=======
+        weeklyPercentage: (distribution.weekly?.total || 0) / totalExposure * 100,
+        monthlyPercentage: (distribution.monthly?.total || 0) / totalExposure * 100,
+        biMonthlyPercentage: (distribution['bi-monthly']?.total || 0) / totalExposure * 100,
+        otherPercentage: (distribution.other?.total || 0) / totalExposure * 100
+>>>>>>> 43ad076127e60c10b1c540715a44cdf0a4a9c6bc
       }
     };
   }, [networks]);
@@ -493,6 +606,7 @@ export default function NetworkPayTerms({ performanceData }) {
     return recommendations;
   };
 
+<<<<<<< HEAD
   const getROIColor = (roi) => {
     const roiValue = parseFloat(roi);
     if (roiValue >= 100) return 'text-green-600';
@@ -532,15 +646,30 @@ export default function NetworkPayTerms({ performanceData }) {
         <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
           <Card>
             <CardHeader className="p-2">
+=======
+  return (
+    <div className="space-y-6">
+      {volumeDistribution && (
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+          <Card>
+            <CardHeader>
+>>>>>>> 43ad076127e60c10b1c540715a44cdf0a4a9c6bc
               <CardTitle>Volume Distribution</CardTitle>
               <p className="text-sm text-gray-500">
                 Total Exposure: {formatCurrency(volumeDistribution.totalExposure)}
               </p>
             </CardHeader>
+<<<<<<< HEAD
             <CardContent className="p-2">
               <div className="space-y-2">
                 <div className="grid grid-cols-2 gap-2">
                   <div className="bg-blue-50 p-2 rounded-lg">
+=======
+            <CardContent>
+              <div className="space-y-6">
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="bg-blue-50 p-4 rounded-lg">
+>>>>>>> 43ad076127e60c10b1c540715a44cdf0a4a9c6bc
                     <h3 className="text-sm font-medium text-blue-800">Weekly</h3>
                     <p className="text-2xl font-bold text-blue-900">
                       {formatCurrency(volumeDistribution.distribution.weekly?.total || 0)}
@@ -549,7 +678,11 @@ export default function NetworkPayTerms({ performanceData }) {
                       {volumeDistribution.riskMetrics.weeklyPercentage.toFixed(1)}% of total
                     </p>
                   </div>
+<<<<<<< HEAD
                   <div className="bg-purple-50 p-2 rounded-lg">
+=======
+                  <div className="bg-purple-50 p-4 rounded-lg">
+>>>>>>> 43ad076127e60c10b1c540715a44cdf0a4a9c6bc
                     <h3 className="text-sm font-medium text-purple-800">Monthly</h3>
                     <p className="text-2xl font-bold text-purple-900">
                       {formatCurrency(volumeDistribution.distribution.monthly?.total || 0)}
@@ -558,7 +691,11 @@ export default function NetworkPayTerms({ performanceData }) {
                       {volumeDistribution.riskMetrics.monthlyPercentage.toFixed(1)}% of total
                     </p>
                   </div>
+<<<<<<< HEAD
                   <div className="bg-orange-50 p-2 rounded-lg">
+=======
+                  <div className="bg-orange-50 p-4 rounded-lg">
+>>>>>>> 43ad076127e60c10b1c540715a44cdf0a4a9c6bc
                     <h3 className="text-sm font-medium text-orange-800">Bi-Monthly</h3>
                     <p className="text-2xl font-bold text-orange-900">
                       {formatCurrency(volumeDistribution.distribution['bi-monthly']?.total || 0)}
@@ -567,7 +704,11 @@ export default function NetworkPayTerms({ performanceData }) {
                       {volumeDistribution.riskMetrics.biMonthlyPercentage.toFixed(1)}% of total
                     </p>
                   </div>
+<<<<<<< HEAD
                   <div className="bg-gray-50 p-2 rounded-lg">
+=======
+                  <div className="bg-gray-50 p-4 rounded-lg">
+>>>>>>> 43ad076127e60c10b1c540715a44cdf0a4a9c6bc
                     <div className="h-[120px]">
                       <ResponsiveContainer width="100%" height="100%">
                         <PieChart>
@@ -611,11 +752,19 @@ export default function NetworkPayTerms({ performanceData }) {
           </Card>
 
           <Card>
+<<<<<<< HEAD
             <CardHeader className="p-2">
               <CardTitle>Risk Assessment</CardTitle>
             </CardHeader>
             <CardContent className="p-2">
               <div className="space-y-2">
+=======
+            <CardHeader>
+              <CardTitle>Risk Assessment</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="space-y-4">
+>>>>>>> 43ad076127e60c10b1c540715a44cdf0a4a9c6bc
                 <div className="flex items-center gap-2">
                   <div className={`w-3 h-3 rounded-full bg-${getRiskLevel(volumeDistribution.riskMetrics).color}-500`} />
                   <span className="font-medium">
@@ -623,7 +772,11 @@ export default function NetworkPayTerms({ performanceData }) {
                   </span>
                 </div>
                 
+<<<<<<< HEAD
                 <div className="space-y-1">
+=======
+                <div className="space-y-2">
+>>>>>>> 43ad076127e60c10b1c540715a44cdf0a4a9c6bc
                   {getRecommendations(volumeDistribution.riskMetrics).map((rec, index) => (
                     <div key={index} className="flex items-start gap-2 text-sm">
                       <AlertTriangle className={`h-4 w-4 mt-0.5 ${
@@ -648,6 +801,7 @@ export default function NetworkPayTerms({ performanceData }) {
       )}
 
       <Card>
+<<<<<<< HEAD
         <CardHeader className="p-2">
           <CardTitle>Network Payment Terms</CardTitle>
         </CardHeader>
@@ -656,20 +810,48 @@ export default function NetworkPayTerms({ performanceData }) {
             <div className="text-center py-2">Loading...</div>
           ) : networks.length === 0 ? (
             <div className="text-center py-2">No network data available</div>
+=======
+        <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+          <CardTitle>Network Payment Terms</CardTitle>
+          <Button
+            variant="outline"
+            size="icon"
+            onClick={fetchData}
+            disabled={loading}
+          >
+            <RefreshCw className={`h-4 w-4 ${loading ? 'animate-spin' : ''}`} />
+          </Button>
+        </CardHeader>
+        <CardContent>
+          {loading ? (
+            <div className="text-center py-4">Loading...</div>
+          ) : networks.length === 0 ? (
+            <div className="text-center py-4">No network data available</div>
+>>>>>>> 43ad076127e60c10b1c540715a44cdf0a4a9c6bc
           ) : (
             <div className="overflow-x-auto">
               <Table>
                 <TableHeader>
+<<<<<<< HEAD
                   <TableRow className="bg-gray-50">
                     <TableHead 
                       className="cursor-pointer hover:bg-gray-100 p-2"
                       onClick={() => handleSort('name')}
                     >
                       <div className="flex items-center gap-1 text-sm font-medium text-gray-700">
+=======
+                  <TableRow>
+                    <TableHead 
+                      className="cursor-pointer hover:bg-gray-50"
+                      onClick={() => handleSort('name')}
+                    >
+                      <div className="flex items-center gap-1 text-sm font-medium text-gray-600">
+>>>>>>> 43ad076127e60c10b1c540715a44cdf0a4a9c6bc
                         Network {getSortIcon('name')}
                       </div>
                     </TableHead>
                     <TableHead 
+<<<<<<< HEAD
                       className="cursor-pointer hover:bg-gray-100 p-2"
                       onClick={() => handleSort('c2fAmountDue')}
                     >
@@ -760,11 +942,80 @@ export default function NetworkPayTerms({ performanceData }) {
                     >
                       <div className="flex items-center gap-1 text-sm font-medium text-gray-700 whitespace-nowrap">
                         MTD Rev {getSortIcon('mtdRevenue')}
+=======
+                      className="cursor-pointer hover:bg-gray-50"
+                      onClick={() => handleSort('c2fAmountDue')}
+                    >
+                      <div className="flex items-center gap-1 text-sm font-medium text-gray-600">
+                        Current Exposure {getSortIcon('c2fAmountDue')}
+                      </div>
+                    </TableHead>
+                    <TableHead 
+                      className="cursor-pointer hover:bg-gray-50"
+                      onClick={() => handleSort('netTerms')}
+                    >
+                      <div className="flex items-center gap-1 text-sm font-medium text-gray-600">
+                        Net Terms {getSortIcon('netTerms')}
+                      </div>
+                    </TableHead>
+                    <TableHead 
+                      className="cursor-pointer hover:bg-gray-50"
+                      onClick={() => handleSort('payPeriod')}
+                    >
+                      <div className="flex items-center gap-1 text-sm font-medium text-gray-600">
+                        Pay Period {getSortIcon('payPeriod')}
+                      </div>
+                    </TableHead>
+                    <TableHead 
+                      className="cursor-pointer hover:bg-gray-50"
+                      onClick={() => handleSort('periodStart')}
+                    >
+                      <div className="flex items-center gap-1 text-sm font-medium text-gray-600">
+                        Period Start {getSortIcon('periodStart')}
+                      </div>
+                    </TableHead>
+                    <TableHead 
+                      className="cursor-pointer hover:bg-gray-50"
+                      onClick={() => handleSort('periodEnd')}
+                    >
+                      <div className="flex items-center gap-1 text-sm font-medium text-gray-600">
+                        Period End {getSortIcon('periodEnd')}
+                      </div>
+                    </TableHead>
+                    <TableHead 
+                      className="cursor-pointer hover:bg-gray-50"
+                      onClick={() => handleSort('expectedPaymentDate')}
+                    >
+                      <div className="flex items-center gap-1 text-sm font-medium text-gray-600">
+                        Expected Payment {getSortIcon('expectedPaymentDate')}
+                      </div>
+                    </TableHead>
+                    <TableHead 
+                      className="cursor-pointer hover:bg-gray-50"
+                      onClick={() => handleSort('daysUntilPayment')}
+                    >
+                      <div className="flex items-center gap-1 text-sm font-medium text-gray-600">
+                        Days Until Payment {getSortIcon('daysUntilPayment')}
+                      </div>
+                    </TableHead>
+                    <TableHead 
+                      className="cursor-pointer hover:bg-gray-50"
+                      onClick={() => handleSort('yesterdaySpend')}
+                    >
+                      <div className="flex items-center gap-1 text-sm font-medium text-gray-600">
+                        Yesterday's Spend {getSortIcon('yesterdaySpend')}
+                      </div>
+                    </TableHead>
+                    <TableHead>
+                      <div className="flex items-center gap-1 text-sm font-medium text-gray-600">
+                        Spend Trend
+>>>>>>> 43ad076127e60c10b1c540715a44cdf0a4a9c6bc
                       </div>
                     </TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
+<<<<<<< HEAD
                   {sortedData.active.length > 0 && (
                     <>
                       <TableRow className="bg-gray-100">
@@ -866,6 +1117,38 @@ export default function NetworkPayTerms({ performanceData }) {
                       })}
                     </>
                   )}
+=======
+                  {getSortedData().map((network, index) => {
+                    const expectedPaymentDate = calculateExpectedPaymentDate(network.periodEnd, network.netTerms);
+                    const daysUntilPayment = calculateDaysUntilPayment(expectedPaymentDate);
+                    const yesterdaySpend = getYesterdaySpend(network.name);
+                    const spendTrend = getSpendTrend(network.name);
+
+                    return (
+                      <TableRow key={index}>
+                        <TableCell>{network.name}</TableCell>
+                        <TableCell>{formatCurrency(network.c2fAmountDue)}</TableCell>
+                        <TableCell>{network.netTerms}</TableCell>
+                        <TableCell>{network.payPeriod}</TableCell>
+                        <TableCell>{network.periodStart}</TableCell>
+                        <TableCell>{network.periodEnd}</TableCell>
+                        <TableCell>{expectedPaymentDate}</TableCell>
+                        <TableCell>{daysUntilPayment} days</TableCell>
+                        <TableCell>{formatCurrency(yesterdaySpend)}</TableCell>
+                        <TableCell>
+                          <div className="flex items-center gap-2">
+                            {getTrendIcon(spendTrend.trend)}
+                            <span className={spendTrend.trend === 'increasing' ? 'text-green-500' : 
+                                           spendTrend.trend === 'decreasing' ? 'text-red-500' : 
+                                           'text-gray-500'}>
+                              {spendTrend.percentage.toFixed(1)}%
+                            </span>
+                          </div>
+                        </TableCell>
+                      </TableRow>
+                    );
+                  })}
+>>>>>>> 43ad076127e60c10b1c540715a44cdf0a4a9c6bc
                 </TableBody>
               </Table>
             </div>
