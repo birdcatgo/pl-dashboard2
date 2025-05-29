@@ -371,15 +371,15 @@ export default function DashboardLayout({
                   <button
                     onClick={() => {
                       setActiveTab('accounts');
-                      setAccountsSubview('network-terms');
+                      setAccountsSubview('network-pay-terms');
                     }}
                     className="w-full text-left px-4 py-3 bg-white rounded-lg shadow hover:shadow-md transition-shadow duration-200"
                   >
                     <div className="flex items-center space-x-3">
-                      <span className="text-xl">📅</span>
+                      <span className="text-xl">🌐</span>
                       <div>
-                        <h3 className="font-medium">Network Terms</h3>
-                        <p className="text-sm text-gray-600">Manage network payment terms</p>
+                        <h3 className="font-medium">Network Pay Terms</h3>
+                        <p className="text-sm text-gray-600">Manage network payment terms and exposure</p>
                       </div>
                     </div>
                   </button>
@@ -626,21 +626,6 @@ export default function DashboardLayout({
                       <div>
                         <h3 className="font-medium">Network Pay Terms</h3>
                         <p className="text-sm text-gray-600">Manage network payment terms and exposure</p>
-                      </div>
-                    </div>
-                  </button>
-                  <button
-                    onClick={() => {
-                      setActiveTab('tools');
-                      setToolsSubview('network-terms');
-                    }}
-                    className="w-full text-left px-4 py-3 bg-white rounded-lg shadow hover:shadow-md transition-shadow duration-200"
-                  >
-                    <div className="flex items-center space-x-3">
-                      <span className="text-xl">📋</span>
-                      <div>
-                        <h3 className="font-medium">Network Terms</h3>
-                        <p className="text-sm text-gray-600">View legacy network terms data</p>
                       </div>
                     </div>
                   </button>
@@ -961,10 +946,10 @@ export default function DashboardLayout({
                   Cash Flow Planner
                 </Button>
                 <Button
-                  variant={accountsSubview === 'network-terms' ? 'default' : 'outline'}
-                  onClick={() => setAccountsSubview('network-terms')}
+                  variant={accountsSubview === 'network-pay-terms' ? 'default' : 'outline'}
+                  onClick={() => setAccountsSubview('network-pay-terms')}
                 >
-                  Network Terms
+                  Network Pay Terms
                 </Button>
               </div>
             </div>
@@ -1003,7 +988,7 @@ export default function DashboardLayout({
                   networkExposureData={networkTermsData || []}
                 />
               )}
-              {accountsSubview === 'network-terms' && (
+              {accountsSubview === 'network-pay-terms' && (
                 <NetworkPayTerms />
               )}
             </div>
@@ -1309,15 +1294,6 @@ export default function DashboardLayout({
                 >
                   Network Pay Terms
                 </Button>
-                <Button
-                  variant={toolsSubview === 'network-terms' ? 'default' : 'outline'}
-                  onClick={() => {
-                    setActiveTab('tools');
-                    setToolsSubview('network-terms');
-                  }}
-                >
-                  Network Terms
-                </Button>
               </div>
             </div>
 
@@ -1337,7 +1313,6 @@ export default function DashboardLayout({
                 />
               )}
               {toolsSubview === 'network-pay-terms' && <NetworkPayTerms performanceData={performanceData} />}
-              {toolsSubview === 'network-terms' && <NetworkPayTerms performanceData={performanceData} />}
             </div>
           </div>
         );
