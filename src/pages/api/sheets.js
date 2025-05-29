@@ -770,7 +770,6 @@ export default async function handler(req, res) {
         sample: processedData.employeeData[0]
       });
 
-<<<<<<< HEAD
       // Process network exposure
       processedData.networkExposure = (networkPaymentsResponse?.values || []).slice(1).map(row => ({
         network: row[0] || '',
@@ -795,7 +794,6 @@ export default async function handler(req, res) {
           };
         });
       }
-=======
       // Process Network Exposure data
       const networkExposureData = networkExposureResponse?.values?.slice(1).map(row => ({
         name: row[0] || '',
@@ -813,7 +811,6 @@ export default async function handler(req, res) {
         ...processedData,
         networkExposure: networkExposureData
       };
->>>>>>> 43ad076127e60c10b1c540715a44cdf0a4a9c6bc
 
     } catch (processingError) {
       console.error('Error processing data:', processingError);

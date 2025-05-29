@@ -61,10 +61,7 @@ import DailyUpdate from './DailyUpdate';
 import ExpenseReview from './ExpenseReview';
 import TradeshiftReview from './TradeshiftReview';
 import DailyPLUpdate from './DailyPLUpdate';
-<<<<<<< HEAD
 import CashFlowPlanner from './CashFlowPlanner';
-=======
->>>>>>> 43ad076127e60c10b1c540715a44cdf0a4a9c6bc
 import NetworkPayTerms from './NetworkPayTerms';
 
 export default function DashboardLayout({ 
@@ -605,18 +602,14 @@ export default function DashboardLayout({
                   <button
                     onClick={() => {
                       setActiveTab('tools');
-<<<<<<< HEAD
                       setToolsSubview('cash-flow-planner');
-=======
                       setToolsSubview('network-pay-terms');
->>>>>>> 43ad076127e60c10b1c540715a44cdf0a4a9c6bc
                     }}
                     className="w-full text-left px-4 py-3 bg-white rounded-lg shadow hover:shadow-md transition-shadow duration-200"
                   >
                     <div className="flex items-center space-x-3">
                       <span className="text-xl">📅</span>
                       <div>
-<<<<<<< HEAD
                         <h3 className="font-medium">Cash Flow Planner</h3>
                         <p className="text-sm text-gray-600">Plan and manage cash flow</p>
                       </div>
@@ -633,9 +626,7 @@ export default function DashboardLayout({
                       <span className="text-xl">📅</span>
                       <div>
                         <h3 className="font-medium">Network Terms</h3>
-=======
                         <h3 className="font-medium">Network Pay Terms</h3>
->>>>>>> 43ad076127e60c10b1c540715a44cdf0a4a9c6bc
                         <p className="text-sm text-gray-600">Manage network payment terms</p>
                       </div>
                     </div>
@@ -1288,7 +1279,6 @@ export default function DashboardLayout({
                   Timezone Converter
                 </Button>
                 <Button
-<<<<<<< HEAD
                   variant={toolsSubview === 'cash-flow-planner' ? 'default' : 'outline'}
                   onClick={() => {
                     setActiveTab('tools');
@@ -1305,7 +1295,6 @@ export default function DashboardLayout({
                   }}
                 >
                   Network Terms
-=======
                   variant={toolsSubview === 'network-pay-terms' ? 'default' : 'outline'}
                   onClick={() => {
                     setActiveTab('tools');
@@ -1313,7 +1302,6 @@ export default function DashboardLayout({
                   }}
                 >
                   Network Pay Terms
->>>>>>> 43ad076127e60c10b1c540715a44cdf0a4a9c6bc
                 </Button>
               </div>
             </div>
@@ -1324,7 +1312,6 @@ export default function DashboardLayout({
               {toolsSubview === 'daily-pl-update' && <DailyPLUpdate performanceData={performanceData} />}
               {toolsSubview === 'ad-accounts' && <AdAccounts />}
               {toolsSubview === 'timezone' && <TimezoneConverter />}
-<<<<<<< HEAD
               {toolsSubview === 'cash-flow-planner' && (
                 <CashFlowPlanner 
                   performanceData={performanceData?.data ? { data: performanceData.data } : { data: [] }}
@@ -1335,9 +1322,7 @@ export default function DashboardLayout({
                 />
               )}
               {toolsSubview === 'network-terms' && <NetworkPayTerms performanceData={performanceData} networkTermsData={networkTermsData} />}
-=======
               {toolsSubview === 'network-pay-terms' && <NetworkPayTerms performanceData={performanceData} />}
->>>>>>> 43ad076127e60c10b1c540715a44cdf0a4a9c6bc
             </div>
           </div>
         );

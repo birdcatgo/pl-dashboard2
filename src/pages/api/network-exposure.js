@@ -1,5 +1,4 @@
 import { google } from 'googleapis';
-<<<<<<< HEAD
 
 export default async function handler(req, res) {
   try {
@@ -167,7 +166,6 @@ export default async function handler(req, res) {
     return res.status(500).json({ 
       error: 'Failed to fetch network exposure data',
       details: error.message 
-=======
 import { getGoogleAuth } from '@/lib/google-auth';
 
 export default async function handler(req, res) {
@@ -236,7 +234,6 @@ export default async function handler(req, res) {
       error: 'Failed to fetch network exposure data',
       details: error.message,
       stack: process.env.NODE_ENV === 'development' ? error.stack : undefined
->>>>>>> 43ad076127e60c10b1c540715a44cdf0a4a9c6bc
     });
   }
 } 
