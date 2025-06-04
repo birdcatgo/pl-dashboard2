@@ -1,15 +1,22 @@
 import React, { useState } from 'react';
 
 const CommissionPayments = ({ commissions }) => {
-  const [selectedMonth, setSelectedMonth] = useState('April 2025');
+  const [selectedMonth, setSelectedMonth] = useState('May 2025');
 
   // Helper function to format currency
   const formatCurrency = (value) => {
-    if (!value) return '$0.00';
+    if (!value || value === '0' || value === 0) return '$0.00';
+    
+    // Handle string values with currency symbols and commas
+    const cleanValue = typeof value === 'string' ? value.replace(/[$,]/g, '') : value;
+    const numericValue = parseFloat(cleanValue);
+    
+    if (isNaN(numericValue)) return '$0.00';
+    
     return new Intl.NumberFormat('en-US', {
       style: 'currency',
       currency: 'USD'
-    }).format(parseFloat(value.replace(/[$,]/g, '')));
+    }).format(numericValue);
   };
 
   if (!commissions?.length) {
@@ -33,6 +40,7 @@ const CommissionPayments = ({ commissions }) => {
           onChange={(e) => setSelectedMonth(e.target.value)}
           className="w-48 px-3 py-2 border border-gray-300 rounded-md text-sm"
         >
+          <option value="May 2025">May 2025</option>
           <option value="April 2025">April 2025</option>
           <option value="March 2025">March 2025</option>
           <option value="February 2025">February 2025</option>
@@ -68,7 +76,8 @@ const CommissionPayments = ({ commissions }) => {
               {/* Active Commissions */}
               {activeCommissions.map((commission, index) => {
                 const amount = commission[selectedMonth];
-                const commissionAmount = commission[`${selectedMonth} Commission`];
+                // Handle both "Commission" and "Commissions" formats
+                const commissionAmount = commission[`${selectedMonth} Commissions`] || commission[`${selectedMonth} Commission`];
                 const rowBackground = parseFloat(commissionAmount?.replace(/[$,]/g, '') || '0') > 0 ? 'bg-green-50' : 
                                     parseFloat(commissionAmount?.replace(/[$,]/g, '') || '0') < 0 ? 'bg-red-50' : 'bg-white';
                 
@@ -103,7 +112,8 @@ const CommissionPayments = ({ commissions }) => {
               {/* Inactive Commissions */}
               {inactiveCommissions.map((commission, index) => {
                 const amount = commission[selectedMonth];
-                const commissionAmount = commission[`${selectedMonth} Commission`];
+                // Handle both "Commission" and "Commissions" formats
+                const commissionAmount = commission[`${selectedMonth} Commissions`] || commission[`${selectedMonth} Commission`];
                 const rowBackground = parseFloat(commissionAmount?.replace(/[$,]/g, '') || '0') > 0 ? 'bg-green-50' : 
                                     parseFloat(commissionAmount?.replace(/[$,]/g, '') || '0') < 0 ? 'bg-red-50' : 'bg-white';
                 

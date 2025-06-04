@@ -9,12 +9,23 @@ async function processPLData(batchResponse) {
 
     // Process monthly detail sheets more efficiently
     const monthSheets = batchResponse.data.valueRanges.filter(range => 
-      /^(April|March|February|January|December|November|October|September|August|July|June)!/.test(range.range)
+      /^(May|April|March|February|January|December|November|October|September|August|July|June)!/.test(range.range)
     );
 
     // Process all months in parallel
     await Promise.all(monthSheets.map(async monthSheet => {
       const monthName = monthSheet.range.split('!')[0];
+      
+      // Special logging for May
+      if (monthName === 'May') {
+        console.log('Processing May sheet data:', {
+          range: monthSheet.range,
+          hasValues: !!monthSheet.values,
+          valuesLength: monthSheet.values?.length,
+          firstRow: monthSheet.values?.[0],
+          sampleRows: monthSheet.values?.slice(0, 3)
+        });
+      }
       
       if (monthSheet.values && monthSheet.values.length > 1) {
         // Map rows more efficiently with a single pass, matching exact sheet column order
@@ -404,6 +415,7 @@ export default async function handler(req, res) {
       "'Media Buyer Spend'!A:B",
       "'Summary'!A:V",
       "'Network Payment Schedule'!A:H",
+      "'May'!A:E",
       "'April'!A:E",
       "'March'!A:E",
       "'February'!A:E",
@@ -492,6 +504,7 @@ export default async function handler(req, res) {
       mediaBuyerResponse,
       summaryResponse,
       networkPaymentsResponse,
+      mayResponse,
       aprilResponse,
       marchResponse,
       februaryResponse,
@@ -685,6 +698,7 @@ export default async function handler(req, res) {
       const plData = await processPLData({
         data: {
           valueRanges: [
+            mayResponse,
             aprilResponse,
             marchResponse,
             februaryResponse,
@@ -714,8 +728,8 @@ export default async function handler(req, res) {
         // Get all month columns from the header
         const headerRow = commissionsResponse.values[0];
         const monthColumns = headerRow.reduce((acc, header, index) => {
-          // Match both formats: "April 2025" and "April 2025 Commission"
-          const monthMatch = header.match(/^(April|March|February)\s+2025(?:\s+Commission)?$/);
+          // Match both formats: "May 2025", "April 2025" and "May 2025 Commission(s)", "April 2025 Commission(s)"
+          const monthMatch = header.match(/^(May|April|March|February)\s+2025(?:\s+Commissions?)?$/);
           if (monthMatch) {
             acc[header] = index;
           }

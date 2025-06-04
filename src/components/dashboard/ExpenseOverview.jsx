@@ -365,19 +365,19 @@ const ExpenseCategory = ({ title, monthlyData, plData }) => {
     return `${title} ${trend > 0 ? 'increased' : 'decreased'} by ${formatCurrency(difference)} (${Math.abs(trend)}%) compared to ${monthDisplay}`;
   };
 
-  // Ensure data is in chronological order (April, March, Feb)
+  // Ensure data is in chronological order (May, April, March)
   const orderedData = [
+    monthlyData.find(d => d.month.includes('May')),
     monthlyData.find(d => d.month.includes('April')),
-    monthlyData.find(d => d.month.includes('March')),
-    monthlyData.find(d => d.month.includes('February'))
+    monthlyData.find(d => d.month.includes('March'))
   ].filter(Boolean);
 
   if (!orderedData.length) {
     console.log('No data available for display:', {
       monthlyData,
+      mayData: monthlyData.find(d => d.month.includes('May')),
       aprilData: monthlyData.find(d => d.month.includes('April')),
-      marchData: monthlyData.find(d => d.month.includes('March')),
-      febData: monthlyData.find(d => d.month.includes('February'))
+      marchData: monthlyData.find(d => d.month.includes('March'))
     });
   }
 
@@ -427,9 +427,9 @@ const ExpenseCategory = ({ title, monthlyData, plData }) => {
       {showExpenseDetails && (
         <ExpenseDetails
           expenses={Object.entries(plData.monthly)
-            .filter(([month]) => ['April', 'March', 'February'].includes(month))
+            .filter(([month]) => ['May', 'April', 'March', 'February'].includes(month))
             .sort(([monthA], [monthB]) => {
-              const monthSortOrder = { 'April': 4, 'March': 3, 'February': 2 };
+              const monthSortOrder = { 'May': 5, 'April': 4, 'March': 3, 'February': 2 };
               return monthSortOrder[monthB] - monthSortOrder[monthA];
             })[0]?.[1]?.expenseData?.filter(expense => {
               const category = expense.Category?.toLowerCase() || '';
@@ -1135,7 +1135,12 @@ const ExpenseComparisonTable = ({ monthlyData, plData }) => {
   
   // Process expenses by category
   const categories = useMemo(() => {
-    if (!plData?.monthly) return {};
+    if (!plData?.monthly) {
+      console.log('ExpenseComparisonTable: No plData.monthly available');
+      return {};
+    }
+
+    console.log('ExpenseComparisonTable: Processing plData.monthly:', Object.keys(plData.monthly));
 
     const categoryMap = {
       payroll: [],
@@ -1147,6 +1152,8 @@ const ExpenseComparisonTable = ({ monthlyData, plData }) => {
     // Process each month's data
     Object.entries(plData.monthly).forEach(([month, data]) => {
       if (!data?.expenseData) return;
+
+      console.log(`ExpenseComparisonTable: Processing ${month} with ${data.expenseData.length} expenses`);
 
       data.expenseData.forEach(expense => {
         const category = expense.Category?.toLowerCase() || '';
@@ -1199,6 +1206,31 @@ const ExpenseComparisonTable = ({ monthlyData, plData }) => {
       });
     });
 
+    console.log('ExpenseComparisonTable: Before filtering:', {
+      payroll: categoryMap.payroll.length,
+      advertising: categoryMap.advertising.length,
+      subscriptions: categoryMap.subscriptions.length,
+      other: categoryMap.other.length
+    });
+
+    // Filter out expenses that have $0 across all months, but be more lenient
+    Object.keys(categoryMap).forEach(categoryKey => {
+      const originalLength = categoryMap[categoryKey].length;
+      categoryMap[categoryKey] = categoryMap[categoryKey].filter(expense => {
+        const totalAmount = Object.values(expense.amounts).reduce((sum, amount) => sum + amount, 0);
+        return totalAmount > 0.01; // Keep expenses with even small amounts (> 1 cent)
+      });
+      const filteredLength = categoryMap[categoryKey].length;
+      console.log(`ExpenseComparisonTable: ${categoryKey} filtered from ${originalLength} to ${filteredLength} items`);
+    });
+
+    console.log('ExpenseComparisonTable: After filtering:', {
+      payroll: categoryMap.payroll.length,
+      advertising: categoryMap.advertising.length,
+      subscriptions: categoryMap.subscriptions.length,
+      other: categoryMap.other.length
+    });
+
     return categoryMap;
   }, [plData]);
 
@@ -1207,9 +1239,9 @@ const ExpenseComparisonTable = ({ monthlyData, plData }) => {
     if (!plData?.monthly) return [];
     
     const months = Object.keys(plData.monthly)
-      .filter(month => ['April', 'March', 'February'].includes(month))
+      .filter(month => ['May', 'April', 'March', 'February'].includes(month))
       .sort((a, b) => {
-        const monthOrder = { 'April': 3, 'March': 2, 'February': 1 };
+        const monthOrder = { 'May': 5, 'April': 4, 'March': 3, 'February': 2 };
         return monthOrder[b] - monthOrder[a];
       });
 
@@ -1231,7 +1263,23 @@ const ExpenseComparisonTable = ({ monthlyData, plData }) => {
     <div className="mt-8 border-t pt-6">
       <h3 className="text-lg font-medium text-gray-900 mb-4">Expense Analysis by Category</h3>
       <div className="space-y-4">
-        {Object.entries(categories).map(([category, expenses]) => (
+        {(() => {
+          const filteredCategories = Object.entries(categories)
+            .filter(([category, expenses]) => expenses.length > 0);
+          
+          console.log('ExpenseComparisonTable: Categories to display:', filteredCategories.map(([cat, exp]) => `${cat}: ${exp.length} items`));
+          
+          if (filteredCategories.length === 0) {
+            console.log('ExpenseComparisonTable: No categories to display - showing fallback message');
+            return (
+              <div className="text-center py-8 text-gray-500">
+                <p>No expense data available for the selected months.</p>
+                <p className="text-sm mt-2">Available months: {Object.keys(plData?.monthly || {}).join(', ')}</p>
+              </div>
+            );
+          }
+          
+          return filteredCategories.map(([category, expenses]) => (
           <div key={category} className="border rounded-lg overflow-hidden">
             <button
               onClick={() => setExpandedCategory(expandedCategory === category ? null : category)}
@@ -1244,7 +1292,7 @@ const ExpenseComparisonTable = ({ monthlyData, plData }) => {
                 </span>
               </div>
               <div className="flex items-center space-x-4">
-                <span className="font-medium">{formatCurrency(categoryTotals[category])}/mo avg</span>
+                <span className="font-medium">{formatCurrency(categoryTotals[category] || 0)}/mo avg</span>
                 <span className="text-gray-500">
                   {expandedCategory === category ? '▼' : '▶'}
                 </span>
@@ -1274,8 +1322,8 @@ const ExpenseComparisonTable = ({ monthlyData, plData }) => {
                         
                         return (
                           <div key={month} className="text-right">
-                            <div>{formatCurrency(amount)}</div>
-                            {growth !== '0' && (
+                            <div>{amount > 0 ? formatCurrency(amount) : '—'}</div>
+                            {growth !== '0' && Math.abs(parseFloat(growth)) > 5 && (
                               <div className={`text-xs ${growth.includes('-') ? 'text-green-600' : 'text-red-600'}`}>
                                 {growth.includes('-') ? '↓' : '↑'} {Math.abs(parseFloat(growth))}%
                               </div>
@@ -1288,7 +1336,8 @@ const ExpenseComparisonTable = ({ monthlyData, plData }) => {
               </div>
             )}
           </div>
-        ))}
+        ));
+        })()}
       </div>
     </div>
   );
@@ -1299,10 +1348,11 @@ const IncomeComparisonTable = ({ monthlyData, plData }) => {
   
   // Process revenue data
   const revenueData = useMemo(() => {
-    if (!plData?.monthly) return { sources: [], total: 0 };
+    if (!plData?.monthly) return { sources: [], total: 0, totalSources: 0 };
 
     const sources = new Map();
     let total = 0;
+    let totalSources = 0;
 
     // Process each month's income data
     Object.entries(plData.monthly).forEach(([month, data]) => {
@@ -1315,91 +1365,141 @@ const IncomeComparisonTable = ({ monthlyData, plData }) => {
         if (!sources.has(name)) {
           sources.set(name, {
             name,
-            amounts: {}
+            amounts: {},
+            totalRevenue: 0
           });
+          totalSources++;
         }
         
-        sources.get(name).amounts[month] = amount;
+        const source = sources.get(name);
+        source.amounts[month] = (source.amounts[month] || 0) + amount;
+        source.totalRevenue += amount;
         total += amount;
       });
     });
 
+    // Filter sources: only show those with revenue in the last 3 months OR significant total revenue
+    const lastThreeMonths = ['May', 'April', 'March'];
+    const filteredSources = Array.from(sources.values()).filter(source => {
+      const recentRevenue = lastThreeMonths.reduce((sum, month) => sum + (source.amounts[month] || 0), 0);
+      return recentRevenue > 100 || source.totalRevenue > 1000; // Show if > $100 recently or > $1000 total
+    });
+
+    // Sort by most recent month's revenue (May), then by total revenue
+    filteredSources.sort((a, b) => {
+      const aRecent = a.amounts['May'] || 0;
+      const bRecent = b.amounts['May'] || 0;
+      if (aRecent !== bRecent) return bRecent - aRecent;
+      return b.totalRevenue - a.totalRevenue;
+    });
+
     return {
-      sources: Array.from(sources.values()),
-      total: total / Object.keys(plData.monthly).length // Average monthly total
+      sources: filteredSources,
+      total: total / Object.keys(plData.monthly).length, // Average monthly total
+      totalSources
     };
-  }, [plData]);
-
-  // Get the last 3 months in chronological order
-  const lastThreeMonths = useMemo(() => {
-    if (!plData?.monthly) return [];
-    
-    const months = Object.keys(plData.monthly)
-      .filter(month => ['April', 'March', 'February'].includes(month))
-      .sort((a, b) => {
-        const monthOrder = { 'April': 3, 'March': 2, 'February': 1 };
-        return monthOrder[b] - monthOrder[a];
-      });
-
-    return months;
   }, [plData]);
 
   return (
     <div className="mt-8 border-t pt-6">
       <h3 className="text-lg font-medium text-gray-900 mb-4">Revenue Analysis</h3>
-      <div className="border rounded-lg overflow-hidden">
+      <div className="border rounded-lg overflow-hidden bg-white shadow-sm">
         <button
           onClick={() => setExpandedCategory(expandedCategory ? null : 'revenue')}
-          className="w-full px-4 py-3 bg-green-50 hover:bg-green-100 flex items-center justify-between"
+          className="w-full px-6 py-4 bg-green-50 hover:bg-green-100 flex items-center justify-between transition-colors"
         >
           <div className="flex items-center space-x-4">
-            <span className="font-medium">Network Revenue</span>
-            <span className="text-sm text-gray-500">
-              {revenueData.sources.length} sources
+            <span className="font-semibold text-green-800">Network Revenue</span>
+            <span className="text-sm text-green-600 bg-green-100 px-2 py-1 rounded-full">
+              {revenueData.sources.length} active of {revenueData.totalSources} total
             </span>
           </div>
           <div className="flex items-center space-x-4">
-            <span className="font-medium">{formatCurrency(revenueData.total)}/mo avg</span>
-            <span className="text-gray-500">
+            <span className="font-semibold text-green-800">{formatCurrency(revenueData.total)}/mo avg</span>
+            <span className="text-green-600">
               {expandedCategory ? '▼' : '▶'}
             </span>
           </div>
         </button>
         
         {expandedCategory && (
-          <div className="divide-y divide-gray-200">
-            <div className="grid grid-cols-4 gap-4 px-4 py-2 bg-gray-50 text-xs font-medium text-gray-500 uppercase">
-              <div>Source</div>
-              {lastThreeMonths.map(month => (
-                <div key={month} className="text-right">{month} 2025</div>
-              ))}
+          <div className="border-t border-green-100">
+            {/* Header */}
+            <div className="bg-gray-50 px-6 py-3 border-b">
+              <div className="grid grid-cols-4 gap-4 text-xs font-medium text-gray-600 uppercase tracking-wider">
+                <div>Network Source</div>
+                <div className="text-right">May 2025</div>
+                <div className="text-right">April 2025</div>
+                <div className="text-right">March 2025</div>
+              </div>
             </div>
-            {revenueData.sources
-              .sort((a, b) => a.name.localeCompare(b.name))
-              .map((source, index) => (
-                <div key={index} className="grid grid-cols-4 gap-4 px-4 py-2 text-sm hover:bg-gray-50">
-                  <div className="font-medium">{source.name}</div>
-                  {lastThreeMonths.map(month => {
-                    const amount = source.amounts[month] || 0;
-                    const prevMonth = lastThreeMonths[lastThreeMonths.indexOf(month) + 1];
-                    const prevAmount = prevMonth ? source.amounts[prevMonth] || 0 : 0;
-                    const growth = prevAmount ? 
-                      (((amount - prevAmount) / prevAmount) * 100).toFixed(1) : 
-                      '0';
-                    
-                    return (
-                      <div key={month} className="text-right">
-                        <div>{formatCurrency(amount)}</div>
-                        {growth !== '0' && (
-                          <div className={`text-xs ${growth.includes('-') ? 'text-red-600' : 'text-green-600'}`}>
-                            {growth.includes('-') ? '↓' : '↑'} {Math.abs(parseFloat(growth))}%
+            
+            {/* Data Rows */}
+            <div className="divide-y divide-gray-100 max-h-96 overflow-y-auto">
+              {revenueData.sources.map((source, index) => {
+                const mayAmount = source.amounts['May'] || 0;
+                const aprilAmount = source.amounts['April'] || 0;
+                const marchAmount = source.amounts['March'] || 0;
+                
+                // Calculate trend between May and April
+                const trend = aprilAmount ? ((mayAmount - aprilAmount) / aprilAmount * 100) : 0;
+                const isGrowing = trend > 5;
+                const isDeclining = trend < -5;
+                
+                return (
+                  <div key={index} className="px-6 py-3 hover:bg-gray-50 transition-colors">
+                    <div className="grid grid-cols-4 gap-4 items-center">
+                      {/* Source Name */}
+                      <div className="flex items-center space-x-2">
+                        <span className="font-medium text-gray-900 truncate">{source.name}</span>
+                        {isGrowing && <span className="text-green-600 text-xs">🚀</span>}
+                        {isDeclining && <span className="text-red-600 text-xs">📉</span>}
+                      </div>
+                      
+                      {/* May Amount */}
+                      <div className="text-right">
+                        <div className="font-semibold text-gray-900">{formatCurrency(mayAmount)}</div>
+                        {trend !== 0 && Math.abs(trend) > 5 && (
+                          <div className={`text-xs ${trend > 0 ? 'text-green-600' : 'text-red-600'}`}>
+                            {trend > 0 ? '↑' : '↓'} {Math.abs(trend).toFixed(0)}%
                           </div>
                         )}
                       </div>
-                    );
-                  })}
+                      
+                      {/* April Amount */}
+                      <div className="text-right">
+                        <span className={`${aprilAmount > 0 ? 'text-gray-700' : 'text-gray-400'}`}>
+                          {aprilAmount > 0 ? formatCurrency(aprilAmount) : '—'}
+                        </span>
+                      </div>
+                      
+                      {/* March Amount */}
+                      <div className="text-right">
+                        <span className={`${marchAmount > 0 ? 'text-gray-700' : 'text-gray-400'}`}>
+                          {marchAmount > 0 ? formatCurrency(marchAmount) : '—'}
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+            
+            {/* Summary Footer */}
+            <div className="bg-green-50 px-6 py-4 border-t">
+              <div className="grid grid-cols-4 gap-4 items-center font-semibold text-green-800">
+                <div>Total Active Revenue</div>
+                <div className="text-right">
+                  {formatCurrency(revenueData.sources.reduce((sum, s) => sum + (s.amounts['May'] || 0), 0))}
                 </div>
-              ))}
+                <div className="text-right">
+                  {formatCurrency(revenueData.sources.reduce((sum, s) => sum + (s.amounts['April'] || 0), 0))}
+                </div>
+                <div className="text-right">
+                  {formatCurrency(revenueData.sources.reduce((sum, s) => sum + (s.amounts['March'] || 0), 0))}
+                </div>
+              </div>
+            </div>
           </div>
         )}
       </div>
@@ -1507,32 +1607,46 @@ const RevenueCategory = ({ monthlyData, plData }) => {
 };
 
 const ProfitabilitySnapshot = ({ monthlyData }) => {
+  if (!monthlyData || monthlyData.length === 0) {
+    return (
+      <div className="mb-8">
+        <h3 className="text-sm font-medium text-gray-500 mb-3">Monthly Performance</h3>
+        <div className="text-center py-8 text-gray-500">
+          No data available for monthly performance analysis.
+        </div>
+      </div>
+    );
+  }
+
+  // Take only the first 3 months to ensure consistent display
+  const displayData = monthlyData.slice(0, 3);
+
   return (
     <div className="mb-8">
       <h3 className="text-sm font-medium text-gray-500 mb-3">Monthly Performance</h3>
       <div className="grid grid-cols-3 gap-4">
-        {monthlyData.map((data, index) => (
+        {displayData.map((data, index) => (
           <div key={index} className="bg-white rounded-lg p-4 shadow-sm">
             <div className="text-sm font-medium text-gray-600 mb-3">{format(data.month, 'MMMM yyyy')}</div>
             <div className="space-y-3">
               <div className="flex justify-between items-center">
                 <span className="text-sm text-gray-500">Revenue</span>
-                <span className="text-base font-semibold">{formatCurrency(data.revenue)}</span>
+                <span className="text-base font-semibold">{formatCurrency(data.revenue || 0)}</span>
               </div>
               <div className="flex justify-between items-center">
                 <span className="text-sm text-gray-500">Expenses</span>
-                <span className="text-base font-semibold text-red-600">{formatCurrency(data.total)}</span>
+                <span className="text-base font-semibold text-red-600">{formatCurrency(data.total || 0)}</span>
               </div>
               <div className="flex justify-between items-center pt-2 border-t">
                 <span className="text-sm font-medium">Net Profit</span>
                 <div className="text-right">
                   <span className={`text-base font-semibold ${
-                    data.revenue - data.total > 0 ? 'text-green-600' : 'text-red-600'
+                    (data.revenue || 0) - (data.total || 0) > 0 ? 'text-green-600' : 'text-red-600'
                   }`}>
-                    {formatCurrency(data.revenue - data.total)}
+                    {formatCurrency((data.revenue || 0) - (data.total || 0))}
                   </span>
                   <div className="text-xs text-gray-500 mt-0.5">
-                    Margin: {((data.revenue - data.total) / data.revenue * 100).toFixed(1)}%
+                    Margin: {data.revenue ? (((data.revenue - (data.total || 0)) / data.revenue) * 100).toFixed(1) : '0.0'}%
                   </div>
                 </div>
               </div>
@@ -1545,14 +1659,29 @@ const ProfitabilitySnapshot = ({ monthlyData }) => {
 };
 
 const KPITrends = ({ monthlyData }) => {
+  if (!monthlyData || monthlyData.length < 2) {
+    return (
+      <div className="mb-8">
+        <h3 className="text-sm font-medium text-gray-500 mb-3">Key Metrics</h3>
+        <div className="text-center py-8 text-gray-500">
+          Insufficient data for trend analysis. Need at least 2 months of data.
+        </div>
+      </div>
+    );
+  }
+
   const calculateGrowth = (current, previous) => {
     return previous ? ((current - previous) / previous * 100).toFixed(1) : 0;
   };
 
+  // Use the most recent month (index 0) vs previous month (index 1) for MoM calculations
+  const currentMonth = monthlyData[0] || {};
+  const previousMonth = monthlyData[1] || {};
+
   const metrics = [
     {
       title: "Revenue Growth",
-      value: `${calculateGrowth(monthlyData[2].revenue, monthlyData[1].revenue)}%`,
+      value: `${calculateGrowth(currentMonth.revenue || 0, previousMonth.revenue || 0)}%`,
       suffix: "MoM",
       explanation: "Month-over-month revenue growth, before expenses. Shows top-line growth.",
       goodRange: "Positive values indicate revenue growth, but check profit growth for full picture."
@@ -1560,8 +1689,8 @@ const KPITrends = ({ monthlyData }) => {
     {
       title: "Profit Growth",
       value: `${calculateGrowth(
-        monthlyData[2].revenue - monthlyData[2].total,
-        monthlyData[1].revenue - monthlyData[1].total
+        (currentMonth.revenue || 0) - (currentMonth.total || 0),
+        (previousMonth.revenue || 0) - (previousMonth.total || 0)
       )}%`,
       suffix: "MoM",
       explanation: "Month-over-month growth in net profit (revenue minus expenses). Shows actual business growth.",
@@ -1569,13 +1698,14 @@ const KPITrends = ({ monthlyData }) => {
     },
     {
       title: "Current Margin",
-      value: ((monthlyData[2].revenue - monthlyData[2].total) / monthlyData[2].revenue * 100).toFixed(1) + '%',
+      value: currentMonth.revenue ? (((currentMonth.revenue - (currentMonth.total || 0)) / currentMonth.revenue) * 100).toFixed(1) + '%' : '0.0%',
       explanation: "The percentage of revenue that becomes profit after all expenses. Higher margins indicate better profitability.",
       goodRange: "Healthy margins typically range from 20-30%. Above 30% is excellent."
     },
     {
       title: "Cash Efficiency",
-      value: (monthlyData[2].revenue / monthlyData[2].total).toFixed(2),
+      value: (currentMonth.total && currentMonth.total > 0) ? 
+        ((currentMonth.revenue || 0) / currentMonth.total).toFixed(2) : '0.00',
       suffix: ":1",
       explanation: "Revenue generated per dollar spent. Higher ratios indicate better operational efficiency.",
       goodRange: "Above 1.25:1 is good. Above 1.5:1 is excellent."
@@ -1622,7 +1752,7 @@ const ProfitTrendChart = ({ plData }) => {
     const monthOrder = [
       'July 2024', 'August 2024', 'September 2024', 'October 2024', 
       'November 2024', 'December 2024', 'January 2025', 'February 2025', 
-      'March 2025', 'April 2025'
+      'March 2025', 'April 2025', 'May 2025'
     ];
     
     return monthOrder.map(monthYear => {
@@ -1839,40 +1969,139 @@ const ProfitTrendChart = ({ plData }) => {
 const processMonthlyData = (monthlyData) => {
   if (!monthlyData) return [];
 
-  return Object.entries(monthlyData).map(([month, data]) => {
-    // Calculate revenue from income items
-    const revenue = data.incomeData?.reduce((sum, income) => {
-      // Only include items marked as Income
-      if (income['Income/Expense'] === 'Income') {
-        return sum + parseAmount(income.AMOUNT);
+  // Define the months we want to show in correct order (May, April, March)
+  const targetMonths = ['May', 'April', 'March'];
+
+  console.log('processMonthlyData debug:', {
+    inputMonthlyData: monthlyData,
+    availableKeys: monthlyData ? Object.keys(monthlyData) : [],
+    targetMonths,
+    mayExists: !!monthlyData?.['May'],
+    mayData: monthlyData?.['May']
+  });
+
+  return targetMonths.map(month => {
+    const data = monthlyData[month];
+    
+    console.log(`Processing month ${month}:`, {
+      hasData: !!data,
+      data: data,
+      totalIncome: data?.totalIncome,
+      expenseDataLength: data?.expenseData?.length
+    });
+    
+    if (!data) {
+      console.log(`No data found for ${month}, returning zero values`);
+      return {
+        month,
+        year: ['January', 'February', 'March', 'April', 'May'].includes(month) ? '2025' : '2024',
+        revenue: 0,
+        payroll: 0,
+        adSpend: 0,
+        subscriptions: 0,
+        miscellaneous: 0,
+        total: 0,
+        profit: 0,
+        profitMargin: '0.0'
+      };
+    }
+
+    // Calculate revenue from totalIncome
+    const revenue = data.totalIncome || 0;
+
+    // Calculate payroll from expense data
+    const payroll = data.expenseData?.reduce((sum, expense) => {
+      if (!expense || !expense.Category) return sum;
+      const category = expense.Category.toLowerCase();
+      if (category.includes('payroll') ||
+          category.includes('salary') ||
+          category.includes('commission') ||
+          category.includes('bonus')) {
+        return sum + parseAmount(expense.Amount);
       }
       return sum;
     }, 0) || 0;
 
-    // Calculate expenses from expense items
-    const expenses = data.expenseData?.reduce((sum, expense) => {
-      // Only include items marked as Expense
-      if (expense['Income/Expense'] === 'Expense') {
-        return sum + parseAmount(expense.AMOUNT);
+    // Calculate ad spend from expense data
+    const adSpend = data.expenseData?.reduce((sum, expense) => {
+      if (!expense || !expense.Category) return sum;
+      const category = expense.Category.toLowerCase();
+      if (category.includes('facebook') ||
+          category.includes('ad spend') ||
+          category.includes('advertising') ||
+          category.includes('media buy') ||
+          category.includes('google') ||
+          category.includes('tiktok') ||
+          category.includes('youtube') ||
+          category.includes('ads') ||
+          category.includes('marketing') ||
+          category.includes('promotion')) {
+        return sum + parseAmount(expense.Amount);
       }
       return sum;
     }, 0) || 0;
 
-    const profit = revenue - expenses;
+    // Calculate subscriptions from expense data
+    const subscriptions = data.expenseData?.reduce((sum, expense) => {
+      if (!expense || !expense.Category) return sum;
+      const category = expense.Category.toLowerCase();
+      const description = expense.Description?.toLowerCase() || '';
+      if (category.includes('subscription') ||
+          category.includes('software') ||
+          category.includes('saas') ||
+          category.includes('service') ||
+          description.includes('subscription') ||
+          description.includes('software') ||
+          description.includes('license')) {
+        return sum + parseAmount(expense.Amount);
+      }
+      return sum;
+    }, 0) || 0;
+
+    // Calculate miscellaneous (everything else)
+    const miscellaneous = data.expenseData?.reduce((sum, expense) => {
+      if (!expense || !expense.Category) return sum;
+      const category = expense.Category.toLowerCase();
+      const description = expense.Description?.toLowerCase() || '';
+      
+      // Skip if it's already categorized
+      if (category.includes('payroll') ||
+          category.includes('salary') ||
+          category.includes('commission') ||
+          category.includes('bonus') ||
+          category.includes('facebook') ||
+          category.includes('ad spend') ||
+          category.includes('advertising') ||
+          category.includes('media buy') ||
+          category.includes('google') ||
+          category.includes('tiktok') ||
+          category.includes('youtube') ||
+          category.includes('ads') ||
+          category.includes('marketing') ||
+          category.includes('promotion') ||
+          category.includes('subscription') ||
+          category.includes('software') ||
+          category.includes('saas') ||
+          category.includes('service')) {
+        return sum;
+      }
+      
+      return sum + parseAmount(expense.Amount);
+    }, 0) || 0;
+
+    const totalExpenses = payroll + adSpend + subscriptions + miscellaneous;
+    const profit = revenue - totalExpenses;
     const profitMargin = revenue ? ((profit / revenue) * 100).toFixed(1) : '0.0';
 
-    // Update year assignment for March
-    const year = ['January', 'February', 'March', 'April'].includes(month) ? '2025' : '2024';
-    
     return {
       month,
-      year,
+      year: ['January', 'February', 'March', 'April', 'May'].includes(month) ? '2025' : '2024',
       revenue,
-      payroll: 0,
-      adSpend: 0,
-      subscriptions: 0,
-      miscellaneous: 0,
-      total: expenses,
+      payroll,
+      adSpend,
+      subscriptions,
+      miscellaneous,
+      total: totalExpenses,
       profit,
       profitMargin
     };
@@ -1987,7 +2216,7 @@ const ExpenseOverview = ({ plData, cashFlowData, invoicesData, networkTerms }) =
     const availableMonths = plData.summary.map(item => ({
       name: item.Month,
       date: new Date(`${item.Month} 1, ${
-        ['January', 'February', 'March', 'April'].includes(item.Month) ? '2025' : '2024'
+        ['January', 'February', 'March', 'April', 'May'].includes(item.Month) ? '2025' : '2024'
       }`),
       order: monthOrder[item.Month]
     }));
@@ -2005,8 +2234,8 @@ const ExpenseOverview = ({ plData, cashFlowData, invoicesData, networkTerms }) =
       return null;
     }
 
-    // Define the months we want to show in order
-    const targetMonths = ['April 2025', 'March 2025', 'February 2025'];
+    // Define the months we want to show in order - ONLY 3 months
+    const targetMonths = ['May 2025', 'April 2025', 'March 2025'];
 
     // Add debug logging
     console.log('Processing monthly data:', {
@@ -2140,19 +2369,22 @@ const ExpenseOverview = ({ plData, cashFlowData, invoicesData, networkTerms }) =
         return sum;
       }, 0) || 0;
 
-      const monthSummary = {
+      const totalExpenses = payroll + adSpend + subscriptions + miscellaneous;
+      const profit = monthlyRevenue - totalExpenses;
+      const profitMargin = monthlyRevenue ? ((profit / monthlyRevenue) * 100).toFixed(1) : '0.0';
+
+      return {
         month: new Date(`${month} 1, ${year}`),
         revenue: monthlyRevenue,
+        cashInjections: 0,
         payroll,
         adSpend,
         subscriptions,
         miscellaneous,
-        total: payroll + adSpend + subscriptions + miscellaneous
+        total: totalExpenses, // Use 'total' instead of 'totalExpenses' for component compatibility
+        profit,
+        profitMargin
       };
-
-      // Log the final summary for this month
-      console.log(`${monthStr} summary:`, monthSummary);
-      return monthSummary;
     });
   }, [plData]);
 
@@ -2161,6 +2393,15 @@ const ExpenseOverview = ({ plData, cashFlowData, invoicesData, networkTerms }) =
   }
 
   const monthlyData = processMonthlyData(plData.monthly);
+
+  // Debug logging
+  console.log('ExpenseOverview data debug:', {
+    hasPlData: !!plData,
+    hasMonthly: !!plData?.monthly,
+    availableMonths: plData?.monthly ? Object.keys(plData.monthly) : [],
+    processedMonthlyData: monthlyData,
+    processedDataLength: processedData?.length
+  });
 
   return (
     <div className="p-2">
@@ -2217,7 +2458,7 @@ const ExpenseOverview = ({ plData, cashFlowData, invoicesData, networkTerms }) =
               <ExpenseCategory 
                 title="Monthly Revenue"
                 monthlyData={monthlyData.map(d => ({
-                  month: d.month,
+                  month: `${d.month} ${d.year}`,
                   amount: d.revenue
                 }))}
               />
@@ -2226,7 +2467,7 @@ const ExpenseOverview = ({ plData, cashFlowData, invoicesData, networkTerms }) =
               <ExpenseCategory 
                 title="Payroll (Salaries, Bonuses, Commissions)"
                 monthlyData={monthlyData.map(d => ({
-                  month: d.month,
+                  month: `${d.month} ${d.year}`,
                   amount: d.payroll
                 }))}
               />
@@ -2235,7 +2476,7 @@ const ExpenseOverview = ({ plData, cashFlowData, invoicesData, networkTerms }) =
               <ExpenseCategory 
                 title="Advertising Spend"
                 monthlyData={monthlyData.map(d => ({
-                  month: d.month,
+                  month: `${d.month} ${d.year}`,
                   amount: d.adSpend
                 }))}
               />
@@ -2244,7 +2485,7 @@ const ExpenseOverview = ({ plData, cashFlowData, invoicesData, networkTerms }) =
               <ExpenseCategory 
                 title="Subscriptions (Tools & Software)"
                 monthlyData={monthlyData.map(d => ({
-                  month: d.month,
+                  month: `${d.month} ${d.year}`,
                   amount: d.subscriptions
                 }))}
                 plData={plData}  // Pass plData here
@@ -2254,7 +2495,7 @@ const ExpenseOverview = ({ plData, cashFlowData, invoicesData, networkTerms }) =
               <ExpenseCategory 
                 title="Miscellaneous Expenses"
                 monthlyData={monthlyData.map(d => ({
-                  month: d.month,
+                  month: `${d.month} ${d.year}`,
                   amount: d.miscellaneous
                 }))}
               />

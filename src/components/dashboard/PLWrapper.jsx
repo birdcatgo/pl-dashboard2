@@ -38,8 +38,8 @@ const parseAmount = (amount) => {
 const SummaryTable = ({ summaryData }) => {
   // Helper function to get the year for a month
   const getYearForMonth = (month) => {
-    // January, February, March, and April are in 2025, all other months are in 2024
-    return ['January', 'February', 'March', 'April'].includes(month) ? 2025 : 2024;
+    // January, February, March, April, and May are in 2025, all other months are in 2024
+    return ['January', 'February', 'March', 'April', 'May'].includes(month) ? 2025 : 2024;
   };
 
   return (
@@ -84,7 +84,7 @@ const SummaryTable = ({ summaryData }) => {
 
 const MonthlyDetails = ({ monthData, month }) => {
   const [expandedCategories, setExpandedCategories] = React.useState({});
-  const year = ['January', 'February', 'March', 'April'].includes(month) ? '2025' : '2024';
+  const year = ['January', 'February', 'March', 'April', 'May'].includes(month) ? '2025' : '2024';
 
   // Process income and expenses
   const incomeData = monthData?.incomeData || [];
@@ -370,17 +370,18 @@ const ExpenseCategoriesTrend = ({ monthlyData }) => {
 const PLWrapper = ({ plData, monthlyData, selectedMonth, onMonthChange, selectedMonthData }) => {
   const getMonthWeight = (month) => {
     const weights = {
-      'April': 4,
-      'March': 3,
-      'February': 2,
-      'January': 1,
-      'December': 12,
-      'November': 11,
-      'October': 10,
-      'September': 9,
-      'August': 8,
-      'July': 7,
-      'June': 6
+      'May': 2025 * 12 + 5,      // May 2025
+      'April': 2025 * 12 + 4,    // April 2025
+      'March': 2025 * 12 + 3,    // March 2025
+      'February': 2025 * 12 + 2, // February 2025
+      'January': 2025 * 12 + 1,  // January 2025
+      'December': 2024 * 12 + 12, // December 2024
+      'November': 2024 * 12 + 11, // November 2024
+      'October': 2024 * 12 + 10,  // October 2024
+      'September': 2024 * 12 + 9, // September 2024
+      'August': 2024 * 12 + 8,    // August 2024
+      'July': 2024 * 12 + 7,      // July 2024
+      'June': 2024 * 12 + 6       // June 2024
     };
     return weights[month] || 0;
   };
@@ -389,7 +390,7 @@ const PLWrapper = ({ plData, monthlyData, selectedMonth, onMonthChange, selected
   const availableMonths = Object.keys(plData?.monthly || {})
     .sort((a, b) => getMonthWeight(b) - getMonthWeight(a));
 
-  const year = ['January', 'February', 'March', 'April'].includes(selectedMonth) ? '2025' : '2024';
+  const year = ['January', 'February', 'March', 'April', 'May'].includes(selectedMonth) ? '2025' : '2024';
 
   return (
     <div className="space-y-6">
@@ -407,7 +408,7 @@ const PLWrapper = ({ plData, monthlyData, selectedMonth, onMonthChange, selected
           >
             {availableMonths.map(month => (
               <option key={month} value={month}>
-                {month} {['January', 'February', 'March', 'April'].includes(month) ? '2025' : '2024'}
+                {month} {['January', 'February', 'March', 'April', 'May'].includes(month) ? '2025' : '2024'}
               </option>
             ))}
           </select>

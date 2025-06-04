@@ -20,7 +20,7 @@ const PLDashboard = ({ plData, selectedMonth }) => {
   });
 
   const monthOrder = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
-  const yearOffset = ['January', 'February', 'March', 'April'].includes(selectedMonth) ? 12 : 0;
+  const yearOffset = ['January', 'February', 'March', 'April', 'May'].includes(selectedMonth) ? 12 : 0;
 
   useEffect(() => {
     if (!plData?.summary) {

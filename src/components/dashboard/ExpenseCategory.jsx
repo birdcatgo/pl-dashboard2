@@ -21,8 +21,13 @@ const ExpenseCategory = ({ title, monthlyData, plData }) => {
 
   // Get the most recent two months for trend calculation
   const sortedMonths = [...monthlyData].sort((a, b) => {
-    const monthOrder = { 'April': 4, 'March': 3, 'February': 2, 'January': 1 };
+    const monthOrder = { 'May': 5, 'April': 4, 'March': 3, 'February': 2, 'January': 1 };
     return monthOrder[b.month] - monthOrder[a.month];
+  });
+
+  console.log(`ExpenseCategory "${title}" sorted months:`, {
+    sortedMonths: sortedMonths.map(d => ({ month: d.month, year: d.year, amount: d.amount })),
+    monthOrder: { 'May': 5, 'April': 4, 'March': 3, 'February': 2, 'January': 1 }
   });
 
   const currentMonth = sortedMonths[0];

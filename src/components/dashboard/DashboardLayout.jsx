@@ -939,18 +939,6 @@ export default function DashboardLayout({
                 >
                   Commissions
                 </Button>
-                <Button
-                  variant={accountsSubview === 'cash-flow-planner' ? 'default' : 'outline'}
-                  onClick={() => setAccountsSubview('cash-flow-planner')}
-                >
-                  Cash Flow Planner
-                </Button>
-                <Button
-                  variant={accountsSubview === 'network-pay-terms' ? 'default' : 'outline'}
-                  onClick={() => setAccountsSubview('network-pay-terms')}
-                >
-                  Network Pay Terms
-                </Button>
               </div>
             </div>
 
@@ -978,18 +966,6 @@ export default function DashboardLayout({
               )}
               {accountsSubview === 'commissions' && (
                 <CommissionPayments commissions={performanceData?.commissions || []} />
-              )}
-              {accountsSubview === 'cash-flow-planner' && (
-                <CashFlowPlanner 
-                  performanceData={performanceData?.data ? { data: performanceData.data } : { data: [] }}
-                  creditCardData={cashFlowData?.financialResources || []}
-                  upcomingExpenses={expenseData || []}
-                  invoicesData={invoiceData || []}
-                  networkExposureData={networkTermsData || []}
-                />
-              )}
-              {accountsSubview === 'network-pay-terms' && (
-                <NetworkPayTerms />
               )}
             </div>
           </div>
