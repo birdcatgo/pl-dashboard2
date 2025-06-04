@@ -9,7 +9,8 @@ import {
   CartesianGrid,
   Tooltip as RechartsTooltip,
   ResponsiveContainer,
-  Legend as RechartsLegend
+  Legend as RechartsLegend,
+  ReferenceLine
 } from 'recharts';
 import MultiSelect from '../ui/multi-select';
 import { TrendingUp, TrendingDown, ArrowRight, Activity, Info } from 'lucide-react';
@@ -229,17 +230,63 @@ const TrendGraph = ({ data, color = 'blue' }) => {
   );
 };
 
-const MediaBuyerPerformance = ({ performanceData, dateRange: initialDateRange }) => {
+const MediaBuyerPerformance = ({ performanceData, dateRange: initialDateRange, commissions = [] }) => {
   const [selectedBuyers, setSelectedBuyers] = useState(['all']);
   const [selectedNetworks, setSelectedNetworks] = useState(['all']);
   const [expandedBuyers, setExpandedBuyers] = useState(new Set());
   const [selectedOffers, setSelectedOffers] = useState(new Set());
   const [isCumulative, setIsCumulative] = useState(false);
+
+  // Helper function to check if a media buyer is active
+  const isActiveBuyer = (buyerName) => {
+    if (!commissions.length) return true; // If no commission data, show all
+    const commissionEntry = commissions.find(c => 
+      c['Media Buyer'] === buyerName || c.mediaBuyer === buyerName
+    );
+    return commissionEntry?.Status === 'ACTIVE' || commissionEntry?.status === 'ACTIVE';
+  };
+
   const [dateRange, setDateRange] = useState(() => {
     // If initialDateRange is provided, use it
     if (initialDateRange) return initialDateRange;
     
-    // Otherwise, default to last 7 days
+    // Otherwise, default to the most recent 7 days of available data
+    if (performanceData?.length) {
+      // Get all unique dates from the data and sort them
+      const availableDates = [...new Set(performanceData
+        .map(entry => entry.Date)
+        .filter(Boolean))]
+        .map(dateStr => {
+          try {
+            // Handle MM/DD/YYYY format
+            if (dateStr.includes('/')) {
+              const [month, day, year] = dateStr.split('/').map(num => parseInt(num, 10));
+              return new Date(year, month - 1, day);
+            }
+            // Handle other formats
+            return new Date(dateStr);
+          } catch (e) {
+            return null;
+          }
+        })
+        .filter(date => date && !isNaN(date.getTime()))
+        .sort((a, b) => b - a); // Sort in descending order (newest first)
+
+      if (availableDates.length > 0) {
+        const mostRecentDate = availableDates[0];
+        // Get dates from the last 7 days of available data
+        const last7Days = availableDates.slice(0, 7);
+        const oldestInRange = last7Days[last7Days.length - 1] || mostRecentDate;
+        
+        return {
+          startDate: startOfDay(oldestInRange),
+          endDate: endOfDay(mostRecentDate),
+          period: 'last7'
+        };
+      }
+    }
+    
+    // Fallback to last 7 days from now if no data
     const now = new Date();
     return {
       startDate: startOfDay(subDays(now, 6)),
@@ -254,6 +301,44 @@ const MediaBuyerPerformance = ({ performanceData, dateRange: initialDateRange })
       setDateRange(initialDateRange);
     }
   }, [initialDateRange]);
+
+  // Update date range when performance data changes to use most recent data
+  useEffect(() => {
+    if (performanceData?.length && !initialDateRange) {
+      // Get all unique dates from the data and sort them
+      const availableDates = [...new Set(performanceData
+        .map(entry => entry.Date)
+        .filter(Boolean))]
+        .map(dateStr => {
+          try {
+            // Handle MM/DD/YYYY format
+            if (dateStr.includes('/')) {
+              const [month, day, year] = dateStr.split('/').map(num => parseInt(num, 10));
+              return new Date(year, month - 1, day);
+            }
+            // Handle other formats
+            return new Date(dateStr);
+          } catch (e) {
+            return null;
+          }
+        })
+        .filter(date => date && !isNaN(date.getTime()))
+        .sort((a, b) => b - a); // Sort in descending order (newest first)
+
+      if (availableDates.length > 0) {
+        const mostRecentDate = availableDates[0];
+        // Get dates from the last 7 days of available data
+        const last7Days = availableDates.slice(0, 7);
+        const oldestInRange = last7Days[last7Days.length - 1] || mostRecentDate;
+        
+        setDateRange({
+          startDate: startOfDay(oldestInRange),
+          endDate: endOfDay(mostRecentDate),
+          period: 'last7'
+        });
+      }
+    }
+  }, [performanceData, initialDateRange]);
 
   // First filter data by date range - Optimize the date comparison
   const filteredByDate = useMemo(() => {
@@ -319,6 +404,10 @@ const MediaBuyerPerformance = ({ performanceData, dateRange: initialDateRange })
       filteredByDate.forEach(row => {
         try {
           const buyer = row['Media Buyer'] || 'Unknown';
+          
+          // Skip inactive buyers
+          if (!isActiveBuyer(buyer)) return;
+          
           buyerOptions.add(buyer);
 
           let buyerMetrics = buyerData.get(buyer);
@@ -342,11 +431,14 @@ const MediaBuyerPerformance = ({ performanceData, dateRange: initialDateRange })
           buyerMetrics.margin += margin;
 
           const network = row.Network;
-          if (network) {
-            let networkMetrics = buyerMetrics.networkData.get(network);
+          const offer = row.Offer;
+          const networkOffer = network && offer ? `${network} - ${offer}` : (network || 'Unknown');
+          
+          if (networkOffer) {
+            let networkMetrics = buyerMetrics.networkData.get(networkOffer);
             if (!networkMetrics) {
               networkMetrics = { spend: 0, revenue: 0, margin: 0 };
-              buyerMetrics.networkData.set(network, networkMetrics);
+              buyerMetrics.networkData.set(networkOffer, networkMetrics);
             }
             networkMetrics.spend += spend;
             networkMetrics.revenue += revenue;
@@ -392,7 +484,7 @@ const MediaBuyerPerformance = ({ performanceData, dateRange: initialDateRange })
     
     // First pass: calculate total revenue for each buyer
     performanceData?.forEach(entry => {
-      if (entry['Media Buyer']) {
+      if (entry['Media Buyer'] && isActiveBuyer(entry['Media Buyer'])) {
         const revenue = parseFloat(entry['Total Revenue'] || 0);
         buyersMap.set(
           entry['Media Buyer'], 
@@ -411,7 +503,7 @@ const MediaBuyerPerformance = ({ performanceData, dateRange: initialDateRange })
       buyers: ['all', ...sortedBuyers],
       networks: ['all', ...Array.from(networksSet)]
     };
-  }, [performanceData]);
+  }, [performanceData, commissions]);
 
   // Add this useEffect to debug date issues
   useEffect(() => {
@@ -473,8 +565,8 @@ const MediaBuyerPerformance = ({ performanceData, dateRange: initialDateRange })
 
     // Only process data for selected buyers
     const relevantBuyers = selectedBuyers.includes('all') 
-      ? processedData.buyerOptions.filter(buyer => buyer !== 'all')
-      : selectedBuyers;
+      ? processedData.buyerOptions.filter(buyer => buyer !== 'all' && isActiveBuyer(buyer))
+      : selectedBuyers.filter(buyer => isActiveBuyer(buyer));
 
     // Group data by date and offer for each buyer
     const dailyData = filteredByDate.reduce((acc, entry) => {
@@ -514,8 +606,8 @@ const MediaBuyerPerformance = ({ performanceData, dateRange: initialDateRange })
     if (!filteredByDate.length) return [];
 
     const relevantBuyers = selectedBuyers.includes('all') 
-      ? processedData.buyerOptions.filter(buyer => buyer !== 'all')
-      : selectedBuyers;
+      ? processedData.buyerOptions.filter(buyer => buyer !== 'all' && isActiveBuyer(buyer))
+      : selectedBuyers.filter(buyer => isActiveBuyer(buyer));
 
     return [...new Set(filteredByDate
       .filter(entry => relevantBuyers.includes(entry['Media Buyer']))
@@ -542,7 +634,9 @@ const MediaBuyerPerformance = ({ performanceData, dateRange: initialDateRange })
       return new Date(year, month - 1, day).toISOString().split('T')[0];
     }))].sort();
 
-    const mediaBuyers = [...new Set(filteredByDate.map(item => item['Media Buyer']))];
+    const mediaBuyers = [...new Set(filteredByDate
+      .filter(item => isActiveBuyer(item['Media Buyer']))
+      .map(item => item['Media Buyer']))];
     const colors = mediaBuyers.map((_, index) => {
       const hue = (index * 137.508) % 360;
       return `hsl(${hue}, 70%, 50%)`;
@@ -701,6 +795,17 @@ const MediaBuyerPerformance = ({ performanceData, dateRange: initialDateRange })
     }
   };
 
+  // Helper function to toggle offer selection
+  const toggleOfferSelection = (combo) => {
+    const newSelected = new Set(selectedOffers);
+    if (newSelected.has(combo)) {
+      newSelected.delete(combo);
+    } else {
+      newSelected.add(combo);
+    }
+    setSelectedOffers(newSelected);
+  };
+
   if (!performanceData?.length) {
     return (
       <Card>
@@ -815,7 +920,9 @@ const MediaBuyerPerformance = ({ performanceData, dateRange: initialDateRange })
           <div className="p-6">
             <div className="text-sm text-blue-600">Total Revenue</div>
             <div className="text-2xl font-bold text-blue-700">
-              {formatCurrency(processedData.buyerMetrics.reduce((sum, buyer) => sum + buyer.revenue, 0))}
+              {formatCurrency(processedData.buyerMetrics
+                .filter(buyer => isActiveBuyer(buyer.name))
+                .reduce((sum, buyer) => sum + buyer.revenue, 0))}
             </div>
           </div>
         </Card>
@@ -824,7 +931,9 @@ const MediaBuyerPerformance = ({ performanceData, dateRange: initialDateRange })
           <div className="p-6">
             <div className="text-sm text-red-600">Total Spend</div>
             <div className="text-2xl font-bold text-red-700">
-              {formatCurrency(processedData.buyerMetrics.reduce((sum, buyer) => sum + buyer.spend, 0))}
+              {formatCurrency(processedData.buyerMetrics
+                .filter(buyer => isActiveBuyer(buyer.name))
+                .reduce((sum, buyer) => sum + buyer.spend, 0))}
             </div>
           </div>
         </Card>
@@ -833,7 +942,9 @@ const MediaBuyerPerformance = ({ performanceData, dateRange: initialDateRange })
           <div className="p-6">
             <div className="text-sm text-green-600">Total Margin</div>
             <div className="text-2xl font-bold text-green-700">
-              {formatCurrency(processedData.buyerMetrics.reduce((sum, buyer) => sum + buyer.margin, 0))}
+              {formatCurrency(processedData.buyerMetrics
+                .filter(buyer => isActiveBuyer(buyer.name))
+                .reduce((sum, buyer) => sum + buyer.margin, 0))}
             </div>
           </div>
         </Card>
@@ -842,8 +953,12 @@ const MediaBuyerPerformance = ({ performanceData, dateRange: initialDateRange })
           <div className="p-6">
             <div className="text-sm text-purple-600">ROI</div>
             <div className="text-2xl font-bold text-purple-700">
-              {((processedData.buyerMetrics.reduce((sum, buyer) => sum + buyer.margin, 0) / 
-                processedData.buyerMetrics.reduce((sum, buyer) => sum + buyer.spend, 0)) * 100).toFixed(1)}%
+              {(() => {
+                const activeBuyers = processedData.buyerMetrics.filter(buyer => isActiveBuyer(buyer.name));
+                const totalMargin = activeBuyers.reduce((sum, buyer) => sum + buyer.margin, 0);
+                const totalSpend = activeBuyers.reduce((sum, buyer) => sum + buyer.spend, 0);
+                return ((totalMargin / totalSpend) * 100).toFixed(1);
+              })()}%
             </div>
           </div>
         </Card>
@@ -854,18 +969,23 @@ const MediaBuyerPerformance = ({ performanceData, dateRange: initialDateRange })
         {/* Top Performers Card */}
         <Card className="p-3">
           <div className="flex items-center gap-2 mb-2">
-            <span className="text-lg font-bold">🏆 Top Media Buyers</span>
+            <span className="text-lg font-bold">🏆 Active Media Buyers</span>
           </div>
           <div className="text-xs text-gray-500 mb-2">
             {dateRange.startDate && dateRange.endDate ? 
-              `${new Date(dateRange.startDate).toLocaleDateString()} - ${new Date(dateRange.endDate).toLocaleDateString()}` 
+              `${new Date(dateRange.startDate).toLocaleDateString('en-US')} - ${new Date(dateRange.endDate).toLocaleDateString('en-US')}` 
               : 'All Time'}
           </div>
           <div className="space-y-2">
             {processedData.buyerMetrics
-              .filter(buyer => buyer.name !== 'Unknown' && buyer.name !== 'unknown')
+              .filter(buyer => {
+                // Filter out unknown buyers
+                if (buyer.name === 'Unknown' || buyer.name === 'unknown') return false;
+                
+                // Use helper function to check if buyer is active
+                return isActiveBuyer(buyer.name);
+              })
               .sort((a, b) => b.margin - a.margin)
-              .slice(0, 5)
               .map((buyer, index) => {
                 const consistency = analyzeTrend(filteredByDate, buyer.name);
                 // Get daily margins for the trend graph
@@ -885,7 +1005,12 @@ const MediaBuyerPerformance = ({ performanceData, dateRange: initialDateRange })
                 return (
                   <div key={buyer.name} className="flex items-center justify-between p-2 bg-gray-50 rounded-lg">
                     <div className="flex items-center gap-2">
-                      <span className="text-lg">{['🥇', '🥈', '🥉', '4️⃣', '5️⃣'][index]}</span>
+                      <span className="text-lg">
+                        {index === 0 ? '🥇' : 
+                         index === 1 ? '🥈' : 
+                         index === 2 ? '🥉' : 
+                         index < 10 ? `${index + 1}️⃣` : '📊'}
+                      </span>
                       <div>
                         <div className="font-semibold text-sm">{buyer.name}</div>
                         <div className="text-xs text-gray-500">ROI: {buyer.roi.toFixed(1)}%</div>
@@ -915,31 +1040,22 @@ const MediaBuyerPerformance = ({ performanceData, dateRange: initialDateRange })
           </div>
           <div className="text-xs text-gray-500 mb-2">
             {dateRange.startDate && dateRange.endDate ? 
-              `${new Date(dateRange.startDate).toLocaleDateString()} - ${new Date(dateRange.endDate).toLocaleDateString()}` 
+              `${new Date(dateRange.startDate).toLocaleDateString('en-US')} - ${new Date(dateRange.endDate).toLocaleDateString('en-US')}` 
               : 'All Time'}
           </div>
           <div className="space-y-4">
             {Object.values(
               filteredByDate
                 .reduce((acc, entry) => {
-                  // Skip unknown media buyers
-                  if (entry['Media Buyer']?.toLowerCase() === 'unknown') return acc;
+                  // Skip unknown media buyers and inactive buyers
+                  if (entry['Media Buyer']?.toLowerCase() === 'unknown' || !isActiveBuyer(entry['Media Buyer'])) return acc;
 
-                  // Normalize ACA entries - both network and media buyer
                   let network = entry.Network;
                   let mediaBuyer = entry['Media Buyer'];
                   let offer = entry.Offer;
                   
-                  // Normalize all ACA related entries
-                  if (network?.includes('ACA') || network?.includes('Suited')) {
-                    network = 'ACA - ACA';
-                    offer = 'ACA';
-                  }
-
-                  // Create a normalized key that will combine all ACA entries
-                  const key = network === 'ACA - ACA' ? 
-                    `${mediaBuyer} - ACA - ACA - ACA` : 
-                    `${mediaBuyer} - ${network} - ${offer}`;
+                  // Create a unique key for each network-offer combination
+                  const key = `${mediaBuyer} - ${network} - ${offer}`;
                   
                   if (!acc[key]) {
                     acc[key] = {
@@ -964,7 +1080,7 @@ const MediaBuyerPerformance = ({ performanceData, dateRange: initialDateRange })
                 }, {})
             )
               .sort((a, b) => b.margin - a.margin)
-              .slice(0, 5)
+              .slice(0, 7)
               .map((combo, index) => {
                 // Calculate trend
                 const dates = Array.from(combo.dates).sort();
@@ -981,8 +1097,9 @@ const MediaBuyerPerformance = ({ performanceData, dateRange: initialDateRange })
                   const firstHalfMargin = firstHalf.reduce((sum, date) => {
                     const entry = filteredByDate.find(e => 
                       e.Date === date && 
-                      ((e.Network === combo.network) || 
-                       (e.Network === 'Suited - ACA' && combo.network === 'ACA - ACA'))
+                      e.Network === combo.network &&
+                      e.Offer === combo.offer &&
+                      e['Media Buyer'] === combo.mediaBuyer
                     );
                     return sum + (entry ? parseFloat(entry['Total Revenue'] || 0) - parseFloat(entry['Ad Spend'] || 0) : 0);
                   }, 0);
@@ -990,8 +1107,9 @@ const MediaBuyerPerformance = ({ performanceData, dateRange: initialDateRange })
                   const secondHalfMargin = secondHalf.reduce((sum, date) => {
                     const entry = filteredByDate.find(e => 
                       e.Date === date && 
-                      ((e.Network === combo.network) || 
-                       (e.Network === 'Suited - ACA' && combo.network === 'ACA - ACA'))
+                      e.Network === combo.network &&
+                      e.Offer === combo.offer &&
+                      e['Media Buyer'] === combo.mediaBuyer
                     );
                     return sum + (entry ? parseFloat(entry['Total Revenue'] || 0) - parseFloat(entry['Ad Spend'] || 0) : 0);
                   }, 0);
@@ -1010,7 +1128,7 @@ const MediaBuyerPerformance = ({ performanceData, dateRange: initialDateRange })
                 return (
                   <div key={`${combo.mediaBuyer}-${combo.network}-${combo.offer}`} className="flex items-center justify-between p-2 bg-gray-50 rounded-lg">
                     <div className="flex items-center gap-2">
-                      <span className="text-lg">{['🥇', '🥈', '🥉', '4️⃣', '5️⃣'][index]}</span>
+                      <span className="text-lg">{['🥇', '🥈', '🥉', '4️⃣', '5️⃣', '6️⃣', '7️⃣'][index]}</span>
                       <div>
                         <div className="font-semibold text-sm">{combo.mediaBuyer}</div>
                         <div className="text-xs text-gray-600">{combo.network} - {combo.offer}</div>
@@ -1024,8 +1142,9 @@ const MediaBuyerPerformance = ({ performanceData, dateRange: initialDateRange })
                           data={Array.from(combo.dates).sort().map(date => {
                             const entry = filteredByDate.find(e => 
                               e.Date === date && 
-                              ((e.Network === combo.network) || 
-                               (e.Network === 'Suited - ACA' && combo.network === 'ACA - ACA'))
+                              e.Network === combo.network &&
+                              e.Offer === combo.offer &&
+                              e['Media Buyer'] === combo.mediaBuyer
                             );
                             return entry ? parseFloat(entry['Total Revenue'] || 0) - parseFloat(entry['Ad Spend'] || 0) : 0;
                           })}
@@ -1056,7 +1175,7 @@ const MediaBuyerPerformance = ({ performanceData, dateRange: initialDateRange })
             </div>
             <div className="text-sm text-gray-500">
               {dateRange.startDate && dateRange.endDate ? 
-                `${new Date(dateRange.startDate).toLocaleDateString()} - ${new Date(dateRange.endDate).toLocaleDateString()}` 
+                `${new Date(dateRange.startDate).toLocaleDateString('en-US')} - ${new Date(dateRange.endDate).toLocaleDateString('en-US')}` 
                 : 'All Time'}
             </div>
           </div>
@@ -1094,7 +1213,7 @@ const MediaBuyerPerformance = ({ performanceData, dateRange: initialDateRange })
             <tbody className="bg-white divide-y divide-gray-200">
               {processedData.buyerMetrics
                 .filter(buyer => (selectedBuyers.includes('all') || selectedBuyers.includes(buyer.name)) && 
-                               buyer.name.toLowerCase() !== 'unknown')
+                               buyer.name.toLowerCase() !== 'unknown' && isActiveBuyer(buyer.name))
                 .map((buyer) => {
                   const commission = buyer.margin > 0 ? buyer.margin * 0.10 : 0;
                   // Calculate total Ringba costs from all ACA networks (2% of Revenue)
@@ -1122,6 +1241,8 @@ const MediaBuyerPerformance = ({ performanceData, dateRange: initialDateRange })
                           </span>
                           <div className="flex items-center">
                             <span className="text-sm font-medium text-gray-900">{buyer.name}</span>
+                            {/* Profitability indicator */}
+                            <span className={`ml-2 w-2 h-2 rounded-full ${buyer.margin > 0 ? 'bg-green-500' : 'bg-red-500'}`} title={buyer.margin > 0 ? 'Profitable' : 'Unprofitable'}></span>
                             {buyer.name.includes('ACA') && (
                               <span className="ml-2 text-xs text-blue-600 bg-blue-50 px-2 py-0.5 rounded-full">
                                 ACA
@@ -1159,7 +1280,8 @@ const MediaBuyerPerformance = ({ performanceData, dateRange: initialDateRange })
                         const showNetworkCommission = data.margin > 0;
                         return (
                           <tr key={`${buyer.name}-${network}`} className="bg-gray-50">
-                            <td className="px-6 py-2 whitespace-nowrap text-xs text-gray-500 pl-12">
+                            <td className="px-6 py-2 whitespace-nowrap text-xs text-gray-500 pl-12 flex items-center">
+                              <span className={`w-1.5 h-1.5 rounded-full mr-2 ${data.margin > 0 ? 'bg-green-400' : 'bg-red-400'}`} title={data.margin > 0 ? 'Profitable' : 'Unprofitable'}></span>
                               {network}
                             </td>
                             <td className="px-6 py-2 whitespace-nowrap text-xs text-right text-gray-500">
@@ -1195,101 +1317,132 @@ const MediaBuyerPerformance = ({ performanceData, dateRange: initialDateRange })
       </div>
       </Card>
 
-      {/* Daily Revenue Graph */}
+      {/* Performance Chart */}
       <Card>
         <div className="p-6">
-          <h3 className="text-lg font-semibold mb-4">
+          <h3 className="text-lg font-semibold mb-6">
             {selectedBuyers.includes('all') 
-              ? 'Daily Margin by Offer (All Media Buyers)'
-              : `Daily Margin by Offer (${selectedBuyers.join(', ')})`}
+              ? 'Performance Summary (All Active Media Buyers)'
+              : `Performance Summary (${selectedBuyers.filter(b => isActiveBuyer(b)).join(', ')})`}
           </h3>
 
-          {/* Color-coded offer list with checkboxes */}
-          <div className="mb-6 flex flex-wrap gap-2">
-            <div className="w-full mb-2 flex justify-end">
-              <button
-                className="text-sm text-blue-600 hover:text-blue-800 mr-4"
-                onClick={() => setSelectedOffers(new Set(buyerOfferCombos))}
-              >
-                Select All
-              </button>
-              <button
-                className="text-sm text-blue-600 hover:text-blue-800"
-                onClick={() => setSelectedOffers(new Set())}
-              >
-                Clear All
-              </button>
-            </div>
-            {buyerOfferCombos.map((combo) => (
-              <div
-                key={combo}
-                className="inline-flex items-center px-3 py-1 rounded-full text-sm cursor-pointer"
-                style={{
-                  backgroundColor: selectedOffers.has(combo) ? `${colorScale[combo]}20` : '#f3f4f6',
-                  color: selectedOffers.has(combo) ? colorScale[combo] : '#6b7280',
-                  border: `1px solid ${selectedOffers.has(combo) ? colorScale[combo] : '#e5e7eb'}`
-                }}
-                onClick={() => {
-                  const newSelected = new Set(selectedOffers);
-                  if (newSelected.has(combo)) {
-                    newSelected.delete(combo);
-                  } else {
-                    newSelected.add(combo);
-                  }
-                  setSelectedOffers(newSelected);
-                }}
-              >
-                <Checkbox
-                  checked={selectedOffers.has(combo)}
-                  className="mr-2 h-4 w-4"
-                  style={{
-                    borderColor: selectedOffers.has(combo) ? colorScale[combo] : '#e5e7eb'
-                  }}
-                />
-                {combo}
+          {/* Performance Metrics Grid */}
+          <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
+            <div className="bg-gradient-to-r from-green-50 to-green-100 p-4 rounded-lg border border-green-200">
+              <div className="text-green-800 text-sm font-medium">Total Profit</div>
+              <div className="text-2xl font-bold text-green-900">
+                {formatCurrency(filteredByDate.reduce((sum, entry) => {
+                  if (!selectedBuyers.includes('all') && !selectedBuyers.includes(entry['Media Buyer'])) return sum;
+                  if (!isActiveBuyer(entry['Media Buyer'])) return sum;
+                  const revenue = parseFloat(entry['Total Revenue'] || 0);
+                  const spend = parseFloat(entry['Ad Spend'] || 0);
+                  return sum + (revenue - spend);
+                }, 0))}
               </div>
-            ))}
+            </div>
+            
+            <div className="bg-gradient-to-r from-blue-50 to-blue-100 p-4 rounded-lg border border-blue-200">
+              <div className="text-blue-800 text-sm font-medium">Total Spend</div>
+              <div className="text-2xl font-bold text-blue-900">
+                {formatCurrency(filteredByDate.reduce((sum, entry) => {
+                  if (!selectedBuyers.includes('all') && !selectedBuyers.includes(entry['Media Buyer'])) return sum;
+                  if (!isActiveBuyer(entry['Media Buyer'])) return sum;
+                  return sum + parseFloat(entry['Ad Spend'] || 0);
+                }, 0))}
+              </div>
+            </div>
+            
+            <div className="bg-gradient-to-r from-purple-50 to-purple-100 p-4 rounded-lg border border-purple-200">
+              <div className="text-purple-800 text-sm font-medium">Active Campaigns</div>
+              <div className="text-2xl font-bold text-purple-900">
+                {new Set(filteredByDate
+                  .filter(entry => {
+                    if (!selectedBuyers.includes('all') && !selectedBuyers.includes(entry['Media Buyer'])) return false;
+                    return isActiveBuyer(entry['Media Buyer']) && parseFloat(entry['Ad Spend'] || 0) > 0;
+                  })
+                  .map(entry => `${entry['Media Buyer']}-${entry.Offer}`)
+                ).size}
+              </div>
+            </div>
+            
+            <div className="bg-gradient-to-r from-orange-50 to-orange-100 p-4 rounded-lg border border-orange-200">
+              <div className="text-orange-800 text-sm font-medium">Average ROI</div>
+              <div className="text-2xl font-bold text-orange-900">
+                {(() => {
+                  const totalSpend = filteredByDate.reduce((sum, entry) => {
+                    if (!selectedBuyers.includes('all') && !selectedBuyers.includes(entry['Media Buyer'])) return sum;
+                    if (!isActiveBuyer(entry['Media Buyer'])) return sum;
+                    return sum + parseFloat(entry['Ad Spend'] || 0);
+                  }, 0);
+                  const totalProfit = filteredByDate.reduce((sum, entry) => {
+                    if (!selectedBuyers.includes('all') && !selectedBuyers.includes(entry['Media Buyer'])) return sum;
+                    if (!isActiveBuyer(entry['Media Buyer'])) return sum;
+                    const revenue = parseFloat(entry['Total Revenue'] || 0);
+                    const spend = parseFloat(entry['Ad Spend'] || 0);
+                    return sum + (revenue - spend);
+                  }, 0);
+                  const avgROI = totalSpend > 0 ? (totalProfit / totalSpend) * 100 : 0;
+                  return `${avgROI.toFixed(1)}%`;
+                })()}
+              </div>
+            </div>
           </div>
 
-          <div className="h-[400px]">
-            <ResponsiveContainer width="100%" height="100%">
-              <LineChart data={chartData} margin={{ left: 40, right: 40, bottom: 20 }}>
-                <CartesianGrid strokeDasharray="3 3" />
-                <XAxis 
-                  dataKey="displayDate"
-                  tick={{ fontSize: 12, angle: -45, textAnchor: 'end' }}
-                  height={60}
-                  interval={Math.ceil(chartData.length / 15)}
-                />
-                <YAxis 
-                  tickFormatter={formatCurrency}
-                />
-                <RechartsTooltip 
-                  formatter={(value) => formatCurrency(value)}
-                  labelFormatter={(label) => `Date: ${label}`}
-                  contentStyle={{
-                    backgroundColor: 'rgba(255, 255, 255, 0.95)',
-                    borderRadius: '6px',
-                    border: '1px solid #ddd',
-                    boxShadow: '0 2px 4px rgba(0,0,0,0.1)'
-                  }}
-                  itemStyle={{ padding: '2px 0' }}
-                />
-                {buyerOfferCombos
-                  .filter(combo => selectedOffers.has(combo))
-                  .map((combo) => (
-                    <RechartsLine 
-                      key={combo}
-                      type="monotone" 
-                      dataKey={combo}
-                      stroke={colorScale[combo]}
-                      name={combo}
-                      strokeWidth={2}
-                      dot={false}
-                    />
-                  ))}
-              </LineChart>
-            </ResponsiveContainer>
+          {/* Top Performing Campaigns */}
+          <div className="bg-gray-50 rounded-lg p-4">
+            <h4 className="text-md font-semibold mb-4 text-gray-800">🏆 Top Performing Campaigns</h4>
+            <div className="space-y-2">
+              {(() => {
+                const campaignPerformance = filteredByDate
+                  .filter(entry => {
+                    if (!selectedBuyers.includes('all') && !selectedBuyers.includes(entry['Media Buyer'])) return false;
+                    return isActiveBuyer(entry['Media Buyer']);
+                  })
+                  .reduce((acc, entry) => {
+                    const key = `${entry['Media Buyer']} - ${entry.Offer}`;
+                    if (!acc[key]) {
+                      acc[key] = { spend: 0, revenue: 0, margin: 0 };
+                    }
+                    const spend = parseFloat(entry['Ad Spend'] || 0);
+                    const revenue = parseFloat(entry['Total Revenue'] || 0);
+                    acc[key].spend += spend;
+                    acc[key].revenue += revenue;
+                    acc[key].margin += (revenue - spend);
+                    return acc;
+                  }, {});
+
+                return Object.entries(campaignPerformance)
+                  .map(([campaign, data]) => ({
+                    campaign,
+                    ...data,
+                    roi: data.spend > 0 ? (data.margin / data.spend) * 100 : 0
+                  }))
+                  .sort((a, b) => b.margin - a.margin)
+                  .slice(0, 5)
+                  .map((campaign, index) => (
+                    <div key={campaign.campaign} className="flex justify-between items-center p-3 bg-white rounded-md border">
+                      <div className="flex items-center">
+                        <span className="w-6 h-6 bg-blue-100 text-blue-800 rounded-full flex items-center justify-center text-sm font-bold mr-3">
+                          {index + 1}
+                        </span>
+                        <span className="font-medium text-gray-900">{campaign.campaign}</span>
+                      </div>
+                      <div className="flex items-center space-x-4">
+                        <span className={`text-sm font-medium ${campaign.margin > 0 ? 'text-green-600' : 'text-red-600'}`}>
+                          {formatCurrency(campaign.margin)}
+                        </span>
+                        <span className={`text-sm px-2 py-1 rounded-full ${
+                          campaign.roi > 20 ? 'bg-green-100 text-green-800' :
+                          campaign.roi > 0 ? 'bg-blue-100 text-blue-800' :
+                          'bg-red-100 text-red-800'
+                        }`}>
+                          {campaign.roi.toFixed(1)}% ROI
+                        </span>
+                      </div>
+                    </div>
+                  ));
+              })()}
+            </div>
           </div>
         </div>
       </Card>

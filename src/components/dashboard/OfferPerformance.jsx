@@ -564,110 +564,6 @@ const OfferPerformance = ({ performanceData, dateRange, onDateChange, latestDate
           <TopPerformers data={chartData} period={30} performanceData={performanceData} />
         </div>
         
-        {/* Performance Chart */}
-        <Card className="p-6">
-          <h3 className="text-xl font-semibold mb-4">Daily Margin by Network-Offer</h3>
-          
-          {/* Color-coded offer list with checkboxes */}
-          <div className="mb-6 flex flex-wrap gap-2">
-            <div className="w-full mb-2 flex justify-end">
-              <button
-                className="text-sm text-blue-600 hover:text-blue-800 mr-4"
-                onClick={() => setSelectedGraphOffers(new Set(networkOfferCombos))}
-              >
-                Select All
-              </button>
-              <button
-                className="text-sm text-blue-600 hover:text-blue-800"
-                onClick={() => setSelectedGraphOffers(new Set())}
-              >
-                Clear All
-              </button>
-            </div>
-            {networkOfferCombos.map((combo) => (
-              <div
-                key={combo}
-                className="inline-flex items-center px-3 py-1 rounded-full text-sm cursor-pointer"
-                style={{
-                  backgroundColor: selectedGraphOffers.has(combo) ? `${colorScale[combo]}20` : '#f3f4f6',
-                  color: selectedGraphOffers.has(combo) ? colorScale[combo] : '#6b7280',
-                  border: `1px solid ${selectedGraphOffers.has(combo) ? colorScale[combo] : '#e5e7eb'}`
-                }}
-                onClick={() => {
-                  const newSelected = new Set(selectedGraphOffers);
-                  if (newSelected.has(combo)) {
-                    newSelected.delete(combo);
-                  } else {
-                    newSelected.add(combo);
-                  }
-                  setSelectedGraphOffers(newSelected);
-                }}
-              >
-                <Checkbox
-                  checked={selectedGraphOffers.has(combo)}
-                  className="mr-2 h-4 w-4"
-                  style={{
-                    borderColor: selectedGraphOffers.has(combo) ? colorScale[combo] : '#e5e7eb'
-                  }}
-                />
-                {combo}
-              </div>
-            ))}
-          </div>
-
-          <div className="h-[400px]">
-            <ResponsiveContainer width="100%" height="100%">
-              <LineChart data={chartData} margin={{ left: 40, right: 40, bottom: 20 }}>
-                <CartesianGrid strokeDasharray="3 3" />
-                <XAxis 
-                  dataKey="displayDate"
-                  tick={{ fontSize: 12, angle: -45, textAnchor: 'end' }}
-                  height={60}
-                  interval={Math.ceil(chartData.length / 15)}
-                />
-                <YAxis 
-                  tickFormatter={(value) => formatCurrency(value)}
-                />
-                <Tooltip 
-                  formatter={(value) => formatCurrency(value)}
-                  labelFormatter={(label) => `Date: ${label}`}
-                  contentStyle={{
-                    backgroundColor: 'rgba(255, 255, 255, 0.95)',
-                    borderRadius: '6px',
-                    border: '1px solid #ddd',
-                    boxShadow: '0 2px 4px rgba(0,0,0,0.1)'
-                  }}
-                  itemStyle={{ padding: '2px 0' }}
-                />
-                <ReferenceLine 
-                  y={0} 
-                  stroke="red" 
-                  strokeWidth={2}
-                  label={{ 
-                    value: 'Break Even', 
-                    position: 'right',
-                    fill: 'red',
-                    fontSize: 12
-                  }}
-                />
-                {networkOfferCombos
-                  .filter(combo => selectedGraphOffers.has(combo))
-                  .map((combo) => (
-                    <Line 
-                      key={combo}
-                      type="monotone" 
-                      dataKey={combo}
-                      stroke={colorScale[combo]}
-                      name={combo}
-                      strokeWidth={2}
-                      dot={false}
-                    />
-                  ))}
-              </LineChart>
-            </ResponsiveContainer>
-          </div>
-        </Card>
-
         {/* Detailed Table */}
         <Card className="p-6">
           <h3 className="text-xl font-semibold mb-4">Detailed Offer Performance</h3>
@@ -698,104 +594,124 @@ const OfferPerformance = ({ performanceData, dateRange, onDateChange, latestDate
             <table className="min-w-full divide-y divide-gray-200">
               <thead className="bg-gray-50">
                 <tr>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Offer</th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Network</th>
-                  <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase">Revenue</th>
-                  <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase">Spend</th>
-                  <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase">Margin</th>
-                  <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase">ROI</th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Date</th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Total Daily Margin</th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Shows Potential</th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Shows Risk</th>
+                  <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase">Details</th>
                 </tr>
               </thead>
               <tbody className="bg-white divide-y divide-gray-200">
-                {chartData.map((offer, index) => (
-                  <React.Fragment key={`${offer.date}-${index}`}>
-                    <tr 
-                      className="hover:bg-gray-50 cursor-pointer"
-                      onClick={() => toggleOffer(offer.date)}
-                    >
-                      <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900 flex items-center">
-                        <span className="mr-2">
-                          {expandedOffers.has(offer.date) ? '▼' : '▶'}
-                        </span>
-                        {offer.date}
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                        {selectedNetworks.includes('all') ? 'All Networks' : selectedNetworks.join(', ')}
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-right text-gray-500">
-                        {Object.entries(offer).map(([networkOffer, margin]) => {
-                          if (networkOffer.includes(offer.date)) {
-                            const [network, offer] = networkOffer.split(' - ');
-                            return (
-                              <div key={networkOffer}>
-                                {network} - {offer}
+                {chartData.map((dayData, index) => {
+                  // Analyze offers for this day
+                  const dayOffers = Object.entries(dayData)
+                    .filter(([key]) => key.includes(' - ') && dayData[key] !== 0);
+                  
+                  // Define thresholds based on data analysis
+                  const potentialThreshold = 500; // Above this is considered high potential
+                  const riskThreshold = -100; // Below this is considered risky
+                  
+                  const potentialOffers = dayOffers
+                    .filter(([, margin]) => margin > potentialThreshold)
+                    .sort(([,a], [,b]) => b - a)
+                    .slice(0, 3); // Top 3
+                  
+                  const riskOffers = dayOffers
+                    .filter(([, margin]) => margin < riskThreshold)
+                    .sort(([,a], [,b]) => a - b)
+                    .slice(0, 3); // Worst 3
+                  
+                  return (
+                    <React.Fragment key={`${dayData.date}-${index}`}>
+                      <tr 
+                        className="hover:bg-gray-50 cursor-pointer"
+                        onClick={() => toggleOffer(dayData.date)}
+                      >
+                        <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900 flex items-center">
+                          <span className="mr-2">
+                            {expandedOffers.has(dayData.date) ? '▼' : '▶'}
+                          </span>
+                          {dayData.displayDate}
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                          {formatCurrency(dayData.total)}
+                        </td>
+                        <td className="px-6 py-4 text-sm">
+                          {potentialOffers.length > 0 ? (
+                            <div className="space-y-1">
+                              {potentialOffers.map(([offer, margin]) => (
+                                <div key={offer} className="text-green-600 text-xs">
+                                  {offer.length > 25 ? `${offer.substring(0, 25)}...` : offer}
+                                  <span className="font-medium ml-1">({formatCurrency(margin)})</span>
+                                </div>
+                              ))}
+                            </div>
+                          ) : (
+                            <span className="text-gray-400 text-xs">None</span>
+                          )}
+                        </td>
+                        <td className="px-6 py-4 text-sm">
+                          {riskOffers.length > 0 ? (
+                            <div className="space-y-1">
+                              {riskOffers.map(([offer, margin]) => (
+                                <div key={offer} className="text-red-600 text-xs">
+                                  {offer.length > 25 ? `${offer.substring(0, 25)}...` : offer}
+                                  <span className="font-medium ml-1">({formatCurrency(margin)})</span>
+                                </div>
+                              ))}
+                            </div>
+                          ) : (
+                            <span className="text-gray-400 text-xs">None</span>
+                          )}
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap text-sm text-right text-gray-500">
+                          {Object.keys(dayData).filter(key => key.includes(' - ')).length} offers
+                        </td>
+                      </tr>
+                      
+                      {/* Expanded details for this day */}
+                      {expandedOffers.has(dayData.date) && (
+                        <tr>
+                          <td colSpan="5" className="px-6 py-4 bg-gray-50">
+                            <div className="space-y-2">
+                              <h4 className="text-sm font-semibold text-gray-700 mb-3">Network-Offer Breakdown for {dayData.displayDate}</h4>
+                              <div className="overflow-x-auto">
+                                <table className="min-w-full divide-y divide-gray-200 bg-white rounded-lg">
+                                  <thead className="bg-gray-100">
+                                    <tr>
+                                      <th className="px-3 py-2 text-left text-xs font-medium text-gray-500">Network - Offer</th>
+                                      <th className="px-3 py-2 text-right text-xs font-medium text-gray-500">Margin</th>
+                                    </tr>
+                                  </thead>
+                                  <tbody className="divide-y divide-gray-200">
+                                    {Object.entries(dayData)
+                                      .filter(([key]) => key.includes(' - ') && dayData[key] !== 0)
+                                      .sort(([,a], [,b]) => b - a) // Sort by margin descending
+                                      .map(([networkOffer, margin]) => (
+                                        <tr key={networkOffer}>
+                                          <td className="px-3 py-2 whitespace-nowrap text-sm text-gray-900">
+                                            {networkOffer}
+                                          </td>
+                                          <td className="px-3 py-2 whitespace-nowrap text-sm text-right">
+                                            <span className={margin >= 0 ? 'text-green-600' : 'text-red-600'}>
+                                              {formatCurrency(margin)}
+                                            </span>
+                                          </td>
+                                        </tr>
+                                      ))}
+                                  </tbody>
+                                </table>
+                                {Object.entries(dayData).filter(([key]) => key.includes(' - ') && dayData[key] !== 0).length === 0 && (
+                                  <p className="text-sm text-gray-500 text-center py-4">No offer data available for this day</p>
+                                )}
                               </div>
-                            );
-                          }
-                          return null;
-                        })}
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-right text-gray-500">
-                        {Object.entries(offer).map(([networkOffer, margin]) => {
-                          if (networkOffer.includes(offer.date)) {
-                            const [network, offer] = networkOffer.split(' - ');
-                            return (
-                              <div key={`${networkOffer}-spend`}>
-                                {formatCurrency(margin)}
-                              </div>
-                            );
-                          }
-                          return null;
-                        })}
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-right text-gray-500">
-                        {Object.entries(offer).map(([networkOffer, margin]) => {
-                          if (networkOffer.includes(offer.date)) {
-                            const [network, offer] = networkOffer.split(' - ');
-                            return (
-                              <div key={`${networkOffer}-margin`}>
-                                {formatCurrency(margin)}
-                              </div>
-                            );
-                          }
-                          return null;
-                        })}
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-right text-gray-500">
-                        {Object.entries(offer).map(([networkOffer, margin]) => {
-                          if (networkOffer.includes(offer.date)) {
-                            const [network, offer] = networkOffer.split(' - ');
-                            return (
-                              <div key={`${networkOffer}-roi`}>
-                                {((margin / offer[`${network} - ${offer} Ad Spend`]) * 100).toFixed(1)}%
-                              </div>
-                            );
-                          }
-                          return null;
-                        })}
-                      </td>
-                    </tr>
-                    {expandedOffers.has(offer.date) && Object.entries(offer).map(([networkOffer, margin]) => {
-                      if (networkOffer.includes(offer.date)) {
-                        const [network, offer] = networkOffer.split(' - ');
-                        return (
-                          <tr 
-                            key={`${networkOffer}-details`}
-                            className="bg-gray-50"
-                          >
-                            <td className="px-6 py-2 whitespace-nowrap text-xs text-gray-500 pl-12">
-                              {network} - {offer}
-                            </td>
-                            <td className="px-6 py-2 whitespace-nowrap text-sm text-right text-gray-500">
-                              {formatCurrency(margin)}
-                            </td>
-                          </tr>
-                        );
-                      }
-                      return null;
-                    })}
-                  </React.Fragment>
-                ))}
+                            </div>
+                          </td>
+                        </tr>
+                      )}
+                    </React.Fragment>
+                  );
+                })}
               </tbody>
             </table>
           </div>
