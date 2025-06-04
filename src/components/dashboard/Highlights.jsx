@@ -1,55 +1,110 @@
 import React, { useMemo, useState } from 'react';
-import { HelpCircle, TrendingUp, TrendingDown, CircleDot, Minus, Info, ChevronDown } from 'lucide-react';
-import DataTable from '@/components/ui/DataTable';
+import { HelpCircle, TrendingUp, TrendingDown, CircleDot, Minus, Info, ChevronDown, Download, AlertTriangle, CheckCircle, Calendar, Eye, Zap, Users, Network } from 'lucide-react';
 import StatusPill from '@/components/ui/StatusPill';
-import { format, startOfDay, endOfDay } from 'date-fns';
+import { format, startOfDay, endOfDay, subDays } from 'date-fns';
 
-  const formatCurrency = (value) => {
+const formatCurrency = (value) => {
   if (!value) return '$0';
-    return new Intl.NumberFormat('en-US', {
-      style: 'currency',
-      currency: 'USD',
-      minimumFractionDigits: 0,
+  return new Intl.NumberFormat('en-US', {
+    style: 'currency',
+    currency: 'USD',
+    minimumFractionDigits: 0,
     maximumFractionDigits: 0
-    }).format(value);
-  };
+  }).format(value);
+};
 
-  const formatPercent = (value) => {
+const formatPercent = (value) => {
   if (!value || isNaN(value)) return '0%';
   return `${Number(value).toFixed(1)}%`;
 };
 
-const getDateRangeText = (period) => {
-  const now = new Date();
-  const startDate = new Date();
+// New component for profit/loss indicator
+const ProfitIndicator = ({ value, showIcon = false }) => {
+  const isProfit = value > 0;
+  const isBreakeven = value === 0;
   
-  switch (period) {
-    case '7d':
-      startDate.setDate(now.getDate() - 7);
-      break;
-    case '30d':
-      startDate.setDate(now.getDate() - 30);
-      break;
-    case '90d':
-      startDate.setDate(now.getDate() - 90);
-      break;
-    case '180d':
-      startDate.setDate(now.getDate() - 180);
-      break;
-    case '365d':
-      startDate.setDate(now.getDate() - 365);
-      break;
-    case 'ytd':
-      startDate.setMonth(0, 1);
-      break;
-    case 'all':
-      startDate.setFullYear(2025, 0, 1);
-      break;
-    default:
-      startDate.setDate(now.getDate() - 7);
+  if (isBreakeven) {
+    return (
+      <div className="flex items-center gap-1 text-gray-500">
+        {showIcon && <Minus className="h-3 w-3" />}
+        <span className="font-medium">{formatCurrency(value)}</span>
+      </div>
+    );
   }
+  
+  return (
+    <div className={`flex items-center gap-1 ${isProfit ? 'text-green-600' : 'text-red-600'}`}>
+      {showIcon && (isProfit ? <TrendingUp className="h-3 w-3" /> : <TrendingDown className="h-3 w-3" />)}
+      <span className="font-semibold">{formatCurrency(value)}</span>
+    </div>
+  );
+};
 
-  return `${format(startDate, 'MMM d')} to ${format(now, 'MMM d, yyyy')}`;
+// Enhanced ROI display with color coding
+const ROIDisplay = ({ roi, size = 'sm' }) => {
+  const getROIColor = (roi) => {
+    if (roi >= 50) return 'text-emerald-600 bg-emerald-50';
+    if (roi >= 20) return 'text-green-600 bg-green-50';
+    if (roi >= 0) return 'text-yellow-600 bg-yellow-50';
+    return 'text-red-600 bg-red-50';
+  };
+  
+  const textSize = size === 'lg' ? 'text-sm' : 'text-xs';
+  const padding = size === 'lg' ? 'px-2 py-1' : 'px-1.5 py-0.5';
+  
+  return (
+    <span className={`${textSize} font-medium rounded-md ${padding} ${getROIColor(roi)}`}>
+      {formatPercent(roi)}
+    </span>
+  );
+};
+
+// Time Period Selector Component
+const TimePeriodSelector = ({ selectedPeriod, onPeriodChange }) => {
+  const [isOpen, setIsOpen] = useState(false);
+
+  const periods = [
+    { value: '7d', label: '7 Days', icon: '📊' },
+    { value: '30d', label: '30 Days', icon: '📊' },
+    { value: '90d', label: '90 Days', icon: '📈' },
+    { value: '180d', label: '6 Months', icon: '📅' },
+    { value: '365d', label: '1 Year', icon: '📅' }
+  ];
+
+  const selectedPeriodLabel = periods.find(p => p.value === selectedPeriod)?.label || '30 Days';
+
+  return (
+    <div className="relative">
+      <button
+        onClick={() => setIsOpen(!isOpen)}
+        className="flex items-center gap-2 px-3 py-2 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors min-w-[120px]"
+      >
+        <Calendar className="h-4 w-4 text-gray-500" />
+        <span className="text-sm font-medium">{selectedPeriodLabel}</span>
+        <ChevronDown className="h-4 w-4 text-gray-500" />
+      </button>
+      
+      {isOpen && (
+        <div className="absolute right-0 top-full mt-1 w-40 bg-white border border-gray-200 rounded-lg shadow-lg z-50">
+          {periods.map((period) => (
+            <button
+              key={period.value}
+              onClick={() => {
+                onPeriodChange(period.value);
+                setIsOpen(false);
+              }}
+              className={`w-full flex items-center gap-2 px-3 py-2 text-sm hover:bg-gray-50 first:rounded-t-lg last:rounded-b-lg ${
+                selectedPeriod === period.value ? 'bg-blue-50 text-blue-700 font-medium' : 'text-gray-700'
+              }`}
+            >
+              <span>{period.icon}</span>
+              <span>{period.label}</span>
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
+  );
 };
 
 const getTrendStatus = (data) => {
@@ -75,166 +130,490 @@ const getTrendStatus = (data) => {
   return 'neutral';
 };
 
-const TrendGraph = ({ data, width = 100, height = 36 }) => {
+const TrendGraph = ({ data, width = 100, height = 40 }) => {
   if (!data || data.length === 0) {
     return (
-      <div className="bg-[#F9FAFB] rounded-md p-2 border border-gray-200 w-[100px] h-[36px] flex items-center justify-center">
-        <span className="text-gray-400 text-sm">—</span>
+      <div className="bg-gray-50 rounded border border-gray-200 flex items-center justify-center" style={{width: `${width}px`, height: `${height}px`}}>
+        <span className="text-gray-400 text-xs">No data</span>
       </div>
     );
   }
 
-  // Filter out any NaN or invalid values
-  const validData = data.filter(value => typeof value === 'number' && !isNaN(value));
+  // Filter out any NaN or invalid values and ensure we have numbers
+  const validData = data.filter(value => 
+    typeof value === 'number' && 
+    !isNaN(value) && 
+    isFinite(value)
+  ).map(value => Number(value));
   
   if (validData.length === 0) {
     return (
-      <div className="bg-[#F9FAFB] rounded-md p-2 border border-gray-200 w-[100px] h-[36px] flex items-center justify-center">
-        <span className="text-gray-400 text-sm">—</span>
+      <div className="bg-gray-50 rounded border border-gray-200 flex items-center justify-center" style={{width: `${width}px`, height: `${height}px`}}>
+        <span className="text-gray-400 text-xs">No data</span>
       </div>
     );
   }
 
-  const maxValue = Math.max(...validData.map(Math.abs));
+  // If we only have one data point, show a simple indicator
+  if (validData.length === 1) {
+    return (
+      <div className="bg-gray-50 rounded border border-gray-200 flex items-center justify-center" style={{width: `${width}px`, height: `${height}px`}}>
+        <div className="w-2 h-2 bg-blue-500 rounded-full"></div>
+      </div>
+    );
+  }
+
+  const maxValue = Math.max(...validData);
+  const minValue = Math.min(...validData);
+  const range = maxValue - minValue;
+  
+  // Add proper padding for the SVG content
+  const svgPadding = 4;
+  const svgWidth = width - (svgPadding * 2);
+  const svgHeight = height - (svgPadding * 2);
+  
+  // Handle case where all values are the same
+  if (range === 0) {
+    const y = svgHeight / 2;
+    const points = validData.map((_, index) => {
+      const xPadding = svgWidth * 0.1;
+      const availableWidth = svgWidth - (xPadding * 2);
+      const x = xPadding + (index / (validData.length - 1)) * availableWidth;
+      return `${x},${y}`;
+    }).join(' ');
+
+    return (
+      <div className="bg-gray-50 rounded border border-gray-200 p-1" style={{width: `${width}px`, height: `${height}px`}}>
+        <svg width={svgWidth} height={svgHeight} className="block">
+          <polyline
+            points={points}
+            fill="none"
+            stroke="#6B7280"
+            strokeWidth="2"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+          />
+        </svg>
+      </div>
+    );
+  }
+  
   const points = validData.map((value, index) => {
-    // Add padding to the x-axis (15% on each side)
-    const padding = width * 0.15;
-    const availableWidth = width - (padding * 2);
-    const x = padding + (index / (validData.length - 1)) * availableWidth;
-    const y = height - (value / maxValue) * height;
-    return `${x},${y}`;
+    const xPadding = svgWidth * 0.15; // More x padding
+    const yPadding = svgHeight * 0.15; // More y padding
+    const availableWidth = svgWidth - (xPadding * 2);
+    const availableHeight = svgHeight - (yPadding * 2);
+    
+    const x = xPadding + (index / (validData.length - 1)) * availableWidth;
+    // Ensure y is always within bounds with proper padding
+    const normalizedValue = (value - minValue) / range;
+    const y = yPadding + (1 - normalizedValue) * availableHeight;
+    
+    // Double-check bounds to prevent overflow
+    const clampedX = Math.max(0, Math.min(svgWidth, x));
+    const clampedY = Math.max(yPadding, Math.min(svgHeight - yPadding, y));
+    
+    return `${clampedX.toFixed(2)},${clampedY.toFixed(2)}`;
   }).join(' ');
 
   const status = getTrendStatus(validData);
   const colors = {
-    improving: '#27AE60',
-    volatile: '#E67E22',
-    new: '#4A90E2',
-    neutral: '#95A5A6'
+    improving: '#10B981',
+    volatile: '#F59E0B',
+    new: '#3B82F6',
+    neutral: '#6B7280'
   };
 
   return (
-    <div className="bg-[#F9FAFB] rounded-md p-2 border border-gray-200 w-[140px]">
-      <svg width={width} height={height} className="mx-auto">
+    <div className="bg-gray-50 rounded border border-gray-200 p-1" style={{width: `${width}px`, height: `${height}px`}}>
+      <svg width={svgWidth} height={svgHeight} className="block">
         <polyline
           points={points}
           fill="none"
           stroke={colors[status]}
           strokeWidth="2"
+          strokeLinecap="round"
+          strokeLinejoin="round"
         />
+        {/* Add dots for data points */}
+        {validData.map((value, index) => {
+          const xPadding = svgWidth * 0.15;
+          const yPadding = svgHeight * 0.15;
+          const availableWidth = svgWidth - (xPadding * 2);
+          const availableHeight = svgHeight - (yPadding * 2);
+          
+          const x = xPadding + (index / (validData.length - 1)) * availableWidth;
+          const normalizedValue = (value - minValue) / range;
+          const y = yPadding + (1 - normalizedValue) * availableHeight;
+          
+          // Double-check bounds
+          const clampedX = Math.max(0, Math.min(svgWidth, x));
+          const clampedY = Math.max(yPadding, Math.min(svgHeight - yPadding, y));
+          
+          return (
+            <circle
+              key={index}
+              cx={clampedX.toFixed(2)}
+              cy={clampedY.toFixed(2)}
+              r="2"
+              fill={colors[status]}
+              opacity="0.8"
+            />
+          );
+        })}
       </svg>
     </div>
   );
 };
 
-const TimePeriodSelector = ({ selectedPeriod, onPeriodChange }) => {
-  const [isOpen, setIsOpen] = useState(false);
-  const [activeGroup, setActiveGroup] = useState('quick');
+// Enhanced Summary Stats Component with better design
+const SummaryStats = ({ data }) => {
+  const stats = useMemo(() => {
+    const profitable = data.filter(row => row.Margin > 0);
+    const unprofitable = data.filter(row => row.Margin <= 0);
+    const totalRevenue = data.reduce((sum, row) => sum + row.revenue, 0);
+    const totalSpend = data.reduce((sum, row) => sum + row.adSpend, 0);
+    const totalMargin = data.reduce((sum, row) => sum + row.Margin, 0);
+    const overallROI = totalSpend > 0 ? ((totalRevenue - totalSpend) / totalSpend) * 100 : 0;
+    
+    return {
+      profitable: profitable.length,
+      unprofitable: unprofitable.length,
+      total: data.length,
+      profitablePercentage: data.length > 0 ? (profitable.length / data.length) * 100 : 0,
+      totalRevenue,
+      totalSpend,
+      totalMargin,
+      overallROI
+    };
+  }, [data]);
 
-  const periods = {
-    quick: [
-      { value: '7d', label: 'Last 7 Days', icon: '📊' },
-      { value: '30d', label: 'Last 30 Days', icon: '📊' },
-      { value: '90d', label: 'Last 90 Days', icon: '📊' }
-    ],
-    monthly: [
-      { value: '180d', label: 'Last 6 Months', icon: '📅' },
-      { value: '365d', label: 'Last 12 Months', icon: '📅' },
-      { value: 'ytd', label: 'Year to Date', icon: '📅' }
-    ],
-    extended: [
-      { value: 'all', label: 'All Time', icon: '🗓' }
-    ]
-  };
-
-  return (
-    <div className="space-y-2 bg-white rounded-lg shadow-sm border border-gray-100 p-6">
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-2">
-          <span className="text-lg">📅</span>
-          <h3 className="text-lg font-semibold">Reporting Period</h3>
-        </div>
-        <div className="group relative">
-          <HelpCircle className="w-4 h-4 text-gray-400" />
-          <div className="absolute left-full top-1/2 -translate-y-1/2 ml-2 w-64 p-2 bg-gray-900 text-white text-xs rounded shadow-lg opacity-0 group-hover:opacity-100 transition-opacity duration-200 z-[100] delay-200">
-            Choose the time window for offer performance data. Default: Last 7 Days.
-            <div className="absolute left-0 top-1/2 -translate-x-1/2 -translate-y-1/2 rotate-45 w-2 h-2 bg-gray-900"></div>
+  const StatCard = ({ title, value, subtitle, icon: Icon, iconColor, bgColor, textColor }) => (
+    <div className={`${bgColor} rounded-xl border border-gray-200 p-6 shadow-sm hover:shadow-md transition-shadow`}>
+      <div className="flex items-start justify-between">
+        <div className="flex-1">
+          <div className="flex items-center gap-3 mb-3">
+            <div className={`p-2 rounded-lg ${iconColor}`}>
+              <Icon className="h-5 w-5 text-white" />
+            </div>
+            <h3 className="text-sm font-semibold text-gray-600 uppercase tracking-wide">{title}</h3>
           </div>
-        </div>
-      </div>
-
-      <div className="relative">
-        {/* Desktop View */}
-        <div className="hidden md:block space-y-4">
-          {Object.entries(periods).map(([group, options]) => (
-            <div key={group} className="space-y-2">
-              <div className="text-sm font-medium text-gray-500 uppercase tracking-wider">
-                {group === 'quick' ? 'Quick Select' : group === 'monthly' ? 'Monthly' : 'Extended'}
-              </div>
-              <div className="grid grid-cols-3 gap-2">
-                {options.map((option) => (
-                  <button
-                    key={option.value}
-                    onClick={() => onPeriodChange(option.value)}
-                    className={`flex items-center gap-2 px-3 py-2 text-sm rounded-md transition-colors hover:bg-gray-50 cursor-pointer ${
-                      selectedPeriod === option.value
-                        ? 'bg-[#EEF4FF] text-blue-700 font-medium border-l-4 border-[#2563EB]'
-                        : 'hover:bg-gray-50'
-                    }`}
-                  >
-                    <span>{option.icon}</span>
-                    {option.label}
-                  </button>
-                ))}
-              </div>
-            </div>
-          ))}
-        </div>
-
-        {/* Mobile View */}
-        <div className="md:hidden">
-          <button
-            onClick={() => setIsOpen(!isOpen)}
-            className="w-full flex items-center justify-between px-3 py-2 text-sm bg-white border rounded-md hover:bg-gray-50 cursor-pointer"
-          >
-            <span>{periods[activeGroup].find(p => p.value === selectedPeriod)?.label}</span>
-            <ChevronDown className="w-4 h-4" />
-          </button>
-          {isOpen && (
-            <div className="absolute z-50 w-full mt-1 bg-white border rounded-md shadow-lg">
-              {Object.entries(periods).map(([group, options]) => (
-                <div key={group} className="p-2">
-                  <div className="text-xs font-medium text-gray-500 uppercase tracking-wider mb-1">
-                    {group === 'quick' ? 'Quick Select' : group === 'monthly' ? 'Monthly' : 'Extended'}
-                  </div>
-                  {options.map((option) => (
-                    <button
-                      key={option.value}
-                      onClick={() => {
-                        onPeriodChange(option.value);
-                        setActiveGroup(group);
-                        setIsOpen(false);
-                      }}
-                      className={`w-full flex items-center gap-2 px-3 py-2 text-sm rounded-md hover:bg-gray-50 cursor-pointer ${
-                        selectedPeriod === option.value
-                          ? 'bg-[#EEF4FF] text-blue-700 font-medium border-l-4 border-[#2563EB]'
-                          : 'hover:bg-gray-50'
-                      }`}
-                    >
-                      <span>{option.icon}</span>
-                      {option.label}
-                    </button>
-                  ))}
-                </div>
-              ))}
-            </div>
+          <div className={`text-3xl font-bold ${textColor} mb-1`}>
+            {value}
+          </div>
+          {subtitle && (
+            <p className="text-sm text-gray-500">{subtitle}</p>
           )}
         </div>
       </div>
+    </div>
+  );
 
-      <p className="text-sm text-gray-500 italic pt-2">
-        Showing data from {getDateRangeText(selectedPeriod)}
-      </p>
+  return (
+    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+      <StatCard
+        title="Profitable Campaigns"
+        value={stats.profitable}
+        subtitle={`${stats.profitablePercentage.toFixed(1)}% of all campaigns`}
+        icon={CheckCircle}
+        iconColor="bg-green-500"
+        bgColor="bg-gradient-to-br from-green-50 to-emerald-50"
+        textColor="text-green-700"
+      />
+      
+      <StatCard
+        title="Unprofitable Campaigns"
+        value={stats.unprofitable}
+        subtitle={`${(100 - stats.profitablePercentage).toFixed(1)}% of all campaigns`}
+        icon={AlertTriangle}
+        iconColor="bg-red-500"
+        bgColor="bg-gradient-to-br from-red-50 to-pink-50"
+        textColor="text-red-700"
+      />
+      
+      <StatCard
+        title="Overall ROI"
+        value={<ROIDisplay roi={stats.overallROI} size="lg" />}
+        subtitle="Return on investment"
+        icon={TrendingUp}
+        iconColor="bg-blue-500"
+        bgColor="bg-gradient-to-br from-blue-50 to-indigo-50"
+        textColor="text-blue-700"
+      />
+      
+      <StatCard
+        title="Net Profit"
+        value={<ProfitIndicator value={stats.totalMargin} />}
+        subtitle="Total margin across campaigns"
+        icon={CircleDot}
+        iconColor="bg-purple-500"
+        bgColor="bg-gradient-to-br from-purple-50 to-violet-50"
+        textColor="text-purple-700"
+      />
+    </div>
+  );
+};
+
+// Active media buyers list (you'll need to update this based on your data structure)
+const ACTIVE_MEDIA_BUYERS = [
+  'Aakash', 'Bikki', 'Edwin', 'Ishaan', 'Mike', 'Mike C', 'Rutvik', 'Sam'
+  // Remove inactive ones like 'Nick N', etc.
+];
+
+// Anomaly Detection Functions
+const detectAnomalies = (data, performanceData) => {
+  const anomalies = [];
+
+  // Group data by network-offer combinations
+  const networkOfferGroups = data.reduce((acc, row) => {
+    const key = `${row.network}-${row.offer}`;
+    if (!acc[key]) {
+      acc[key] = [];
+    }
+    acc[key].push(row);
+    return acc;
+  }, {});
+
+  // 1. Detect Media Buyer Outliers within Network-Offer combinations
+  Object.entries(networkOfferGroups).forEach(([networkOffer, rows]) => {
+    if (rows.length < 2) return; // Need at least 2 buyers to detect outliers
+    
+    const [network, offer] = networkOffer.split('-');
+    const profitable = rows.filter(r => r.Margin > 0);
+    const unprofitable = rows.filter(r => r.Margin <= 0);
+    
+    // If most are profitable but one isn't
+    if (profitable.length >= 2 && unprofitable.length === 1) {
+      const outlier = unprofitable[0];
+      const avgProfitableROI = profitable.reduce((sum, r) => sum + r.ROI, 0) / profitable.length;
+      anomalies.push({
+        type: 'underperformer',
+        severity: 'high',
+        title: 'Underperformer Detected',
+        description: `**${outlier.mediaBuyer}** unprofitable with **${network} ${offer}**. ${profitable.length} others averaging ${avgProfitableROI.toFixed(1)}% ROI`,
+        mediaBuyer: outlier.mediaBuyer,
+        network,
+        offer,
+        impact: Math.abs(outlier.Margin)
+      });
+    }
+    
+    // If most are unprofitable but one is very profitable
+    if (unprofitable.length >= 2 && profitable.length === 1) {
+      const outlier = profitable[0];
+      if (outlier.ROI > 20) { // Only flag if significantly profitable
+        anomalies.push({
+          type: 'overperformer',
+          severity: 'medium',
+          title: 'Exceptional Performance',
+          description: `**${outlier.mediaBuyer}** highly profitable (${outlier.ROI.toFixed(1)}% ROI) with **${network} ${offer}**. ${unprofitable.length} others unprofitable`,
+          mediaBuyer: outlier.mediaBuyer,
+          network,
+          offer,
+          impact: outlier.Margin
+        });
+      }
+    }
+  });
+
+  // 2. Detect Network Performance Discrepancies for same offers
+  const offerGroups = data.reduce((acc, row) => {
+    if (!acc[row.offer]) {
+      acc[row.offer] = {};
+    }
+    if (!acc[row.offer][row.network]) {
+      acc[row.offer][row.network] = [];
+    }
+    acc[row.offer][row.network].push(row);
+    return acc;
+  }, {});
+
+  Object.entries(offerGroups).forEach(([offer, networks]) => {
+    const networkNames = Object.keys(networks);
+    if (networkNames.length < 2) return;
+
+    networkNames.forEach(network1 => {
+      networkNames.forEach(network2 => {
+        if (network1 >= network2) return;
+        
+        const network1Data = networks[network1];
+        const network2Data = networks[network2];
+        
+        const network1AvgROI = network1Data.reduce((sum, r) => sum + r.ROI, 0) / network1Data.length;
+        const network2AvgROI = network2Data.reduce((sum, r) => sum + r.ROI, 0) / network2Data.length;
+        
+        const roiDifference = Math.abs(network1AvgROI - network2AvgROI);
+        
+        if (roiDifference > 15) { // Significant difference
+          const betterNetwork = network1AvgROI > network2AvgROI ? network1 : network2;
+          const worseNetwork = network1AvgROI > network2AvgROI ? network2 : network1;
+          const betterROI = Math.max(network1AvgROI, network2AvgROI);
+          const worseROI = Math.min(network1AvgROI, network2AvgROI);
+          
+          anomalies.push({
+            type: 'network_discrepancy',
+            severity: roiDifference > 30 ? 'high' : 'medium',
+            title: 'Network Discrepancy',
+            description: `**${offer}** performs better on **${betterNetwork}** (${betterROI.toFixed(1)}% ROI) vs **${worseNetwork}** (${worseROI.toFixed(1)}% ROI)`,
+            offer,
+            betterNetwork,
+            worseNetwork,
+            impact: roiDifference
+          });
+        }
+      });
+    });
+  });
+
+  // 3. Detect Extreme Performers
+  const extremePerformers = data.filter(row => 
+    (row.ROI > 50 || row.ROI < -50) && Math.abs(row.Margin) > 1000
+  );
+
+  extremePerformers.forEach(row => {
+    if (row.ROI > 50) {
+      anomalies.push({
+        type: 'extreme_positive',
+        severity: 'medium',
+        title: 'Exceptional ROI',
+        description: `**${row.mediaBuyer}** exceptional ${row.ROI.toFixed(1)}% ROI with **${row.network} ${row.offer}**`,
+        mediaBuyer: row.mediaBuyer,
+        network: row.network,
+        offer: row.offer,
+        impact: row.Margin
+      });
+    } else {
+      anomalies.push({
+        type: 'extreme_negative',
+        severity: 'high',
+        title: 'Severe Loss',
+        description: `**${row.mediaBuyer}** severe ${row.ROI.toFixed(1)}% ROI with **${row.network} ${row.offer}**`,
+        mediaBuyer: row.mediaBuyer,
+        network: row.network,
+        offer: row.offer,
+        impact: Math.abs(row.Margin)
+      });
+    }
+  });
+
+  // Sort by severity and impact
+  return anomalies
+    .sort((a, b) => {
+      const severityOrder = { high: 3, medium: 2, low: 1 };
+      if (severityOrder[a.severity] !== severityOrder[b.severity]) {
+        return severityOrder[b.severity] - severityOrder[a.severity];
+      }
+      return Math.abs(b.impact) - Math.abs(a.impact);
+    })
+    .slice(0, 8); // Limit to top 8 anomalies
+};
+
+// Performance Anomalies Component
+const PerformanceAnomalies = ({ data }) => {
+  const [isExpanded, setIsExpanded] = useState(false);
+  const anomalies = useMemo(() => detectAnomalies(data), [data]);
+
+  if (anomalies.length === 0) {
+    return (
+      <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-4">
+        <div className="flex items-center gap-2">
+          <CheckCircle className="h-4 w-4 text-green-600" />
+          <span className="text-sm font-medium text-gray-900">No anomalies detected</span>
+          <span className="text-xs text-gray-500">• All performance appears normal</span>
+        </div>
+      </div>
+    );
+  }
+
+  const getIssueType = (type) => {
+    switch (type) {
+      case 'underperformer': return 'Underperforming media buyer';
+      case 'overperformer': return 'Exceptional performer';
+      case 'network_discrepancy': return 'Network discrepancy';
+      case 'extreme_positive': return 'Exceptional ROI';
+      case 'extreme_negative': return 'Severe loss';
+      default: return 'Anomaly';
+    }
+  };
+
+  const getSeverityColor = (severity, type) => {
+    if (type === 'overperformer' || type === 'extreme_positive') {
+      return 'text-green-700';
+    }
+    
+    switch (severity) {
+      case 'high': return 'text-red-700';
+      case 'medium': return 'text-yellow-700';
+      default: return 'text-blue-700';
+    }
+  };
+
+  // Show only top 6 critical anomalies by default, all when expanded
+  const displayAnomalies = isExpanded ? anomalies : anomalies.slice(0, 6);
+  const hasMore = anomalies.length > 6;
+
+  return (
+    <div className="bg-white rounded-lg shadow-sm border border-gray-200">
+      {/* Compact Header */}
+      <div className="flex items-center justify-between p-4 border-b border-gray-100">
+        <div className="flex items-center gap-2">
+          <Eye className="h-4 w-4 text-amber-600" />
+          <h3 className="text-lg font-semibold text-gray-900">Performance Anomalies</h3>
+          <span className="px-2 py-1 bg-amber-100 text-amber-700 text-xs font-medium rounded-full">
+            {anomalies.length}
+          </span>
+        </div>
+        {hasMore && (
+          <button
+            onClick={() => setIsExpanded(!isExpanded)}
+            className="text-sm text-blue-600 hover:text-blue-700 font-medium"
+          >
+            {isExpanded ? 'Show Less' : `+${anomalies.length - 6} More`}
+          </button>
+        )}
+      </div>
+      
+      {/* Simple List Format */}
+      <div className="p-4">
+        <div className="space-y-3">
+          {displayAnomalies.map((anomaly, index) => {
+            const severityColor = getSeverityColor(anomaly.severity, anomaly.type);
+            const issueType = getIssueType(anomaly.type);
+            
+            return (
+              <div key={index} className="flex items-center justify-between py-2 border-b border-gray-100 last:border-b-0">
+                <div className="flex-1">
+                  <span className={`font-bold ${severityColor}`}>{issueType}:</span>
+                  <span 
+                    className="text-gray-700 ml-2" 
+                    dangerouslySetInnerHTML={{ 
+                      __html: anomaly.description.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>') 
+                    }} 
+                  />
+                </div>
+                <span className={`text-sm font-semibold ml-4 ${anomaly.impact > 0 ? 'text-green-600' : 'text-red-600'}`}>
+                  {formatCurrency(Math.abs(anomaly.impact))}
+                </span>
+              </div>
+            );
+          })}
+        </div>
+        
+        {/* Quick Summary */}
+        {anomalies.length > 0 && (
+          <div className="mt-3 pt-3 border-t border-gray-100">
+            <div className="flex items-center justify-between text-xs text-gray-500">
+              <span>
+                {anomalies.filter(a => a.severity === 'high').length} high priority • 
+                {anomalies.filter(a => a.severity === 'medium').length} medium priority
+              </span>
+              <span>
+                Total impact: {formatCurrency(anomalies.reduce((sum, a) => sum + Math.abs(a.impact), 0))}
+              </span>
+            </div>
+          </div>
+        )}
+      </div>
     </div>
   );
 };
@@ -242,13 +621,40 @@ const TimePeriodSelector = ({ selectedPeriod, onPeriodChange }) => {
 const Highlights = ({ performanceData, dateRange }) => {
   const [selectedBuyer, setSelectedBuyer] = useState(null);
   const [selectedOffer, setSelectedOffer] = useState(null);
+  const [selectedPeriod, setSelectedPeriod] = useState('30d');
 
-  // Filter data based on date range
+  // Calculate date range based on selected period
+  const calculatedDateRange = useMemo(() => {
+    const now = new Date();
+    const days = {
+      '7d': 7,
+      '30d': 30,
+      '90d': 90,
+      '180d': 180,
+      '365d': 365
+    };
+    
+    const startDate = subDays(now, days[selectedPeriod] || 30);
+    return {
+      startDate,
+      endDate: now
+    };
+  }, [selectedPeriod]);
+
+  // Use calculated date range or provided one
+  const effectiveDateRange = dateRange || calculatedDateRange;
+
+  // Filter data based on date range and active media buyers
   const filteredData = useMemo(() => {
     if (!performanceData?.length) return [];
 
     return performanceData.filter(entry => {
       if (!entry.Date) return false;
+      
+      // Filter out inactive media buyers
+      if (!ACTIVE_MEDIA_BUYERS.includes(entry['Media Buyer'])) {
+        return false;
+      }
       
       // Parse the date string into a Date object
       let entryDate;
@@ -276,8 +682,8 @@ const Highlights = ({ performanceData, dateRange }) => {
         
         // Normalize dates to start/end of day for comparison
         const normalizedEntryDate = startOfDay(entryDate);
-        const normalizedStartDate = startOfDay(dateRange.startDate);
-        const normalizedEndDate = endOfDay(dateRange.endDate);
+        const normalizedStartDate = startOfDay(effectiveDateRange.startDate);
+        const normalizedEndDate = endOfDay(effectiveDateRange.endDate);
         
         // Check if the date is within the selected range
         return normalizedEntryDate >= normalizedStartDate && normalizedEntryDate <= normalizedEndDate;
@@ -286,15 +692,17 @@ const Highlights = ({ performanceData, dateRange }) => {
         return false;
       }
     });
-  }, [performanceData, dateRange]);
+  }, [performanceData, effectiveDateRange]);
 
-  // Get unique buyers and offers
+  // Get unique buyers and offers (only active ones)
   const { buyers, offers } = useMemo(() => {
     const buyersSet = new Set();
     const offersSet = new Set();
 
     filteredData.forEach(entry => {
-      if (entry['Media Buyer']) buyersSet.add(entry['Media Buyer']);
+      if (entry['Media Buyer'] && ACTIVE_MEDIA_BUYERS.includes(entry['Media Buyer'])) {
+        buyersSet.add(entry['Media Buyer']);
+      }
       if (entry.Offer) offersSet.add(entry.Offer);
     });
 
@@ -304,206 +712,8 @@ const Highlights = ({ performanceData, dateRange }) => {
     };
   }, [filteredData]);
 
-  // Calculate metrics
-  const metrics = useMemo(() => {
-    if (!filteredData.length) return {};
-
-    return filteredData.reduce((acc, entry) => {
-      const revenue = parseFloat(entry['Total Revenue'] || 0);
-      const spend = parseFloat(entry['Ad Spend'] || 0);
-      const profit = revenue - spend;
-
-      return {
-        totalRevenue: (acc.totalRevenue || 0) + revenue,
-        totalSpend: (acc.totalSpend || 0) + spend,
-        totalProfit: (acc.totalProfit || 0) + profit,
-        roi: ((acc.totalProfit || 0) + profit) / ((acc.totalSpend || 0) + spend) * 100
-      };
-    }, {});
-  }, [filteredData]);
-
-  // Get daily trends
-  const dailyTrends = useMemo(() => {
-    if (!filteredData.length) return [];
-
-    const trends = filteredData.reduce((acc, entry) => {
-      const date = entry.Date;
-      if (!acc[date]) {
-        acc[date] = {
-          revenue: 0,
-          spend: 0,
-          profit: 0
-        };
-      }
-
-      acc[date].revenue += parseFloat(entry['Total Revenue'] || 0);
-      acc[date].spend += parseFloat(entry['Ad Spend'] || 0);
-      acc[date].profit += parseFloat(entry['Total Revenue'] || 0) - parseFloat(entry['Ad Spend'] || 0);
-
-      return acc;
-    }, {});
-
-    return Object.entries(trends)
-      .map(([date, data]) => ({
-        date,
-        ...data
-      }))
-      .sort((a, b) => new Date(a.date) - new Date(b.date));
-  }, [filteredData]);
-
-  // Get buyer performance
-  const buyerPerformance = useMemo(() => {
-    if (!filteredData.length) return [];
-
-    const performance = filteredData.reduce((acc, entry) => {
-      const buyer = entry['Media Buyer'];
-      if (!acc[buyer]) {
-        acc[buyer] = {
-          buyer,
-          revenue: 0,
-          spend: 0,
-          profit: 0,
-          offers: new Set()
-        };
-      }
-
-      acc[buyer].revenue += parseFloat(entry['Total Revenue'] || 0);
-      acc[buyer].spend += parseFloat(entry['Ad Spend'] || 0);
-      acc[buyer].profit += parseFloat(entry['Total Revenue'] || 0) - parseFloat(entry['Ad Spend'] || 0);
-      if (entry.Offer) acc[buyer].offers.add(entry.Offer);
-
-      return acc;
-    }, {});
-
-    return Object.values(performance)
-      .map(data => ({
-        ...data,
-        offers: Array.from(data.offers),
-        roi: data.spend ? (data.profit / data.spend) * 100 : 0
-      }))
-      .sort((a, b) => b.profit - a.profit);
-  }, [filteredData]);
-
-  // Get offer performance
-  const offerPerformance = useMemo(() => {
-    if (!filteredData.length) return [];
-
-    const performance = filteredData.reduce((acc, entry) => {
-      const offer = entry.Offer;
-      if (!offer) return acc;
-
-      if (!acc[offer]) {
-        acc[offer] = {
-          offer,
-          revenue: 0,
-          spend: 0,
-          profit: 0,
-          buyers: new Set()
-        };
-      }
-
-      acc[offer].revenue += parseFloat(entry['Total Revenue'] || 0);
-      acc[offer].spend += parseFloat(entry['Ad Spend'] || 0);
-      acc[offer].profit += parseFloat(entry['Total Revenue'] || 0) - parseFloat(entry['Ad Spend'] || 0);
-      if (entry['Media Buyer']) acc[offer].buyers.add(entry['Media Buyer']);
-
-      return acc;
-    }, {});
-
-    return Object.values(performance)
-      .map(data => ({
-        ...data,
-        buyers: Array.from(data.buyers),
-        roi: data.spend ? (data.profit / data.spend) * 100 : 0
-      }))
-      .sort((a, b) => b.profit - a.profit);
-  }, [filteredData]);
-
-  // Format date range text
-  const dateRangeText = useMemo(() => {
-    return `${format(dateRange.startDate, 'MMM d')} to ${format(dateRange.endDate, 'MMM d, yyyy')}`;
-  }, [dateRange]);
-
-  // Add detailed debugging
-  console.log('Raw performance data length:', performanceData?.length);
-  if (performanceData?.length > 0) {
-    console.log('First row structure:', {
-      keys: Object.keys(performanceData[0]),
-      sample: performanceData[0]
-    });
-  }
-
-  // Early return if no data
-  if (!performanceData || !Array.isArray(performanceData) || performanceData.length === 0) {
-    return (
-      <div className="space-y-6">
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-          <div className="bg-white rounded-lg shadow-sm border border-gray-100 p-4">
-            <div className="text-sm text-gray-500">Profitable Buyers</div>
-            <div className="text-2xl font-bold text-[#27AE60]">0</div>
-          </div>
-          <div className="bg-white rounded-lg shadow-sm border border-gray-100 p-4">
-            <div className="text-sm text-gray-500">Unprofitable Buyers</div>
-            <div className="text-2xl font-bold text-[#E74C3C]">0</div>
-          </div>
-          <div className="bg-white rounded-lg shadow-sm border border-gray-100 p-4">
-            <div className="text-sm text-gray-500">Total Active Buyers</div>
-            <div className="text-2xl font-bold text-[#111827]">0</div>
-          </div>
-        </div>
-        <div className="bg-white rounded-lg shadow-sm border border-gray-100 p-6 text-center">
-          <div className="text-gray-500">No performance data available</div>
-        </div>
-      </div>
-    );
-  }
-
-  // Calculate period metrics
-  const periodMetrics = useMemo(() => {
-    const thirtyDaysAgo = new Date();
-    thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
-    
-    const sixtyDaysAgo = new Date();
-    sixtyDaysAgo.setDate(sixtyDaysAgo.getDate() - 60);
-
-    // Current period (last 30 days)
-    const currentPeriod = performanceData.filter(row => {
-      const rowDate = new Date(row.Date);
-      return rowDate >= thirtyDaysAgo;
-    });
-
-    // Previous period (30-60 days ago)
-    const previousPeriod = performanceData.filter(row => {
-      const rowDate = new Date(row.Date);
-      return rowDate >= sixtyDaysAgo && rowDate < thirtyDaysAgo;
-    });
-
-    // Calculate metrics for current period
-    const currentActiveBuyers = new Set(currentPeriod
-      .filter(row => row['Media Buyer'])
-      .map(row => row['Media Buyer'])).size;
-
-    // Calculate metrics for previous period
-    const previousActiveBuyers = new Set(previousPeriod
-      .filter(row => row['Media Buyer'])
-      .map(row => row['Media Buyer'])).size;
-
-    // Calculate changes
-    const buyerChange = previousActiveBuyers ? 
-      ((currentActiveBuyers - previousActiveBuyers) / previousActiveBuyers) * 100 : 0;
-
-    return {
-      currentActiveBuyers,
-      buyerChange
-    };
-  }, [performanceData]);
-
-  // Update the data processing in useMemo
+  // Update the data processing to filter active buyers
   const data = useMemo(() => {
-    // Get the date 30 days ago
-    const thirtyDaysAgo = new Date();
-    thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
-
     // Filter out any invalid rows first
     const validRows = performanceData.filter(row => {
       // Parse the date
@@ -511,15 +721,12 @@ const Highlights = ({ performanceData, dateRange }) => {
       
       const isValid = row && 
         typeof row === 'object' && 
-        row['Media Buyer'] && // Must have a media buyer
-        parseFloat(row['Ad Spend']) > 0 && // Must have ad spend
-        rowDate >= thirtyDaysAgo && // Must be within last 30 days
-        (!selectedBuyer || row['Media Buyer'] === selectedBuyer) && // Apply buyer filter
-        (!selectedOffer || row.Offer === selectedOffer); // Apply offer filter
-      
-      if (!isValid) {
-        console.log('Invalid row:', row);
-      }
+        row['Media Buyer'] && 
+        ACTIVE_MEDIA_BUYERS.includes(row['Media Buyer']) && // Only include active media buyers
+        parseFloat(row['Ad Spend']) > 0 && 
+        rowDate >= subDays(new Date(), 30) && // Within date range
+        (!selectedBuyer || row['Media Buyer'] === selectedBuyer) && 
+        (!selectedOffer || row.Offer === selectedOffer);
       
       return isValid;
     });
@@ -536,7 +743,7 @@ const Highlights = ({ performanceData, dateRange }) => {
       const key = `${row['Media Buyer']}-${normalizedOffer || 'Unknown'}`;
 
       if (!acc[key]) {
-          acc[key] = {
+        acc[key] = {
           mediaBuyer: row['Media Buyer'],
           network: row.Network || 'Unknown',
           offer: normalizedOffer || 'Unknown',
@@ -554,13 +761,13 @@ const Highlights = ({ performanceData, dateRange }) => {
       acc[key].revenue += revenue;
       acc[key].trendData.push(revenue);
 
-        return acc;
-      }, {});
+      return acc;
+    }, {});
 
     // Calculate ROI and Margin
     const finalData = Object.values(groupedData)
-          .map(row => ({
-            ...row,
+      .map(row => ({
+        ...row,
         ROI: row.adSpend ? ((row.revenue - row.adSpend) / row.adSpend) * 100 : 0,
         Margin: row.revenue - row.adSpend
       }))
@@ -569,252 +776,268 @@ const Highlights = ({ performanceData, dateRange }) => {
     return finalData;
   }, [performanceData, selectedBuyer, selectedOffer]);
 
-  // Update columns with aligned data
-  const columns = useMemo(() => [
-    {
-      header: 'Media Buyer',
-      cell: (row) => (
-        <div className="font-medium text-[#111827] text-sm min-w-[140px]">
-          {row.mediaBuyer}
-        </div>
-      )
-    },
-    {
-      header: 'Network',
-      cell: (row) => (
-        <div className="text-sm text-gray-600 min-w-[120px]">
-          {row.network || 'Unknown'}
-        </div>
-      )
-    },
-    {
-      header: 'Offer',
-      cell: (row) => (
-        <div className="text-sm text-gray-600 min-w-[120px]">
-          {row.offer}
-        </div>
-      )
-    },
-    {
-      header: (
-        <div className="flex items-center justify-end gap-1 min-w-[100px]">
-          ROI
-          <div className="group relative">
-            <HelpCircle className="w-4 h-4 text-gray-400" />
-            <div className="absolute left-full top-1/2 -translate-y-1/2 ml-2 w-64 p-2 bg-gray-900 text-white text-xs rounded shadow-lg opacity-0 group-hover:opacity-100 transition-opacity duration-200 z-[100] delay-200">
-              Return on Investment: (Revenue - Ad Spend) / Ad Spend
-              <div className="absolute left-0 top-1/2 -translate-x-1/2 -translate-y-1/2 rotate-45 w-2 h-2 bg-gray-900"></div>
-            </div>
-          </div>
-        </div>
-      ),
-      cell: (row) => (
-        <div className="text-right font-medium text-sm">
-          {row.adSpend > 0 ? formatPercent(row.ROI) : '—'}
-        </div>
-      )
-    },
-    {
-      header: (
-        <div className="flex items-center justify-end gap-1 min-w-[120px]">
-          Margin
-          <div className="group relative">
-            <HelpCircle className="w-4 h-4 text-gray-400" />
-            <div className="absolute left-full top-1/2 -translate-y-1/2 ml-2 w-64 p-2 bg-gray-900 text-white text-xs rounded shadow-lg opacity-0 group-hover:opacity-100 transition-opacity duration-200 z-[100] delay-200">
-              Net Profit: Revenue minus Ad Spend
-              <br />
-              <br />
-              Note: For ACA ACA offers, this includes revenue from:
-              <br />
-              • ACA ACA
-              <br />
-              • ACA Suited
-              <br />
-              • Suited ACA
-              <div className="absolute left-0 top-1/2 -translate-x-1/2 -translate-y-1/2 rotate-45 w-2 h-2 bg-gray-900"></div>
-            </div>
-          </div>
-        </div>
-      ),
-      cell: (row) => (
-        <div className="text-right font-medium text-sm">
-          {row.adSpend > 0 ? formatCurrency(row.Margin) : '—'}
-        </div>
-      )
-    },
-    {
-      header: (
-        <div className="min-w-[200px]">
-          Trend
-        </div>
-      ),
-      cell: (row) => (
-        <div className="flex items-center gap-6">
-          <StatusPill 
-            status={getTrendStatus(row.trendData)} 
-            className="text-[13px] font-medium px-2 py-1"
-          />
-          <TrendGraph data={row.trendData} />
-        </div>
-      )
-    }
-  ], []);
+  // Format date range text
+  const dateRangeText = useMemo(() => {
+    return `${format(effectiveDateRange.startDate, 'MMM d')} to ${format(effectiveDateRange.endDate, 'MMM d, yyyy')}`;
+  }, [effectiveDateRange]);
 
-  // If no valid data after processing, show empty state
-  if (data.length === 0) {
+  // Export functionality
+  const handleExport = () => {
+    const csvData = [
+      ['Media Buyer', 'Network', 'Offer', 'ROI %', 'Margin', 'Revenue', 'Ad Spend'].join(','),
+      ...data.map(row => [
+        row.mediaBuyer,
+        row.network,
+        row.offer,
+        row.ROI.toFixed(1),
+        row.Margin.toFixed(2),
+        row.revenue.toFixed(2),
+        row.adSpend.toFixed(2)
+      ].join(','))
+    ].join('\n');
+
+    const blob = new Blob([csvData], { type: 'text/csv' });
+    const url = window.URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `performance-highlights-${format(new Date(), 'yyyy-MM-dd')}.csv`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    window.URL.revokeObjectURL(url);
+  };
+
+  // Early return if no data
+  if (!performanceData || !Array.isArray(performanceData) || performanceData.length === 0) {
     return (
-      <div className="space-y-6">
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-          <div className="bg-white rounded-lg shadow-sm border border-gray-100 p-4">
-            <div className="text-sm text-gray-500">Profitable Buyers</div>
-            <div className="text-2xl font-bold text-[#27AE60]">0</div>
-          </div>
-          <div className="bg-white rounded-lg shadow-sm border border-gray-100 p-4">
-            <div className="text-sm text-gray-500">Unprofitable Buyers</div>
-            <div className="text-2xl font-bold text-[#E74C3C]">0</div>
-          </div>
-          <div className="bg-white rounded-lg shadow-sm border border-gray-100 p-4">
-            <div className="text-sm text-gray-500">Total Active Buyers</div>
-            <div className="text-2xl font-bold text-[#111827]">0</div>
-          </div>
-        </div>
-        <div className="bg-white rounded-lg shadow-sm border border-gray-100 p-6 text-center">
-          <div className="text-gray-500">No valid performance data available</div>
+      <div className="space-y-6" style={{backgroundColor: 'red', padding: '20px'}}>
+        <div style={{backgroundColor: 'yellow', padding: '20px', fontSize: '24px', fontWeight: 'bold'}}>
+          🚨 TESTING - IF YOU SEE THIS, THE FILE IS WORKING 🚨
         </div>
       </div>
     );
   }
 
-  // Group data by profitability
-  const profitableBuyers = data.filter(row => row.Margin > 0);
-  const unprofitableBuyers = data.filter(row => row.Margin <= 0);
+  // If no valid data after processing, show filtered empty state
+  if (data.length === 0) {
+    return (
+      <div className="space-y-6">
+        <div className="flex items-center justify-between">
+          <h2 className="text-2xl font-bold text-gray-900">Performance Highlights</h2>
+          <div className="flex items-center gap-4">
+            <TimePeriodSelector 
+              selectedPeriod={selectedPeriod}
+              onPeriodChange={setSelectedPeriod}
+            />
+          </div>
+        </div>
+        
+        <div className="text-center py-12 bg-yellow-50 rounded-lg border-2 border-dashed border-yellow-300">
+          <Info className="mx-auto h-12 w-12 text-yellow-500 mb-4" />
+          <h3 className="text-lg font-medium text-gray-900 mb-2">No Data Matches Current Filters</h3>
+          <p className="text-gray-600 mb-4">Try adjusting your buyer or offer filters, or select a different date range.</p>
+          <div className="flex gap-2 justify-center">
+            <button
+              onClick={() => setSelectedBuyer(null)}
+              className="px-3 py-1 bg-blue-100 text-blue-700 rounded text-sm hover:bg-blue-200"
+            >
+              Clear Buyer Filter
+            </button>
+            <button
+              onClick={() => setSelectedOffer(null)}
+              className="px-3 py-1 bg-blue-100 text-blue-700 rounded text-sm hover:bg-blue-200"
+            >
+              Clear Offer Filter
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   return (
-    <div className="space-y-8">
+    <div className="space-y-6">
+      {/* Enhanced Header */}
       <div className="flex items-center justify-between">
-        <h2 className="text-2xl font-bold">Performance Highlights</h2>
-        <div className="text-sm text-gray-500">
-          Showing data from {dateRangeText}
+        <div>
+          <h2 className="text-3xl font-bold text-gray-900">Performance Highlights</h2>
+          <p className="text-gray-600 mt-1">Campaign performance overview and insights • Active media buyers only</p>
         </div>
-      </div>
-
-      {/* KPI Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-        <div className="bg-[#F0F4FF] rounded-lg shadow-sm border border-gray-100 p-5">
-          <div className="flex items-center gap-2 mb-2">
-            <span className="text-xl">💰</span>
-            <h3 className="text-sm font-medium text-gray-500">Total Revenue</h3>
+        <div className="flex items-center gap-4">
+          <TimePeriodSelector 
+            selectedPeriod={selectedPeriod}
+            onPeriodChange={setSelectedPeriod}
+          />
+          <div className="text-sm text-gray-500">
+            {dateRangeText}
           </div>
-          <div className="text-2xl font-bold text-blue-700">
-            {formatCurrency(data.reduce((sum, row) => sum + row.revenue, 0))}
-          </div>
-        </div>
-        <div className="bg-[#FFF5F5] rounded-lg shadow-sm border border-gray-100 p-5">
-          <div className="flex items-center gap-2 mb-2">
-            <span className="text-xl">🧾</span>
-            <h3 className="text-sm font-medium text-gray-500">Total Spend</h3>
-          </div>
-          <div className="text-2xl font-bold text-red-700">
-            {formatCurrency(data.reduce((sum, row) => sum + row.adSpend, 0))}
-          </div>
-        </div>
-        <div className="bg-[#F1FBF1] rounded-lg shadow-sm border border-gray-100 p-5">
-          <div className="flex items-center gap-2 mb-2">
-            <span className="text-xl">📈</span>
-            <h3 className="text-sm font-medium text-gray-500">Total Margin</h3>
-          </div>
-          <div className="text-2xl font-bold text-green-700">
-            {formatCurrency(data.reduce((sum, row) => sum + row.Margin, 0))}
-          </div>
-        </div>
-        <div className="bg-[#F5F0FF] rounded-lg shadow-sm border border-gray-100 p-5">
-          <div className="flex items-center gap-2 mb-2">
-            <span className="text-xl">⚖️</span>
-            <h3 className="text-sm font-medium text-gray-500">Overall ROI</h3>
-          </div>
-          <div className="text-2xl font-bold text-purple-700">
-            {(() => {
-              const totalRevenue = data.reduce((sum, row) => sum + row.revenue, 0);
-              const totalSpend = data.reduce((sum, row) => sum + row.adSpend, 0);
-              return totalSpend > 0 ? formatPercent(((totalRevenue - totalSpend) / totalSpend) * 100) : '0%';
-            })()}
-          </div>
-        </div>
-      </div>
-
-      {/* Filter Buttons */}
-      <div className="space-y-2">
-        <div className="flex flex-wrap gap-1">
           <button
-            onClick={() => setSelectedBuyer(null)}
-            className={`px-2 py-1 rounded text-xs font-medium transition-colors hover:bg-gray-50 cursor-pointer ${
-              !selectedBuyer
-                ? 'bg-blue-50 text-blue-700 border border-blue-200'
-                : 'bg-gray-50 text-gray-600 hover:bg-gray-100 border border-gray-200'
-            }`}
+            onClick={handleExport}
+            className="flex items-center gap-2 px-3 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
           >
-            All Buyers
+            <Download className="h-4 w-4" />
+            Export
           </button>
-          {buyers.map(buyer => (
-            <button
-              key={buyer}
-              onClick={() => setSelectedBuyer(buyer)}
-              className={`px-2 py-1 rounded text-xs font-medium transition-colors hover:bg-gray-50 cursor-pointer ${
-                selectedBuyer === buyer
-                  ? 'bg-blue-50 text-blue-700 border border-blue-200'
-                  : 'bg-gray-50 text-gray-600 hover:bg-gray-100 border border-gray-200'
-              }`}
-            >
-              {buyer}
-            </button>
-          ))}
-        </div>
-        <div className="flex flex-wrap gap-1">
-          <button
-            onClick={() => setSelectedOffer(null)}
-            className={`px-2 py-1 rounded text-xs font-medium transition-colors hover:bg-gray-50 cursor-pointer ${
-              !selectedOffer
-                ? 'bg-blue-50 text-blue-700 border border-blue-200'
-                : 'bg-gray-50 text-gray-600 hover:bg-gray-100 border border-gray-200'
-            }`}
-          >
-            All Offers
-          </button>
-          {offers.map(offer => (
-            <button
-              key={offer}
-              onClick={() => setSelectedOffer(offer)}
-              className={`px-2 py-1 rounded text-xs font-medium transition-colors hover:bg-gray-50 cursor-pointer ${
-                selectedOffer === offer
-                  ? 'bg-blue-50 text-blue-700 border border-blue-200'
-                  : 'bg-gray-50 text-gray-600 hover:bg-gray-100 border border-gray-200'
-              }`}
-            >
-              {offer}
-            </button>
-          ))}
         </div>
       </div>
 
-      <div className="bg-white rounded-lg shadow-sm border border-gray-100">
-        <div className="p-6 border-b border-gray-100">
-          <div className="flex items-center justify-between">
-            <div>
-              <h3 className="text-lg font-semibold text-gray-900">Offer Breakdown by Date</h3>
-              <p className="text-sm text-gray-500 mt-1">
-                Last 30 days performance
-              </p>
+      {/* Summary Stats */}
+      <SummaryStats data={data} />
+
+      {/* NEW: Performance Anomalies Section */}
+      <PerformanceAnomalies data={data} />
+
+      {/* Enhanced Filter Buttons */}
+      <div className="bg-white rounded-xl border border-gray-200 p-6 shadow-sm">
+        <div className="space-y-4">
+          <div>
+            <label className="text-sm font-semibold text-gray-700 mb-3 block">Filter by Media Buyer:</label>
+            <div className="flex flex-wrap gap-2">
+              <button
+                onClick={() => setSelectedBuyer(null)}
+                className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors border ${
+                  !selectedBuyer
+                    ? 'bg-blue-100 text-blue-700 border-blue-300 shadow-sm'
+                    : 'bg-gray-50 text-gray-600 hover:bg-gray-100 border-gray-200'
+                }`}
+              >
+                All Buyers ({buyers.length})
+              </button>
+              {buyers.map(buyer => (
+                <button
+                  key={buyer}
+                  onClick={() => setSelectedBuyer(buyer)}
+                  className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors border ${
+                    selectedBuyer === buyer
+                      ? 'bg-blue-100 text-blue-700 border-blue-300 shadow-sm'
+                      : 'bg-gray-50 text-gray-600 hover:bg-gray-100 border-gray-200'
+                  }`}
+                >
+                  {buyer}
+                </button>
+              ))}
+            </div>
+          </div>
+          
+          <div>
+            <label className="text-sm font-semibold text-gray-700 mb-3 block">Filter by Offer:</label>
+            <div className="flex flex-wrap gap-2">
+              <button
+                onClick={() => setSelectedOffer(null)}
+                className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors border ${
+                  !selectedOffer
+                    ? 'bg-orange-100 text-orange-700 border-orange-300 shadow-sm'
+                    : 'bg-gray-50 text-gray-600 hover:bg-gray-100 border-gray-200'
+                }`}
+              >
+                All Offers ({offers.length})
+              </button>
+              {offers.map((offer, index) => (
+                <button
+                  key={`offer-${offer}-${index}`}
+                  onClick={() => setSelectedOffer(offer)}
+                  className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors border ${
+                    selectedOffer === offer
+                      ? 'bg-orange-100 text-orange-700 border-orange-300 shadow-sm'
+                      : 'bg-gray-50 text-gray-600 hover:bg-gray-100 border-gray-200'
+                  }`}
+                >
+                  {offer}
+                </button>
+              ))}
             </div>
           </div>
         </div>
-        <div className="p-6">
-          <DataTable
-            columns={columns}
-            data={data}
-            frozenColumns={1}
-            showZebra={true}
-            className="overflow-hidden"
-          />
+      </div>
+
+      {/* Enhanced Table */}
+      <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
+        <div className="p-6 border-b border-gray-100 bg-gray-50">
+          <div className="flex items-center justify-between">
+            <div>
+              <h3 className="text-xl font-semibold text-gray-900">Campaign Performance Details</h3>
+              <p className="text-sm text-gray-500 mt-1">
+                {data.length} campaign combinations • Sorted by profit margin • Active buyers only
+              </p>
+            </div>
+            <div className="text-sm text-gray-500">
+              {selectedBuyer && `Buyer: ${selectedBuyer}`}
+              {selectedBuyer && selectedOffer && ' • '}
+              {selectedOffer && `Offer: ${selectedOffer}`}
+            </div>
+          </div>
+        </div>
+        
+        <div style={{padding: '0', margin: '0', overflow: 'hidden'}}>
+          {/* Header Row */}
+          <div style={{
+            display: 'flex',
+            backgroundColor: '#F9FAFB',
+            borderBottom: '2px solid #E5E7EB',
+            fontSize: '12px',
+            fontWeight: '600',
+            textTransform: 'uppercase',
+            letterSpacing: '0.05em',
+            color: '#6B7280',
+            padding: '0',
+            margin: '0'
+          }}>
+            <div style={{width: '140px', padding: '12px 16px', flexShrink: 0}}>Media Buyer</div>
+            <div style={{width: '100px', padding: '12px 16px', flexShrink: 0}}>Network</div>
+            <div style={{width: '100px', padding: '12px 16px', flexShrink: 0}}>Offer</div>
+            <div style={{width: '90px', padding: '12px 16px', flexShrink: 0, display: 'flex', justifyContent: 'flex-end', alignItems: 'center'}}>ROI</div>
+            <div style={{width: '120px', padding: '12px 16px', flexShrink: 0, display: 'flex', justifyContent: 'flex-end', alignItems: 'center'}}>Margin</div>
+            <div style={{width: '640px', padding: '12px 16px', flexShrink: 0}}>Trend</div>
+          </div>
+
+          {/* Data Rows */}
+          {data.map((row, index) => (
+            <div 
+              key={index} 
+              style={{
+                display: 'flex',
+                backgroundColor: index % 2 === 0 ? '#ffffff' : '#F9FAFB',
+                borderBottom: '1px solid #E5E7EB',
+                padding: '0',
+                margin: '0'
+              }}
+            >
+              <div style={{width: '140px', padding: '12px 16px', flexShrink: 0}}>
+                <div className="font-semibold text-gray-900 text-sm">
+                  {row.mediaBuyer}
+                </div>
+              </div>
+              <div style={{width: '100px', padding: '12px 16px', flexShrink: 0}}>
+                <div className="text-sm text-blue-600 font-medium">
+                  {row.network || 'Unknown'}
+                </div>
+              </div>
+              <div style={{width: '100px', padding: '12px 16px', flexShrink: 0}}>
+                <div className="text-sm text-orange-600 font-medium">
+                  {row.offer}
+                </div>
+              </div>
+              <div style={{width: '90px', padding: '12px 16px', flexShrink: 0, display: 'flex', justifyContent: 'flex-end', alignItems: 'center'}}>
+                {row.adSpend > 0 ? <ROIDisplay roi={row.ROI} /> : '—'}
+              </div>
+              <div style={{width: '120px', padding: '12px 16px', flexShrink: 0, display: 'flex', justifyContent: 'flex-end', alignItems: 'center'}}>
+                {row.adSpend > 0 ? <ProfitIndicator value={row.Margin} /> : '—'}
+              </div>
+              <div style={{width: '640px', padding: '12px 16px', flexShrink: 0}}>
+                <div className="flex items-center gap-6">
+                  <div className="flex-shrink-0">
+                    <StatusPill 
+                      status={getTrendStatus(row.trendData)} 
+                      className="text-xs font-medium px-3 py-2"
+                    />
+                  </div>
+                  <div className="flex-shrink-0">
+                    <TrendGraph data={row.trendData} width={280} height={60} />
+                  </div>
+                </div>
+              </div>
+            </div>
+          ))}
         </div>
       </div>
     </div>
