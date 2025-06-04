@@ -622,6 +622,7 @@ const Highlights = ({ performanceData, dateRange }) => {
   const [selectedBuyer, setSelectedBuyer] = useState(null);
   const [selectedOffer, setSelectedOffer] = useState(null);
   const [selectedPeriod, setSelectedPeriod] = useState('30d');
+  const [sortConfig, setSortConfig] = useState({ key: 'Margin', direction: 'desc' });
 
   // Calculate date range based on selected period
   const calculatedDateRange = useMemo(() => {
@@ -712,6 +713,75 @@ const Highlights = ({ performanceData, dateRange }) => {
     };
   }, [filteredData]);
 
+  // Sorting function
+  const handleSort = (key) => {
+    let direction = 'asc';
+    if (sortConfig.key === key && sortConfig.direction === 'asc') {
+      direction = 'desc';
+    }
+    setSortConfig({ key, direction });
+  };
+
+  // Sort data function
+  const sortData = (data, sortConfig) => {
+    if (!sortConfig.key) return data;
+
+    return [...data].sort((a, b) => {
+      let aValue, bValue;
+
+      switch (sortConfig.key) {
+        case 'mediaBuyer':
+          aValue = a.mediaBuyer;
+          bValue = b.mediaBuyer;
+          break;
+        case 'network':
+          aValue = a.network;
+          bValue = b.network;
+          break;
+        case 'offer':
+          aValue = a.offer;
+          bValue = b.offer;
+          break;
+        case 'ROI':
+          aValue = a.ROI;
+          bValue = b.ROI;
+          break;
+        case 'Margin':
+          aValue = a.Margin;
+          bValue = b.Margin;
+          break;
+        case 'trend':
+          // Sort by trend status priority: improving > neutral > volatile
+          const trendPriority = { improving: 3, neutral: 2, volatile: 1 };
+          aValue = trendPriority[getTrendStatus(a.trendData)] || 0;
+          bValue = trendPriority[getTrendStatus(b.trendData)] || 0;
+          break;
+        default:
+          return 0;
+      }
+
+      if (aValue < bValue) {
+        return sortConfig.direction === 'asc' ? -1 : 1;
+      }
+      if (aValue > bValue) {
+        return sortConfig.direction === 'asc' ? 1 : -1;
+      }
+      return 0;
+    });
+  };
+
+  // Sort icon component
+  const SortIcon = ({ column }) => {
+    if (sortConfig.key !== column) {
+      return <span className="text-gray-400 ml-1">⇅</span>;
+    }
+    return (
+      <span className="text-blue-600 ml-1">
+        {sortConfig.direction === 'asc' ? '↑' : '↓'}
+      </span>
+    );
+  };
+
   // Update the data processing to filter active buyers
   const data = useMemo(() => {
     // Filter out any invalid rows first
@@ -765,16 +835,16 @@ const Highlights = ({ performanceData, dateRange }) => {
     }, {});
 
     // Calculate ROI and Margin
-    const finalData = Object.values(groupedData)
+    const processedData = Object.values(groupedData)
       .map(row => ({
         ...row,
         ROI: row.adSpend ? ((row.revenue - row.adSpend) / row.adSpend) * 100 : 0,
         Margin: row.revenue - row.adSpend
-      }))
-      .sort((a, b) => b.Margin - a.Margin);
+      }));
 
-    return finalData;
-  }, [performanceData, selectedBuyer, selectedOffer]);
+    // Apply sorting
+    return sortData(processedData, sortConfig);
+  }, [performanceData, selectedBuyer, selectedOffer, sortConfig]);
 
   // Format date range text
   const dateRangeText = useMemo(() => {
@@ -957,7 +1027,14 @@ const Highlights = ({ performanceData, dateRange }) => {
             <div>
               <h3 className="text-xl font-semibold text-gray-900">Campaign Performance Details</h3>
               <p className="text-sm text-gray-500 mt-1">
-                {data.length} campaign combinations • Sorted by profit margin • Active buyers only
+                {data.length} campaign combinations • Sorted by {
+                  sortConfig.key === 'mediaBuyer' ? 'Media Buyer' :
+                  sortConfig.key === 'network' ? 'Network' :
+                  sortConfig.key === 'offer' ? 'Offer' :
+                  sortConfig.key === 'ROI' ? 'ROI' :
+                  sortConfig.key === 'Margin' ? 'Profit Margin' :
+                  sortConfig.key === 'trend' ? 'Trend Status' : 'Profit Margin'
+                } ({sortConfig.direction === 'asc' ? 'ascending' : 'descending'}) • {dateRangeText} • Active buyers only
               </p>
             </div>
             <div className="text-sm text-gray-500">
@@ -968,62 +1045,198 @@ const Highlights = ({ performanceData, dateRange }) => {
           </div>
         </div>
         
-        <div style={{padding: '0', margin: '0', overflow: 'hidden'}}>
+        {/* CSS Grid Table */}
+        <div style={{
+          display: 'grid',
+          gridTemplateColumns: '140px 100px 100px 90px 120px 640px',
+          width: '100%',
+          overflow: 'auto'
+        }}>
           {/* Header Row */}
-          <div style={{
-            display: 'flex',
-            backgroundColor: '#F9FAFB',
-            borderBottom: '2px solid #E5E7EB',
-            fontSize: '12px',
-            fontWeight: '600',
-            textTransform: 'uppercase',
-            letterSpacing: '0.05em',
-            color: '#6B7280',
-            padding: '0',
-            margin: '0'
-          }}>
-            <div style={{width: '140px', padding: '12px 16px', flexShrink: 0}}>Media Buyer</div>
-            <div style={{width: '100px', padding: '12px 16px', flexShrink: 0}}>Network</div>
-            <div style={{width: '100px', padding: '12px 16px', flexShrink: 0}}>Offer</div>
-            <div style={{width: '90px', padding: '12px 16px', flexShrink: 0, display: 'flex', justifyContent: 'flex-end', alignItems: 'center'}}>ROI</div>
-            <div style={{width: '120px', padding: '12px 16px', flexShrink: 0, display: 'flex', justifyContent: 'flex-end', alignItems: 'center'}}>Margin</div>
-            <div style={{width: '640px', padding: '12px 16px', flexShrink: 0}}>Trend</div>
+          <div 
+            style={{
+              padding: '12px 16px',
+              backgroundColor: '#F9FAFB',
+              borderBottom: '2px solid #E5E7EB',
+              fontSize: '12px',
+              fontWeight: '600',
+              textTransform: 'uppercase',
+              letterSpacing: '0.05em',
+              color: '#6B7280',
+              cursor: 'pointer',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between'
+            }}
+            onClick={() => handleSort('mediaBuyer')}
+          >
+            <span>Media Buyer</span>
+            <SortIcon column="mediaBuyer" />
+          </div>
+          <div 
+            style={{
+              padding: '12px 16px',
+              backgroundColor: '#F9FAFB',
+              borderBottom: '2px solid #E5E7EB',
+              fontSize: '12px',
+              fontWeight: '600',
+              textTransform: 'uppercase',
+              letterSpacing: '0.05em',
+              color: '#6B7280',
+              cursor: 'pointer',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between'
+            }}
+            onClick={() => handleSort('network')}
+          >
+            <span>Network</span>
+            <SortIcon column="network" />
+          </div>
+          <div 
+            style={{
+              padding: '12px 16px',
+              backgroundColor: '#F9FAFB',
+              borderBottom: '2px solid #E5E7EB',
+              fontSize: '12px',
+              fontWeight: '600',
+              textTransform: 'uppercase',
+              letterSpacing: '0.05em',
+              color: '#6B7280',
+              cursor: 'pointer',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between'
+            }}
+            onClick={() => handleSort('offer')}
+          >
+            <span>Offer</span>
+            <SortIcon column="offer" />
+          </div>
+          <div 
+            style={{
+              padding: '12px 16px',
+              backgroundColor: '#F9FAFB',
+              borderBottom: '2px solid #E5E7EB',
+              fontSize: '12px',
+              fontWeight: '600',
+              textTransform: 'uppercase',
+              letterSpacing: '0.05em',
+              color: '#6B7280',
+              cursor: 'pointer',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'flex-end'
+            }}
+            onClick={() => handleSort('ROI')}
+          >
+            <span>ROI</span>
+            <SortIcon column="ROI" />
+          </div>
+          <div 
+            style={{
+              padding: '12px 16px',
+              backgroundColor: '#F9FAFB',
+              borderBottom: '2px solid #E5E7EB',
+              fontSize: '12px',
+              fontWeight: '600',
+              textTransform: 'uppercase',
+              letterSpacing: '0.05em',
+              color: '#6B7280',
+              cursor: 'pointer',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'flex-end'
+            }}
+            onClick={() => handleSort('Margin')}
+          >
+            <span>Margin</span>
+            <SortIcon column="Margin" />
+          </div>
+          <div 
+            style={{
+              padding: '12px 16px',
+              backgroundColor: '#F9FAFB',
+              borderBottom: '2px solid #E5E7EB',
+              fontSize: '12px',
+              fontWeight: '600',
+              textTransform: 'uppercase',
+              letterSpacing: '0.05em',
+              color: '#6B7280',
+              cursor: 'pointer',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between'
+            }}
+            onClick={() => handleSort('trend')}
+          >
+            <span>Trend</span>
+            <SortIcon column="trend" />
           </div>
 
           {/* Data Rows */}
           {data.map((row, index) => (
-            <div 
-              key={index} 
-              style={{
-                display: 'flex',
+            <React.Fragment key={index}>
+              <div style={{
+                padding: '12px 16px',
                 backgroundColor: index % 2 === 0 ? '#ffffff' : '#F9FAFB',
                 borderBottom: '1px solid #E5E7EB',
-                padding: '0',
-                margin: '0'
-              }}
-            >
-              <div style={{width: '140px', padding: '12px 16px', flexShrink: 0}}>
+                display: 'flex',
+                alignItems: 'center'
+              }}>
                 <div className="font-semibold text-gray-900 text-sm">
                   {row.mediaBuyer}
                 </div>
               </div>
-              <div style={{width: '100px', padding: '12px 16px', flexShrink: 0}}>
+              <div style={{
+                padding: '12px 16px',
+                backgroundColor: index % 2 === 0 ? '#ffffff' : '#F9FAFB',
+                borderBottom: '1px solid #E5E7EB',
+                display: 'flex',
+                alignItems: 'center'
+              }}>
                 <div className="text-sm text-blue-600 font-medium">
                   {row.network || 'Unknown'}
                 </div>
               </div>
-              <div style={{width: '100px', padding: '12px 16px', flexShrink: 0}}>
+              <div style={{
+                padding: '12px 16px',
+                backgroundColor: index % 2 === 0 ? '#ffffff' : '#F9FAFB',
+                borderBottom: '1px solid #E5E7EB',
+                display: 'flex',
+                alignItems: 'center'
+              }}>
                 <div className="text-sm text-orange-600 font-medium">
                   {row.offer}
                 </div>
               </div>
-              <div style={{width: '90px', padding: '12px 16px', flexShrink: 0, display: 'flex', justifyContent: 'flex-end', alignItems: 'center'}}>
+              <div style={{
+                padding: '12px 16px',
+                backgroundColor: index % 2 === 0 ? '#ffffff' : '#F9FAFB',
+                borderBottom: '1px solid #E5E7EB',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'flex-end'
+              }}>
                 {row.adSpend > 0 ? <ROIDisplay roi={row.ROI} /> : '—'}
               </div>
-              <div style={{width: '120px', padding: '12px 16px', flexShrink: 0, display: 'flex', justifyContent: 'flex-end', alignItems: 'center'}}>
+              <div style={{
+                padding: '12px 16px',
+                backgroundColor: index % 2 === 0 ? '#ffffff' : '#F9FAFB',
+                borderBottom: '1px solid #E5E7EB',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'flex-end'
+              }}>
                 {row.adSpend > 0 ? <ProfitIndicator value={row.Margin} /> : '—'}
               </div>
-              <div style={{width: '640px', padding: '12px 16px', flexShrink: 0}}>
+              <div style={{
+                padding: '12px 16px',
+                backgroundColor: index % 2 === 0 ? '#ffffff' : '#F9FAFB',
+                borderBottom: '1px solid #E5E7EB',
+                display: 'flex',
+                alignItems: 'center'
+              }}>
                 <div className="flex items-center gap-6">
                   <div className="flex-shrink-0">
                     <StatusPill 
@@ -1036,7 +1249,7 @@ const Highlights = ({ performanceData, dateRange }) => {
                   </div>
                 </div>
               </div>
-            </div>
+            </React.Fragment>
           ))}
         </div>
       </div>
