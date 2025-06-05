@@ -446,7 +446,7 @@ const MediaBuyerAnalysis = ({ performanceData = [], commissions = [] }) => {
           {/* Priority Actions */}
           <div className="space-y-2">
             <h4 className="font-semibold text-blue-800">🎯 Immediate Actions Required:</h4>
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+            <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
               {/* Testing Phase */}
               <div className="bg-purple-50 rounded-lg p-3 border border-purple-200">
                 <h5 className="font-semibold text-purple-800 mb-2">🧪 Testing Phase</h5>
@@ -535,6 +535,95 @@ const MediaBuyerAnalysis = ({ performanceData = [], commissions = [] }) => {
                     </div>
                   )) : (
                     <div className="text-sm text-gray-600 italic">No immediate scale-back required</div>
+                  );
+                })()}
+              </div>
+
+              {/* Performance Anomalies */}
+              <div className="bg-orange-50 rounded-lg p-3 border border-orange-200">
+                <h5 className="font-semibold text-orange-800 mb-2">⚠️ Performance Anomalies</h5>
+                {(() => {
+                  const anomalies = [];
+                  
+                  // Group all campaigns by network-offer combination
+                  const networkOfferGroups = {};
+                  scalingPriority.forEach(buyer => {
+                    buyer.offerBreakdown.forEach(offer => {
+                      const key = `${offer.network} - ${offer.offer}`;
+                      if (!networkOfferGroups[key]) {
+                        networkOfferGroups[key] = [];
+                      }
+                      networkOfferGroups[key].push({
+                        buyer: buyer.name,
+                        roi: offer.roi,
+                        margin: offer.margin,
+                        spend: offer.spend
+                      });
+                    });
+                  });
+
+                  // Find anomalies: single profitable buyer when others are unprofitable
+                  Object.entries(networkOfferGroups).forEach(([networkOffer, buyers]) => {
+                    if (buyers.length >= 2) { // Need at least 2 buyers for comparison
+                      const profitable = buyers.filter(b => b.margin > 0);
+                      const unprofitable = buyers.filter(b => b.margin <= 0);
+                      
+                      // Single profitable when others unprofitable
+                      if (profitable.length === 1 && unprofitable.length >= 1) {
+                        anomalies.push({
+                          type: 'single_profitable',
+                          text: `${profitable[0].buyer} profitable on ${networkOffer} while ${unprofitable.length} others lose`,
+                          roi: profitable[0].roi
+                        });
+                      }
+                      
+                      // Single unprofitable when others profitable
+                      if (unprofitable.length === 1 && profitable.length >= 2) {
+                        anomalies.push({
+                          type: 'single_unprofitable',
+                          text: `${unprofitable[0].buyer} losing on ${networkOffer} while ${profitable.length} others profit`,
+                          roi: unprofitable[0].roi
+                        });
+                      }
+
+                      // Extreme ROI outlier (>50% difference from average)
+                      if (buyers.length >= 3) {
+                        const avgROI = buyers.reduce((sum, b) => sum + b.roi, 0) / buyers.length;
+                        buyers.forEach(buyer => {
+                          if (buyer.roi > avgROI + 50 && buyer.roi > 20) {
+                            anomalies.push({
+                              type: 'high_outlier',
+                              text: `${buyer.buyer} exceptional ${buyer.roi.toFixed(0)}% ROI on ${networkOffer}`,
+                              roi: buyer.roi
+                            });
+                          }
+                        });
+                      }
+                    }
+                  });
+
+                  // Sort by priority and take top 3
+                  const sortedAnomalies = anomalies
+                    .sort((a, b) => {
+                      if (a.type === 'single_profitable') return -1;
+                      if (b.type === 'single_profitable') return 1;
+                      if (a.type === 'high_outlier') return -1;
+                      if (b.type === 'high_outlier') return 1;
+                      return 0;
+                    })
+                    .slice(0, 3);
+
+                  return sortedAnomalies.length > 0 ? (
+                    <ul className="text-sm space-y-1">
+                      {sortedAnomalies.map((anomaly, index) => (
+                        <li key={index} className="flex items-start">
+                          <span className="text-orange-600 mr-1">•</span>
+                          <span className="text-gray-700 leading-tight">{anomaly.text}</span>
+                        </li>
+                      ))}
+                    </ul>
+                  ) : (
+                    <div className="text-sm text-gray-600 italic">No anomalies detected</div>
                   );
                 })()}
               </div>
