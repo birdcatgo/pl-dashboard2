@@ -92,7 +92,7 @@ const TrendGraph = ({ data, color = 'blue' }) => {
 // Media Buyer Analysis Component - Dynamic time period analysis for media buyer performance
 const MediaBuyerAnalysis = ({ performanceData = [], commissions = [] }) => {
   const [expandedBuyers, setExpandedBuyers] = useState(new Set());
-  const [selectedPeriod, setSelectedPeriod] = useState(30); // Default to 30 days
+  const [selectedPeriod, setSelectedPeriod] = useState(7); // Default to 7 days
 
   // Helper function to check if a media buyer is active
   const isActiveBuyer = (buyerName) => {
@@ -549,16 +549,10 @@ const MediaBuyerAnalysis = ({ performanceData = [], commissions = [] }) => {
                 <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                   Media Buyer
                 </th>
-                <th className="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Scaling Recommendation
-                </th>
                 <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
                   ROI
                 </th>
                 <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Consistency
-                </th>
-                <th className="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">
                   Trend ({Math.max(3, Math.floor(selectedPeriod / 4))}d)
                 </th>
                 <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
@@ -567,11 +561,11 @@ const MediaBuyerAnalysis = ({ performanceData = [], commissions = [] }) => {
                 <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
                   Profit Total
                 </th>
-                <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider bg-blue-50" title="10% of Margin">
-                  MB Comm
-                </th>
                 <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                   Portfolio
+                </th>
+                <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider bg-blue-50" title="10% of Margin">
+                  MB Comm
                 </th>
               </tr>
             </thead>
@@ -598,18 +592,8 @@ const MediaBuyerAnalysis = ({ performanceData = [], commissions = [] }) => {
                           </span>
                           {buyer.name}
                         </td>
-                        <td className="px-4 py-4 whitespace-nowrap text-center">
-                          <span className={`px-2 py-1 rounded-full text-xs ${buyer.displayColor}`}>
-                            {buyer.displayRecommendation}
-                          </span>
-                        </td>
                         <td className={`px-4 py-4 whitespace-nowrap text-sm text-right ${colors.text}`}>
                           {buyer.roi.toFixed(1)}%
-                        </td>
-                        <td className="px-4 py-4 whitespace-nowrap text-sm text-right">
-                          <span className={`${buyer.consistencyScore > 70 ? 'text-green-600' : buyer.consistencyScore > 40 ? 'text-yellow-600' : 'text-red-600'}`}>
-                            {buyer.consistencyScore.toFixed(1)}%
-                          </span>
                         </td>
                         <td className="px-4 py-4 whitespace-nowrap text-sm text-center">
                           <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs ${
@@ -628,23 +612,23 @@ const MediaBuyerAnalysis = ({ performanceData = [], commissions = [] }) => {
                         <td className={`px-4 py-4 whitespace-nowrap text-sm text-right ${colors.text}`}>
                           {formatCurrency(buyer.margin)}
                         </td>
-                        <td className="px-4 py-4 whitespace-nowrap text-sm text-right bg-blue-50">
-                          {formatCurrency(commission)}
-                        </td>
                         <td className="px-4 py-4 whitespace-nowrap text-sm text-center">
                           <div className="text-xs">
-                            <div className={`${buyer.diversificationScore > 60 ? 'text-green-600' : buyer.diversificationScore > 30 ? 'text-yellow-600' : 'text-red-600'}`}>
-                              {buyer.diversificationScore.toFixed(0)}% profitable
+                            <div className="text-green-600 font-medium">
+                              {buyer.offerBreakdown.filter(offer => offer.margin > 0).length} profitable
                             </div>
-                            <div className="text-gray-500">
-                              {buyer.offerBreakdown.length} campaigns
+                            <div className="text-red-600 font-medium">
+                              {buyer.offerBreakdown.filter(offer => offer.margin <= 0).length} unprofitable
                             </div>
                           </div>
+                        </td>
+                        <td className={`px-4 py-4 whitespace-nowrap text-sm text-right ${colors.text}`}>
+                          {formatCurrency(commission)}
                         </td>
                       </tr>
                       {expandedBuyers.has(buyer.name) && (
                         <tr>
-                          <td colSpan="9" className="px-4 py-4 bg-gray-50">
+                          <td colSpan="7" className="px-4 py-4 bg-gray-50">
                             <div className="space-y-4">
                               {/* Offer Performance Breakdown */}
                               <div>
@@ -669,7 +653,10 @@ const MediaBuyerAnalysis = ({ performanceData = [], commissions = [] }) => {
                                         let actionRecommendation = '';
                                         let actionColor = '';
                                         
-                                        if (offer.roi > 25 && offer.spendPercentage < 60) {
+                                        if (offer.days < 3 || offer.spend < 500) {
+                                          actionRecommendation = '🎓 Learning Phase';
+                                          actionColor = 'text-purple-600 font-semibold';
+                                        } else if (offer.roi > 25 && offer.spendPercentage < 60) {
                                           actionRecommendation = '🚀 Scale Up';
                                           actionColor = 'text-green-600 font-semibold';
                                         } else if (offer.roi > 10) {
