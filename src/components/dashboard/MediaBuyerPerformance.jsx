@@ -239,6 +239,9 @@ const MediaBuyerPerformance = ({ performanceData, dateRange: initialDateRange, c
 
   // Helper function to check if a media buyer is active
   const isActiveBuyer = (buyerName) => {
+    // Explicitly exclude Edwin
+    if (buyerName === 'Edwin') return false;
+    
     if (!commissions.length) return true; // If no commission data, show all
     const commissionEntry = commissions.find(c => 
       c['Media Buyer'] === buyerName || c.mediaBuyer === buyerName
