@@ -499,7 +499,7 @@ export default function CommentRevenueAnalysis({ performanceData }) {
                           </span>
                         </td>
                         <td className="p-3 text-right text-gray-600">
-                          {day.efficiency > 0 ? `$${day.efficiency.toFixed(2)}` : '-'}
+                          {day.efficiency > 0 ? `$${Math.ceil(day.efficiency)}` : '-'}
                         </td>
                         <td className="p-3 text-center">
                           {day.commentPercentage > 5 ? '🟢' : 
@@ -658,6 +658,7 @@ export default function CommentRevenueAnalysis({ performanceData }) {
                           <th className="p-2 text-right">Comment Revenue</th>
                           <th className="p-2 text-right">Ad Spend</th>
                           <th className="p-2 text-right">Comment %</th>
+                          <th className="p-2 text-right">Ad Spend per $1 Comment</th>
                           <th className="p-2 text-right">Entries</th>
                         </tr>
                       </thead>
@@ -668,6 +669,9 @@ export default function CommentRevenueAnalysis({ performanceData }) {
                             <td className="p-2 text-right font-medium text-blue-600">{formatCurrency(network.commentRevenue)}</td>
                             <td className="p-2 text-right">{formatCurrency(network.adSpend)}</td>
                             <td className="p-2 text-right">{formatPercentage(network.percentage)}</td>
+                            <td className="p-2 text-right text-gray-600">
+                              {network.commentRevenue > 0 ? `$${Math.ceil(network.adSpend / network.commentRevenue)}` : '-'}
+                            </td>
                             <td className="p-2 text-right">{network.entries}</td>
                           </tr>
                         ))}
@@ -723,6 +727,7 @@ export default function CommentRevenueAnalysis({ performanceData }) {
                       <th className="p-2 text-right">Comment Revenue</th>
                       <th className="p-2 text-right">Ad Spend</th>
                       <th className="p-2 text-right">Comment %</th>
+                      <th className="p-2 text-right">Ad Spend per $1 Comment</th>
                       <th className="p-2 text-right">Entries</th>
                     </tr>
                   </thead>
@@ -733,6 +738,9 @@ export default function CommentRevenueAnalysis({ performanceData }) {
                         <td className="p-2 text-right font-medium text-blue-600">{formatCurrency(offer.commentRevenue)}</td>
                         <td className="p-2 text-right">{formatCurrency(offer.adSpend)}</td>
                         <td className="p-2 text-right">{formatPercentage(offer.percentage)}</td>
+                        <td className="p-2 text-right text-gray-600">
+                          {offer.commentRevenue > 0 ? `$${Math.ceil(offer.adSpend / offer.commentRevenue)}` : '-'}
+                        </td>
                         <td className="p-2 text-right">{offer.entries}</td>
                       </tr>
                     ))}
