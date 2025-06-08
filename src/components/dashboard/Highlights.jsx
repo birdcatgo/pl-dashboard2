@@ -354,11 +354,35 @@ const SummaryStats = ({ data }) => {
   );
 };
 
-// Active media buyers list (you'll need to update this based on your data structure)
-const ACTIVE_MEDIA_BUYERS = [
-  'Aakash', 'Bikki', 'Edwin', 'Ishaan', 'Mike', 'Mike C', 'Rutvik', 'Sam'
-  // Remove inactive ones like 'Nick N', etc.
-];
+// Helper function to get active media buyers from performance data
+const getActiveMediaBuyers = (performanceData) => {
+  if (!performanceData?.length) return [];
+  
+  // Get unique media buyers who have recent activity (last 30 days)
+  const thirtyDaysAgo = subDays(new Date(), 30);
+  
+  const activeBuyers = performanceData
+    .filter(entry => {
+      if (!entry['Media Buyer'] || entry['Media Buyer'] === 'Unknown') return false;
+      
+      // Parse date and check if within last 30 days
+      let entryDate;
+      try {
+        entryDate = new Date(entry.Date);
+        if (isNaN(entryDate.getTime()) && entry.Date.includes('/')) {
+          const [month, day, year] = entry.Date.split('/').map(num => parseInt(num, 10));
+          entryDate = new Date(year, month - 1, day);
+        }
+        return entryDate >= thirtyDaysAgo;
+      } catch {
+        return false;
+      }
+    })
+    .map(entry => entry['Media Buyer'])
+    .filter((buyer, index, arr) => arr.indexOf(buyer) === index); // unique values
+  
+  return activeBuyers.sort();
+};
 
 // Anomaly Detection Functions
 const detectAnomalies = (data, performanceData) => {
@@ -648,12 +672,14 @@ const Highlights = ({ performanceData, dateRange }) => {
   // Filter data based on date range and active media buyers
   const filteredData = useMemo(() => {
     if (!performanceData?.length) return [];
+    
+    const activeBuyers = getActiveMediaBuyers(performanceData);
 
     return performanceData.filter(entry => {
       if (!entry.Date) return false;
       
       // Filter out inactive media buyers
-      if (!ACTIVE_MEDIA_BUYERS.includes(entry['Media Buyer'])) {
+      if (!activeBuyers.includes(entry['Media Buyer'])) {
         return false;
       }
       
@@ -699,9 +725,10 @@ const Highlights = ({ performanceData, dateRange }) => {
   const { buyers, offers } = useMemo(() => {
     const buyersSet = new Set();
     const offersSet = new Set();
+    const activeBuyers = getActiveMediaBuyers(performanceData);
 
     filteredData.forEach(entry => {
-      if (entry['Media Buyer'] && ACTIVE_MEDIA_BUYERS.includes(entry['Media Buyer'])) {
+      if (entry['Media Buyer'] && activeBuyers.includes(entry['Media Buyer'])) {
         buyersSet.add(entry['Media Buyer']);
       }
       if (entry.Offer) offersSet.add(entry.Offer);
@@ -711,7 +738,7 @@ const Highlights = ({ performanceData, dateRange }) => {
       buyers: Array.from(buyersSet).sort(),
       offers: Array.from(offersSet).sort()
     };
-  }, [filteredData]);
+  }, [filteredData, performanceData]);
 
   // Sorting function
   const handleSort = (key) => {
@@ -784,6 +811,8 @@ const Highlights = ({ performanceData, dateRange }) => {
 
   // Update the data processing to filter active buyers
   const data = useMemo(() => {
+    const activeBuyers = getActiveMediaBuyers(performanceData);
+    
     // Filter out any invalid rows first
     const validRows = performanceData.filter(row => {
       // Parse the date
@@ -792,7 +821,7 @@ const Highlights = ({ performanceData, dateRange }) => {
       const isValid = row && 
         typeof row === 'object' && 
         row['Media Buyer'] && 
-        ACTIVE_MEDIA_BUYERS.includes(row['Media Buyer']) && // Only include active media buyers
+        activeBuyers.includes(row['Media Buyer']) && // Only include active media buyers
         parseFloat(row['Ad Spend']) > 0 && 
         rowDate >= subDays(new Date(), 30) && // Within date range
         (!selectedBuyer || row['Media Buyer'] === selectedBuyer) && 

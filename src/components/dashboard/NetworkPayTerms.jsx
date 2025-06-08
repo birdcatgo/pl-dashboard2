@@ -106,7 +106,7 @@ export default function NetworkPayTerms({ performanceData }) {
     };
   };
 
-  const fetchData = async () => {
+  const fetchData = async (isManualRefresh = false) => {
     try {
       setLoading(true);
       console.log('Fetching network data...');
@@ -115,6 +115,8 @@ export default function NetworkPayTerms({ performanceData }) {
         method: 'GET',
         headers: {
           'Content-Type': 'application/json',
+          'Cache-Control': 'no-cache',
+          'Pragma': 'no-cache'
         },
       });
       
@@ -147,6 +149,15 @@ export default function NetworkPayTerms({ performanceData }) {
       console.log('Processed networks:', allNetworks);
       console.log('Sample network with exposure:', allNetworks.find(n => n.c2fAmountDue > 0));
       setNetworks(allNetworks);
+      
+      // Show success toast only for manual refreshes
+      if (isManualRefresh && allNetworks.length > 0) {
+        toast({
+          title: 'Success',
+          description: `Network payment terms refreshed successfully. Found ${allNetworks.length} networks.`,
+          variant: 'default',
+        });
+      }
     } catch (error) {
       console.error('Error fetching data:', error);
       toast({
@@ -649,7 +660,19 @@ export default function NetworkPayTerms({ performanceData }) {
 
       <Card>
         <CardHeader className="p-2">
-          <CardTitle>Network Payment Terms</CardTitle>
+          <div className="flex items-center justify-between">
+            <CardTitle>Network Payment Terms</CardTitle>
+            <Button
+              onClick={() => fetchData(true)}
+              disabled={loading}
+              size="sm"
+              variant="outline"
+              className="flex items-center gap-2"
+            >
+              <RefreshCw className={`h-4 w-4 ${loading ? 'animate-spin' : ''}`} />
+              {loading ? 'Refreshing...' : 'Refresh'}
+            </Button>
+          </div>
         </CardHeader>
         <CardContent className="p-2">
           {loading ? (

@@ -241,6 +241,20 @@ const DashboardIndexView = ({ setActiveTab, setAccountingSubview, setAccountsSub
             </button>
             <button
               onClick={() => {
+                setActiveTab('comment-revenue');
+              }}
+              className="w-full text-left px-4 py-3 bg-white rounded-lg shadow hover:shadow-md transition-shadow duration-200"
+            >
+              <div className="flex items-center space-x-3">
+                <span className="text-xl">💬</span>
+                <div>
+                  <h3 className="font-medium">Comment Revenue Analysis</h3>
+                  <p className="text-sm text-gray-600">Track daily comment revenue and % of ad spend</p>
+                </div>
+              </div>
+            </button>
+            <button
+              onClick={() => {
                 setActiveTab('reporting');
                 setReportingSubview('media-buyers');
               }}

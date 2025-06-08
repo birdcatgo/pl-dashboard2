@@ -2,6 +2,11 @@ import { google } from 'googleapis';
 import { getGoogleAuth } from '@/lib/google-auth';
 
 export default async function handler(req, res) {
+  // Set cache-busting headers to ensure fresh data
+  res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
+  res.setHeader('Pragma', 'no-cache');
+  res.setHeader('Expires', '0');
+  
   try {
     // Check if environment variables are set
     if (!process.env.GOOGLE_SHEETS_CLIENT_EMAIL || !process.env.GOOGLE_SHEETS_PRIVATE_KEY) {

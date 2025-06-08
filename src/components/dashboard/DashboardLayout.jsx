@@ -30,6 +30,7 @@ import ImprovedPLDashboard from './ImprovedPLDashboard';
 import Highlights from './Highlights';
 import ExpenseOverview from './ExpenseOverview';
 import RevenueFlowAnalysis from './RevenueFlowAnalysis';
+import CommentRevenueAnalysis from './CommentRevenueAnalysis';
 import TradeshiftOverview from './TradeshiftOverview';
 import CreditCardLimits from './CreditCardLimits';
 import ThirtyDayChallenge from './ThirtyDayChallenge';
@@ -366,6 +367,12 @@ export default function DashboardLayout({
             networkTerms={networkTermsData}
             invoicesData={invoiceData}
             plData={plData}
+          />
+        );
+      case 'comment-revenue':
+        return (
+          <CommentRevenueAnalysis 
+            performanceData={performanceData}
           />
         );
       case 'tradeshift':

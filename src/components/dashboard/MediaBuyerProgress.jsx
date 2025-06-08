@@ -3,16 +3,6 @@ import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Save } from 'lucide-react';
 
-const MEDIA_BUYERS = [
-  'Ishaan',
-  'Edwin',
-  'Nick N',
-  'Mike C',
-  'Gagan',
-  'Omar',
-  'Bikki',
-];
-
 // Meeting dates
 const MEETING_DATES = [
   '2025-03-28',
@@ -21,6 +11,20 @@ const MEETING_DATES = [
   '2025-04-15',
   '2025-04-21'
 ];
+
+// Get dynamic list of media buyers from performance data
+const getActiveMediaBuyers = (performanceData) => {
+  if (!performanceData || !Array.isArray(performanceData)) return [];
+  
+  // Get unique media buyers who have performance data
+  const buyers = [...new Set(
+    performanceData
+      .map(entry => entry['Media Buyer'])
+      .filter(buyer => buyer && buyer !== 'Unknown' && buyer.trim() !== '')
+  )];
+  
+  return buyers.sort(); // Sort alphabetically for consistency
+};
 
 const getMediaBuyerStatus = (performanceData, buyer) => {
   if (!performanceData) return { message: 'No data available', type: 'neutral', sortOrder: 5, metrics: null };
@@ -142,7 +146,7 @@ const MediaBuyerProgress = ({ performanceData }) => {
   const currentDate = MEETING_DATES[currentMeetingIndex];
 
   // Get and sort media buyers by status
-  const sortedMediaBuyers = MEDIA_BUYERS.map(buyer => ({
+  const sortedMediaBuyers = getActiveMediaBuyers(performanceData).map(buyer => ({
     name: buyer,
     status: getMediaBuyerStatus(performanceData, buyer)
   })).sort((a, b) => a.status.sortOrder - b.status.sortOrder);
@@ -150,7 +154,7 @@ const MediaBuyerProgress = ({ performanceData }) => {
   // Initialize meeting data with a default structure
   const defaultMeetingData = MEETING_DATES.reduce((dates, date) => {
     dates[date] = {};
-    MEDIA_BUYERS.forEach(buyer => {
+    getActiveMediaBuyers(performanceData).forEach(buyer => {
       dates[date][buyer] = {
         attended: false,
         notes: ''
@@ -205,7 +209,7 @@ const MediaBuyerProgress = ({ performanceData }) => {
         if (!newData[date]) {
           newData[date] = {};
         }
-        MEDIA_BUYERS.forEach(buyer => {
+        getActiveMediaBuyers(performanceData).forEach(buyer => {
           if (!newData[date][buyer]) {
             newData[date][buyer] = {
               attended: false,

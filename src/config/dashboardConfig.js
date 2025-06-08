@@ -22,6 +22,7 @@ export const moreTabs = {
   'upcoming-expenses': { enabled: true },
   'monthly-expenses': { enabled: true },
   'revenue-flow': { enabled: true },
+  'comment-revenue': { enabled: true },
   'cash-flow': { enabled: true },
   'daily-spend': { enabled: true },
   'bank-goals': { enabled: true },

@@ -96,11 +96,36 @@ const MediaBuyerAnalysis = ({ performanceData = [], commissions = [] }) => {
 
   // Helper function to check if a media buyer is active
   const isActiveBuyer = (buyerName) => {
-    if (!commissions.length) return true; // If no commission data, show all
+    // TEMPORARY: Show all buyers to debug the Pavan issue
+    console.log(`TEMP DEBUG: ThirtyDayChallenge always showing buyer "${buyerName}" (commission filter disabled)`);
+    return true;
+    
+    /* ORIGINAL LOGIC - COMMENTED OUT FOR DEBUGGING
+    if (!commissions.length) {
+      console.log('ThirtyDayChallenge: No commission data available, showing all buyers');
+      return true; // If no commission data, show all
+    }
+    
     const commissionEntry = commissions.find(c => 
       c['Media Buyer'] === buyerName || c.mediaBuyer === buyerName
     );
+    
+    // Debug logging
+    console.log(`ThirtyDayChallenge: Checking buyer "${buyerName}":`, {
+      commissionEntry,
+      hasEntry: !!commissionEntry,
+      status: commissionEntry?.Status || commissionEntry?.status,
+      isActive: commissionEntry?.Status === 'ACTIVE' || commissionEntry?.status === 'ACTIVE'
+    });
+    
+    // If no commission entry found, show the buyer (they might be new)
+    if (!commissionEntry) {
+      console.log(`ThirtyDayChallenge: No commission entry found for "${buyerName}", showing by default`);
+      return true;
+    }
+    
     return commissionEntry?.Status === 'ACTIVE' || commissionEntry?.status === 'ACTIVE';
+    */
   };
 
   const toggleBuyerExpansion = (buyerName) => {

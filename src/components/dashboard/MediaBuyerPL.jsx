@@ -5,16 +5,6 @@ import { ChevronDown, ChevronRight, HelpCircle, TrendingUp, TrendingDown, Dollar
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 import _ from 'lodash';
 
-const MEDIA_BUYERS = [
-  'Ishaan',
-  'Edwin',
-  'Nick N',
-  'Mike C',
-  'Gagan',
-  'Omar',
-  'Bikki',
-];
-
 const formatCurrency = (value) => {
   if (!value) return '$0';
   return new Intl.NumberFormat('en-US', {
