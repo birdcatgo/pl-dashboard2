@@ -1,6 +1,6 @@
 import React, { useMemo, useState, useCallback } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { TrendingUp, TrendingDown, AlertTriangle, Target, Award, Info, ArrowUp, ArrowDown, Pause, HelpCircle, Search, Filter, Download, Eye, Star } from 'lucide-react';
+import { TrendingUp, TrendingDown, AlertTriangle, Target, Award, Info, ArrowUp, ArrowDown, Pause, HelpCircle, Search, Filter, Download, Eye, Star, MessageCircle } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 
 // Memoized utility functions for better performance
@@ -374,6 +374,8 @@ const OfferScalingTable = ({ offerData, performanceData, dateRange }) => {
       return normalizedOffer === offerName && isDateInRange(entry.Date);
     });
 
+    // Filter data for the specific offer and date range
+
     // Group by media buyer
     const buyerData = offerData.reduce((acc, entry) => {
       const buyer = entry['Media Buyer'] || 'Unknown';
@@ -392,13 +394,15 @@ const OfferScalingTable = ({ offerData, performanceData, dateRange }) => {
     }, {});
 
     // Calculate metrics for each media buyer
-    return Object.entries(buyerData).map(([buyer, data]) => {
+    const results = Object.entries(buyerData).map(([buyer, data]) => {
       const totalRevenue = data.reduce((sum, d) => sum + d.revenue, 0);
       const totalSpend = data.reduce((sum, d) => sum + d.spend, 0);
       const totalMargin = totalRevenue - totalSpend;
       const roi = totalSpend > 0 ? (totalMargin / totalSpend) * 100 : 0;
       const daysActive = data.length;
       const avgDailyMargin = daysActive > 0 ? totalMargin / daysActive : 0;
+
+
 
       return {
         buyer,
@@ -411,6 +415,10 @@ const OfferScalingTable = ({ offerData, performanceData, dateRange }) => {
         isProfit: totalMargin > 0
       };
     }).sort((a, b) => b.totalMargin - a.totalMargin); // Sort by profit descending
+
+
+
+    return results;
   };
 
   return (
@@ -454,7 +462,7 @@ const OfferScalingTable = ({ offerData, performanceData, dateRange }) => {
             >
               <div className="flex items-center gap-1">
                 Total Profit
-                <Tooltip content="Total profit for the selected time period when active: Total Revenue - Total Ad Spend. Trend shows first half vs second half performance.">
+                <Tooltip content="Total profit for the selected time period when active: Total Revenue - Total Ad Spend + Comment Revenue. Breakdown shows ad spend profit vs comment revenue when applicable. Trend shows first half vs second half performance.">
                   <HelpCircle className="h-3 w-3 text-gray-400" />
                 </Tooltip>
                 {sortBy === 'totalMargin' && (
@@ -535,6 +543,11 @@ const OfferScalingTable = ({ offerData, performanceData, dateRange }) => {
                     <div className="text-sm font-medium text-gray-900">
                       {formatCurrency(offer.totalMargin)}
                     </div>
+                    {offer.commentRevenue > 0 && (
+                      <div className="text-xs text-gray-500 mt-1">
+                        Ad: {formatCurrency(offer.adSpendMargin)} + Comments: {formatCurrency(offer.commentRevenue)}
+                      </div>
+                    )}
                     <div className={`text-lg font-bold ${offer.marginTrend > 0 ? 'text-green-600' : offer.marginTrend < 0 ? 'text-red-600' : 'text-gray-400'}`}>
                       {offer.marginTrend > 0 ? '↗' : offer.marginTrend < 0 ? '↘' : '→'}
                     </div>
@@ -575,6 +588,11 @@ const OfferScalingTable = ({ offerData, performanceData, dateRange }) => {
                           <div className="bg-blue-100 p-3 rounded-lg">
                             <p className="text-sm text-blue-600 font-medium">Total Profit</p>
                             <p className="text-xl font-bold text-blue-800">{formatCurrency(offer.totalMargin)}</p>
+                            {offer.commentRevenue > 0 && (
+                              <p className="text-xs text-blue-500 mt-1">
+                                Ad Spend: {formatCurrency(offer.adSpendMargin)} | Comments: {formatCurrency(offer.commentRevenue)}
+                              </p>
+                            )}
                           </div>
                           <div className="bg-purple-100 p-3 rounded-lg">
                             <p className="text-sm text-purple-600 font-medium">Overall ROI</p>
@@ -616,12 +634,17 @@ const OfferScalingTable = ({ offerData, performanceData, dateRange }) => {
                                   <tr key={buyer.buyer} className={buyer.isProfit ? 'bg-green-50' : 'bg-red-50'}>
                                     <td className="px-4 py-2 whitespace-nowrap">
                                       <div className={`text-sm font-medium text-gray-900 ${
-                                        buyer.buyer === 'Unknown' ? 'flex items-center gap-1' : ''
+                                        buyer.buyer === 'Unknown' || buyer.buyer === 'Comment Rev' ? 'flex items-center gap-1' : ''
                                       }`}>
                                         {buyer.buyer}
                                         {buyer.buyer === 'Unknown' && (
                                           <Tooltip content="Unknown entries represent revenue showing on the network dashboard but not appearing in Redtrack tracking.">
                                             <HelpCircle className="h-3 w-3 text-orange-400" />
+                                          </Tooltip>
+                                        )}
+                                        {buyer.buyer === 'Comment Rev' && (
+                                          <Tooltip content="Comment revenue generated from this offer, not tied to specific ad spend campaigns.">
+                                            <MessageCircle className="h-3 w-3 text-blue-400" />
                                           </Tooltip>
                                         )}
                                       </div>
@@ -1054,6 +1077,9 @@ const EnhancedOfferPerformance = ({ performanceData, dateRange }) => {
     
     console.log('🔄 Computing active media buyers...');
     
+    // Exclude inactive media buyers
+    const inactiveBuyers = ['Edwin', 'Nick N', 'CF'];
+    
     // Get media buyers who have activity in the last 60 days
     const recentDate = new Date();
     recentDate.setDate(recentDate.getDate() - 60);
@@ -1072,7 +1098,10 @@ const EnhancedOfferPerformance = ({ performanceData, dateRange }) => {
 
     validEntries.forEach(entry => {
       const buyer = entry['Media Buyer'] || 'Unknown';
-      activeBuyers.add(buyer);
+      // Exclude inactive buyers
+      if (!inactiveBuyers.includes(buyer)) {
+        activeBuyers.add(buyer);
+      }
     });
     
     console.log(`✅ Found ${activeBuyers.size} active media buyers`);
@@ -1184,16 +1213,26 @@ const EnhancedOfferPerformance = ({ performanceData, dateRange }) => {
       // Sort by date once
       const sortedData = data.sort((a, b) => new Date(a.date) - new Date(b.date));
       
-      // Batch calculate totals
+      // Batch calculate totals and separate comment revenue
       let totalRevenue = 0;
       let totalSpend = 0;
       let totalMargin = 0;
+      let commentRevenue = 0;
+      let adSpendMargin = 0;
       const margins = new Array(sortedData.length);
       
       for (let i = 0; i < sortedData.length; i++) {
         const item = sortedData[i];
         totalRevenue += item.revenue;
         totalSpend += item.spend;
+        
+        // Separate comment revenue from ad spend-based margin
+        if (item.mediaBuyer === 'Comment Rev') {
+          commentRevenue += item.revenue;
+        } else {
+          adSpendMargin += item.margin;
+        }
+        
         totalMargin += item.margin;
         margins[i] = item.margin;
       }
@@ -1249,6 +1288,8 @@ const EnhancedOfferPerformance = ({ performanceData, dateRange }) => {
         totalRevenue,
         totalSpend,
         totalMargin,
+        commentRevenue,
+        adSpendMargin,
         roi,
         consistency,
         marginTrend,

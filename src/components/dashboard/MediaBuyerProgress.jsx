@@ -16,11 +16,14 @@ const MEETING_DATES = [
 const getActiveMediaBuyers = (performanceData) => {
   if (!performanceData || !Array.isArray(performanceData)) return [];
   
+  // Exclude inactive media buyers
+  const inactiveBuyers = ['Edwin', 'Nick N', 'CF'];
+  
   // Get unique media buyers who have performance data
   const buyers = [...new Set(
     performanceData
       .map(entry => entry['Media Buyer'])
-      .filter(buyer => buyer && buyer !== 'Unknown' && buyer.trim() !== '')
+      .filter(buyer => buyer && buyer !== 'Unknown' && buyer.trim() !== '' && !inactiveBuyers.includes(buyer))
   )];
   
   return buyers.sort(); // Sort alphabetically for consistency

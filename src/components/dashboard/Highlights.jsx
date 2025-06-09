@@ -358,12 +358,18 @@ const SummaryStats = ({ data }) => {
 const getActiveMediaBuyers = (performanceData) => {
   if (!performanceData?.length) return [];
   
+  // Exclude inactive media buyers
+  const inactiveBuyers = ['Edwin', 'Nick N', 'CF'];
+  
   // Get unique media buyers who have recent activity (last 30 days)
   const thirtyDaysAgo = subDays(new Date(), 30);
   
   const activeBuyers = performanceData
     .filter(entry => {
       if (!entry['Media Buyer'] || entry['Media Buyer'] === 'Unknown') return false;
+      
+      // Exclude inactive buyers
+      if (inactiveBuyers.includes(entry['Media Buyer'])) return false;
       
       // Parse date and check if within last 30 days
       let entryDate;
