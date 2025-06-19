@@ -9,6 +9,7 @@ import EnhancedOfferPerformance from '../EnhancedOfferPerformance';
 import ThirtyDayChallenge from '../ThirtyDayChallenge';
 import MediaBuyerPerformance from '../MediaBuyerPerformance';
 import Highlights from '../Highlights';
+import CommentRevenueAnalysis from '../CommentRevenueAnalysis';
 
 const ReportingView = ({ 
   reportingSubview, 
@@ -53,6 +54,12 @@ const ReportingView = ({
             onClick={() => setReportingSubview('highlights')}
           >
             Highlights
+          </Button>
+          <Button
+            variant={reportingSubview === 'comment-revenue' ? 'default' : 'outline'}
+            onClick={() => setReportingSubview('comment-revenue')}
+          >
+            Comment Revenue
           </Button>
         </div>
       </div>
@@ -116,6 +123,13 @@ const ReportingView = ({
             <Highlights 
               performanceData={performanceData?.data || []}
               dateRange={dateRange}
+            />
+          </div>
+        )}
+        {reportingSubview === 'comment-revenue' && (
+          <div className="space-y-6">
+            <CommentRevenueAnalysis 
+              performanceData={performanceData}
             />
           </div>
         )}

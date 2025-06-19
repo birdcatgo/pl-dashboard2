@@ -241,7 +241,8 @@ const DashboardIndexView = ({ setActiveTab, setAccountingSubview, setAccountsSub
             </button>
             <button
               onClick={() => {
-                setActiveTab('comment-revenue');
+                setActiveTab('reporting');
+                setReportingSubview('comment-revenue');
               }}
               className="w-full text-left px-4 py-3 bg-white rounded-lg shadow hover:shadow-md transition-shadow duration-200"
             >
