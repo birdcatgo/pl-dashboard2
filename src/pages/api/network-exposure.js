@@ -46,14 +46,14 @@ export default async function handler(req, res) {
     const processedData = response.data.values.slice(1).map((row, index) => {
       console.log(`Row ${index + 1}:`, row);
       
-      let networkName = (row[0] || '').trim(); // Trim whitespace
-      const offer = row[1] || '';
-      const exposureAmount = row[2] || '0'; // Column C contains the exposure amount
-      const startDate = row[3] || ''; // Start date
-      const endDate = row[4] || ''; // End date
-      const additionalField = parseFloat((row[5] || '0').replace(/[$,]/g, '')) || 0; // Not sure what this is
-      const paymentTermsFromSheet = row[6] || 'Net 30'; // Column G contains actual payment terms
-      const riskLevel = row[7] || '';
+      let networkName = (row[0] || '').trim(); // Column A: Network
+      const invoiceNumber = row[1] || ''; // Column B: Invoice Number
+      const exposureAmount = row[2] || '0'; // Column C: C2F Amount Due
+      const startDate = row[3] || ''; // Column D: Period Start
+      const endDate = row[4] || ''; // Column E: Period End
+      const networkAmountDue = parseFloat((row[5] || '0').replace(/[$,]/g, '')) || 0; // Column F: Network Amount Due
+      const payPeriodFromSheet = row[6] || ''; // Column G: Pay Period
+      const netTermsFromSheet = parseInt(row[7] || '30') || 30; // Column H: Net Terms
       
       // Normalize Banner and Banner Edge to just "Banner"
       if (networkName.toLowerCase().includes('banner edge') || 
@@ -67,31 +67,20 @@ export default async function handler(req, res) {
       // Parse exposure amount from column C
       const currentExposure = parseFloat((exposureAmount || '0').replace(/[$,]/g, '')) || 0;
       
-      // Use the actual payment terms from the sheet (column 6)
-      let paymentTerms = paymentTermsFromSheet.trim();
-      let netTerms = 30; // Default
+      // Use the actual net terms from the sheet (column H) instead of parsing pay period text
+      const netTerms = netTermsFromSheet;
+      let paymentTerms = payPeriodFromSheet.trim();
       
-      // Parse the payment terms to determine net terms
-      const lowerPaymentTerms = paymentTerms.toLowerCase();
-      if (lowerPaymentTerms.includes('weekly')) {
-        netTerms = 7;
+      // Format the payment terms display based on the pay period and net terms
+      if (paymentTerms.toLowerCase().includes('weekly')) {
         paymentTerms = 'Weekly';
-      } else if (lowerPaymentTerms.includes('bi monthly') || lowerPaymentTerms.includes('bi-monthly')) {
-        netTerms = 60; // 60 days for bi-monthly
+      } else if (paymentTerms.toLowerCase().includes('bi monthly') || paymentTerms.toLowerCase().includes('bi-monthly')) {
         paymentTerms = 'Bi-Monthly';
-      } else if (lowerPaymentTerms.includes('monthly')) {
-        netTerms = 30;
+      } else if (paymentTerms.toLowerCase().includes('monthly')) {
         paymentTerms = 'Monthly';
       } else {
-        // Check for specific net terms like "Net 30", "Net 15", etc.
-        const netMatch = paymentTerms.match(/net\s*(\d+)/i);
-        if (netMatch) {
-          netTerms = parseInt(netMatch[1]);
-          paymentTerms = `Net ${netTerms}`;
-        } else {
-          paymentTerms = 'Net 30';
-          netTerms = 30;
-        }
+        // If it's a specific net term, format it as "Net X"
+        paymentTerms = `Net ${netTerms}`;
       }
       
       // Use the actual dates from the sheet if available, otherwise use defaults
@@ -111,13 +100,13 @@ export default async function handler(req, res) {
       
       return {
         name: networkName,
-        offer: offer,
+        offer: '', // Not available in this sheet structure
         paymentTerms: paymentTerms,
         dailyCap: 0, // Not available in this sheet structure
         dailyBudget: 0, // Not available in this sheet structure
         c2fAmountDue: currentExposure, // Use column C for exposure amount
-        availableBudget: additionalField, // Use column F
-        riskLevel: riskLevel,
+        availableBudget: networkAmountDue, // Use column F
+        riskLevel: '', // Not available in this sheet structure
         netTerms: netTerms,
         periodEnd: periodEnd,
         periodStart: periodStart,
