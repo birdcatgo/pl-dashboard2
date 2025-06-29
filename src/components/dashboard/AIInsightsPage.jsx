@@ -78,7 +78,7 @@ const AIInsightsPage = ({ performanceData, invoiceData, expenseData, cashFlowDat
 
   // Media Buyer Categories
   const mediaBuyerCategories = {
-    new: ['Ishaan', 'Edwin', 'Gagan', 'Nick N', 'Jose/Matt', 'Isha', 'Mike C'],
+    new: ['Ishaan', 'Edwin', 'Gagan', 'Nick N', 'Jose/Matt', 'Isha', 'Mike C', 'Emil'],
     active: ['Aakash', 'Mike', 'Zel'],
     unknown: ['Unknown'],
     inactive: ['Dave', 'Asheesh']

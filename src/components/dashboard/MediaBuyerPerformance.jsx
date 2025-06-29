@@ -29,6 +29,7 @@ const MEDIA_BUYERS = [
   'Gagan',
   'Omar',
   'Bikki',
+  'Emil',
 ];
 
 // Add this helper function for row grouping
@@ -241,6 +242,9 @@ const MediaBuyerPerformance = ({ performanceData, dateRange: initialDateRange, c
   const isActiveBuyer = (buyerName) => {
     // Explicitly exclude Edwin
     if (buyerName === 'Edwin') return false;
+    
+    // Explicitly include Emil as active
+    if (buyerName === 'Emil') return true;
     
     if (!commissions.length) return true; // If no commission data, show all
     const commissionEntry = commissions.find(c => 

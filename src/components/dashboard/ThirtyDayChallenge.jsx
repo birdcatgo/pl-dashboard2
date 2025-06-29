@@ -99,6 +99,9 @@ const MediaBuyerAnalysis = ({ performanceData = [], commissions = [] }) => {
     // Explicitly exclude Edwin
     if (buyerName === 'Edwin') return false;
     
+    // Explicitly include Emil as active
+    if (buyerName === 'Emil') return true;
+    
     if (!commissions.length) return true; // If no commission data, show all
     const commissionEntry = commissions.find(c => 
       c['Media Buyer'] === buyerName || c.mediaBuyer === buyerName

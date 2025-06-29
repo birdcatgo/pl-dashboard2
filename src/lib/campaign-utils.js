@@ -45,7 +45,7 @@ export const parseCampaignName = (name) => {
   
   // Complete list of media buyers
   const knownMediaBuyers = [
-    'Aakash', 'Asheesh', 'Bikki', 'Daniel', 'Edwin', 'Gagan',
+    'Aakash', 'Asheesh', 'Bikki', 'Daniel', 'Edwin', 'Emil', 'Gagan',
     'Isha', 'Ishaan', 'Mike', 'Mike C', 'Nick N', 'Pavan', 'Zel'
   ];
 
