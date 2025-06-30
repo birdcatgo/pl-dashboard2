@@ -44,19 +44,29 @@ const parseDate = (dateStr) => {
 };
 
 export default function CommentRevenueAnalysis({ performanceData }) {
-  const [selectedPeriod, setSelectedPeriod] = useState('thisMonth');
+  const [selectedPeriod, setSelectedPeriod] = useState('30days');
 
   // June 1st, 2024 - start of comment revenue tracking
   const june1st2024 = new Date(2024, 5, 1); // Note: month is 0-indexed
 
   // Process and filter data based on selected period
   const processedData = useMemo(() => {
+    console.log('CommentRevenueAnalysis - Input data:', {
+      hasPerformanceData: !!performanceData,
+      hasData: !!performanceData?.data,
+      dataLength: performanceData?.data?.length,
+      sampleEntry: performanceData?.data?.[0],
+      selectedPeriod
+    });
+
     if (!performanceData?.data || !Array.isArray(performanceData.data)) {
+      console.log('CommentRevenueAnalysis - No performance data available');
       return { dailyData: [], summaryData: [] };
     }
 
     const now = new Date();
     let startDate;
+    let effectivePeriod = selectedPeriod;
     
     switch (selectedPeriod) {
       case '7days':
@@ -83,11 +93,83 @@ export default function CommentRevenueAnalysis({ performanceData }) {
       startDate = june1st2024;
     }
 
+    console.log('CommentRevenueAnalysis - Date filtering:', {
+      now: now.toISOString(),
+      startDate: startDate.toISOString(),
+      june1st2024: june1st2024.toISOString(),
+      selectedPeriod
+    });
+
     // Filter data for the selected period
-    const filteredData = performanceData.data.filter(entry => {
+    let filteredData = performanceData.data.filter(entry => {
       const entryDate = parseDate(entry.Date);
-      if (!entryDate) return false;
-      return entryDate >= startDate && entryDate <= now;
+      if (!entryDate) {
+        console.log('CommentRevenueAnalysis - Invalid date entry:', entry.Date);
+        return false;
+      }
+      const isInRange = entryDate >= startDate && entryDate <= now;
+      if (entry['Comment Revenue'] > 0) {
+        console.log('CommentRevenueAnalysis - Found comment revenue entry:', {
+          date: entry.Date,
+          parsedDate: entryDate.toISOString(),
+          commentRevenue: entry['Comment Revenue'],
+          isInRange,
+          startDate: startDate.toISOString(),
+          now: now.toISOString()
+        });
+      }
+      return isInRange;
+    });
+
+    // If no comment revenue data found in current period, try to find the most recent data
+    const commentRevenueEntries = filteredData.filter(entry => entry['Comment Revenue'] > 0);
+    if (commentRevenueEntries.length === 0) {
+      console.log('CommentRevenueAnalysis - No comment revenue data in current period, searching for recent data');
+      
+      // Find all comment revenue entries and get the most recent date
+      const allCommentRevenueEntries = performanceData.data.filter(entry => entry['Comment Revenue'] > 0);
+      if (allCommentRevenueEntries.length > 0) {
+        const mostRecentEntry = allCommentRevenueEntries.reduce((latest, entry) => {
+          const entryDate = parseDate(entry.Date);
+          const latestDate = parseDate(latest.Date);
+          return entryDate > latestDate ? entry : latest;
+        });
+        
+        const mostRecentDate = parseDate(mostRecentEntry.Date);
+        console.log('CommentRevenueAnalysis - Most recent comment revenue:', {
+          date: mostRecentEntry.Date,
+          commentRevenue: mostRecentEntry['Comment Revenue'],
+          network: mostRecentEntry.Network,
+          offer: mostRecentEntry.Offer
+        });
+        
+        // Set start date to 30 days before the most recent entry
+        const fallbackStartDate = subDays(mostRecentDate, 30);
+        startDate = fallbackStartDate < june1st2024 ? june1st2024 : fallbackStartDate;
+        effectivePeriod = 'recent';
+        
+        // Re-filter with the new date range
+        filteredData = performanceData.data.filter(entry => {
+          const entryDate = parseDate(entry.Date);
+          if (!entryDate) return false;
+          return entryDate >= startDate && entryDate <= mostRecentDate;
+        });
+        
+        console.log('CommentRevenueAnalysis - Using fallback date range:', {
+          startDate: startDate.toISOString(),
+          endDate: mostRecentDate.toISOString(),
+          filteredLength: filteredData.length,
+          commentRevenueEntries: filteredData.filter(entry => entry['Comment Revenue'] > 0).length
+        });
+      }
+    }
+
+    console.log('CommentRevenueAnalysis - Filtered data:', {
+      originalLength: performanceData.data.length,
+      filteredLength: filteredData.length,
+      commentRevenueEntries: filteredData.filter(entry => entry['Comment Revenue'] > 0).length,
+      sampleFilteredEntry: filteredData[0],
+      effectivePeriod
     });
 
     // Group by date for daily chart
@@ -124,7 +206,14 @@ export default function CommentRevenueAnalysis({ performanceData }) {
       }))
       .sort((a, b) => a.fullDate - b.fullDate);
 
-    return { dailyData, filteredData };
+    console.log('CommentRevenueAnalysis - Final processed data:', {
+      dailyDataLength: dailyData.length,
+      dailyDataWithCommentRevenue: dailyData.filter(day => day.commentRevenue > 0).length,
+      sampleDailyData: dailyData.slice(0, 3),
+      effectivePeriod
+    });
+
+    return { dailyData, filteredData, effectivePeriod };
   }, [performanceData, selectedPeriod]);
 
   // Summary metrics
@@ -395,6 +484,13 @@ export default function CommentRevenueAnalysis({ performanceData }) {
               </select>
             </div>
           </div>
+          {processedData.effectivePeriod === 'recent' && (
+            <div className="mt-2 p-2 bg-yellow-50 border border-yellow-200 rounded-md">
+              <p className="text-sm text-yellow-800">
+                📝 Showing most recent comment revenue data (no current period data available)
+              </p>
+            </div>
+          )}
         </CardHeader>
         <CardContent>
           <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
@@ -608,6 +704,11 @@ export default function CommentRevenueAnalysis({ performanceData }) {
             <div className="border-t pt-3">
               <p className="text-xs text-gray-500">
                 📝 Note: Comment revenue tracking started June 1st, 2024. Blue bars show daily amounts, red line shows percentage of ad spend.
+                {processedData.dailyData.length > 0 && (
+                  <span className="block mt-1">
+                    Last comment revenue data: {processedData.dailyData[processedData.dailyData.length - 1]?.displayDate}
+                  </span>
+                )}
               </p>
             </div>
           </div>
@@ -761,7 +862,20 @@ export default function CommentRevenueAnalysis({ performanceData }) {
           <div className="space-y-6">
             {dailyDetailsData.length === 0 ? (
               <div className="text-center py-8 text-gray-500">
-                No comment revenue recorded for the selected period.
+                <div className="mb-4">
+                  <svg className="mx-auto h-12 w-12 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
+                  </svg>
+                </div>
+                <h3 className="text-lg font-medium text-gray-900 mb-2">No Comment Revenue Data</h3>
+                <p className="text-gray-500 mb-4">
+                  No comment revenue has been recorded for the selected period.
+                </p>
+                <div className="text-sm text-gray-400">
+                  <p>• Comment revenue tracking started June 1st, 2024</p>
+                  <p>• Try selecting a different time period</p>
+                  <p>• Check if comment revenue data has been entered in the main sheet</p>
+                </div>
               </div>
             ) : (
               dailyDetailsData.map((day, dayIndex) => (

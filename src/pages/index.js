@@ -57,6 +57,20 @@ export default function DashboardPage() {
         'Ad Account': row[11]
       }));
       
+      // Debug: Check for comment revenue data
+      const commentRevenueEntries = transformedPerformanceData.filter(entry => entry['Comment Revenue'] > 0);
+      console.log('Comment Revenue Data Check:', {
+        totalEntries: transformedPerformanceData.length,
+        commentRevenueEntries: commentRevenueEntries.length,
+        recentCommentRevenue: commentRevenueEntries.slice(-5).map(entry => ({
+          date: entry.Date,
+          commentRevenue: entry['Comment Revenue'],
+          network: entry.Network,
+          offer: entry.Offer
+        })),
+        allDates: transformedPerformanceData.map(entry => entry.Date).sort().slice(-10)
+      });
+      
       // Set all the data
       setPerformanceData({
         data: transformedPerformanceData,
