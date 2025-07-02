@@ -18,7 +18,8 @@ const AccountsView = ({
   cashFlowData,
   networkTermsData,
   tradeshiftData,
-  performanceData
+  performanceData,
+  employeeData
 }) => {
   return (
     <div className="space-y-8">
@@ -93,7 +94,11 @@ const AccountsView = ({
           <TradeshiftReview tradeshiftData={tradeshiftData || []} />
         )}
         {accountsSubview === 'commissions' && (
-          <CommissionPayments commissions={performanceData?.commissions || []} />
+          <CommissionPayments 
+            commissions={performanceData?.commissions || []} 
+            employeeData={employeeData || []}
+            performanceData={performanceData?.data || []}
+          />
         )}
       </div>
     </div>

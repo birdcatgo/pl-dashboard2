@@ -334,6 +334,7 @@ export default function DashboardLayout({
             networkTermsData={networkTermsData}
             tradeshiftData={tradeshiftData}
             performanceData={performanceData}
+            employeeData={employeeData}
           />
         );
 
