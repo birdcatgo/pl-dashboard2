@@ -191,14 +191,81 @@ const CommissionPayments = ({ commissions, employeeData = [], performanceData = 
       const profit = periodData.profit;
       const monthlyBasePay = buyer.monthlyBasePay;
       
+      // Calculate the number of months for the selected period based on when they started
+      const getPeriodMonths = (period, buyerName) => {
+        const today = new Date();
+        const currentYear = today.getFullYear();
+        
+        // Find the first date this buyer started running traffic
+        const buyerEntries = performanceData.filter(entry => entry['Media Buyer'] === buyerName);
+        if (!buyerEntries.length) return 0;
+        
+        const firstEntryDate = new Date(Math.min(...buyerEntries.map(entry => new Date(entry.Date))));
+        
+        // Base pay starts on the 15th of the first full month of traffic
+        const firstBasePayDate = new Date(firstEntryDate.getFullYear(), firstEntryDate.getMonth(), 15);
+        if (firstEntryDate.getDate() > 15) {
+          // If they started after the 15th, base pay starts next month
+          firstBasePayDate.setMonth(firstBasePayDate.getMonth() + 1);
+        }
+        
+        let periodStart, periodEnd;
+        
+        switch (period) {
+          case '30days':
+            periodStart = new Date(today.getTime() - (30 * 24 * 60 * 60 * 1000));
+            periodEnd = today;
+            break;
+          case '60days':
+            periodStart = new Date(today.getTime() - (60 * 24 * 60 * 60 * 1000));
+            periodEnd = today;
+            break;
+          case '90days':
+            periodStart = new Date(today.getTime() - (90 * 24 * 60 * 60 * 1000));
+            periodEnd = today;
+            break;
+          case 'mtd':
+            periodStart = new Date(currentYear, today.getMonth(), 1);
+            periodEnd = today;
+            break;
+          case 'ytd':
+            periodStart = new Date(currentYear, 0, 1); // January 1st
+            periodEnd = today;
+            break;
+          case 'all':
+            periodStart = firstBasePayDate;
+            periodEnd = today;
+            break;
+          default:
+            periodStart = new Date(today.getTime() - (30 * 24 * 60 * 60 * 1000));
+            periodEnd = today;
+        }
+        
+        // Calculate months between period start and end, but only count months after they started getting base pay
+        const effectiveStart = new Date(Math.max(periodStart.getTime(), firstBasePayDate.getTime()));
+        
+        if (effectiveStart > periodEnd) return 0;
+        
+        const monthsDiff = (periodEnd.getFullYear() - effectiveStart.getFullYear()) * 12 + 
+                          (periodEnd.getMonth() - effectiveStart.getMonth());
+        
+        // Add 1 if the period includes at least 15 days of the end month
+        const additionalMonth = periodEnd.getDate() >= 15 ? 1 : 0;
+        
+        return Math.max(0, monthsDiff + additionalMonth);
+      };
+      
+      const periodMonths = getPeriodMonths(selectedPeriod, buyer.mediaBuyer);
+      const basePayForPeriod = monthlyBasePay * periodMonths;
+      
       // Calculate commission for the period based on profit
       // Assuming 10% commission rate (this should match your actual commission structure)
       const commissionRate = buyer.commissionRate || 0.10;
       // If profit is negative (loss), commission is $0, not negative
       const commissionForPeriod = profit > 0 ? profit * commissionRate : 0;
       
-      // Total cost = base salary + commission
-      const totalCost = monthlyBasePay + commissionForPeriod;
+      // Total cost = base salary for period + commission
+      const totalCost = basePayForPeriod + commissionForPeriod;
       const profitVsTotalCost = profit - totalCost;
       const roi = totalCost > 0 ? (profit / totalCost) * 100 : 0;
       const isJustified = profit >= totalCost;
@@ -208,6 +275,7 @@ const CommissionPayments = ({ commissions, employeeData = [], performanceData = 
         basePay: buyer.basePay,
         frequency: buyer.frequency,
         monthlyBasePay,
+        basePayForPeriod,
         commissionRate: commissionRate * 100,
         commissionForPeriod,
         totalCost,
@@ -298,10 +366,13 @@ const CommissionPayments = ({ commissions, employeeData = [], performanceData = 
                     Media Buyer
                   </th>
                   <th className="px-2 py-2 text-center text-xs font-medium text-gray-500 uppercase tracking-wider border-b-2 border-gray-300">
-                    Base Pay
+                    Base Pay ({selectedPeriod === 'mtd' ? 'MTD' : selectedPeriod === 'ytd' ? 'YTD' : selectedPeriod === 'all' ? 'All Time' : selectedPeriod.replace('days', 'D')})
                   </th>
                   <th className="px-2 py-2 text-center text-xs font-medium text-gray-500 uppercase tracking-wider border-b-2 border-gray-300">
                     Commission Rate
+                  </th>
+                  <th className="px-2 py-2 text-center text-xs font-medium text-gray-500 uppercase tracking-wider border-b-2 border-gray-300">
+                    Monthly Base Pay
                   </th>
                   <th className="px-2 py-2 text-right text-xs font-medium text-gray-500 uppercase tracking-wider border-b-2 border-gray-300">
                     {selectedPeriod === 'mtd' ? 'MTD Profit' : selectedPeriod === 'ytd' ? 'YTD Profit' : selectedPeriod === 'all' ? 'All Time Profit' : `${selectedPeriod.replace('days', 'D')} Profit`}
@@ -324,10 +395,13 @@ const CommissionPayments = ({ commissions, employeeData = [], performanceData = 
                       {analysis.name}
                     </td>
                     <td className="px-2 py-2 whitespace-nowrap text-sm text-center text-gray-900">
-                      {formatCurrency(analysis.monthlyBasePay)}
+                      {formatCurrency(analysis.basePayForPeriod)}
                     </td>
                     <td className="px-2 py-2 whitespace-nowrap text-sm text-center text-gray-900">
                       {analysis.commissionRate.toFixed(1)}%
+                    </td>
+                    <td className="px-2 py-2 whitespace-nowrap text-sm text-center text-gray-900">
+                      {formatCurrency(analysis.monthlyBasePay)}
                     </td>
                     <td className="px-2 py-2 whitespace-nowrap text-sm text-right text-gray-900">
                       {formatCurrency(analysis.profit)}
@@ -359,9 +433,9 @@ const CommissionPayments = ({ commissions, employeeData = [], performanceData = 
           <div className="px-4 py-3 bg-gray-50 border-t border-gray-200">
             <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
               <div className="text-center">
-                <div className="text-sm text-gray-600">Total Base Pay</div>
+                <div className="text-sm text-gray-600">Total Base Pay ({selectedPeriod === 'mtd' ? 'MTD' : selectedPeriod === 'ytd' ? 'YTD' : selectedPeriod === 'all' ? 'All Time' : selectedPeriod.replace('days', 'D')})</div>
                 <div className="text-lg font-semibold text-gray-900">
-                  {formatCurrency(baseSalaryAnalysis.reduce((sum, a) => sum + a.monthlyBasePay, 0))}
+                  {formatCurrency(baseSalaryAnalysis.reduce((sum, a) => sum + a.basePayForPeriod, 0))}
                 </div>
               </div>
               <div className="text-center">
