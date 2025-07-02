@@ -194,7 +194,8 @@ const CommissionPayments = ({ commissions, employeeData = [], performanceData = 
       // Calculate commission for the period based on profit
       // Assuming 10% commission rate (this should match your actual commission structure)
       const commissionRate = buyer.commissionRate || 0.10;
-      const commissionForPeriod = profit * commissionRate;
+      // If profit is negative (loss), commission is $0, not negative
+      const commissionForPeriod = profit > 0 ? profit * commissionRate : 0;
       
       // Total cost = base salary + commission
       const totalCost = monthlyBasePay + commissionForPeriod;
