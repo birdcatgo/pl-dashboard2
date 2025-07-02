@@ -197,28 +197,27 @@ const ImprovedPLDashboard = ({ plData, summaryData }) => {
     if (plData?.monthly) {
       // Set initial selected month to the most recent month chronologically
       const months = Object.keys(plData.monthly);
+      
       if (months.length > 0 && !selectedMonth) {
-        // Define month order weights with May 2025 being the most recent
-        const getMonthWeight = (month) => {
-          const weights = {
-            'May': 2025 * 12 + 5,      // May 2025
-            'April': 2025 * 12 + 4,    // April 2025
-            'March': 2025 * 12 + 3,    // March 2025
-            'February': 2025 * 12 + 2, // February 2025
-            'January': 2025 * 12 + 1,  // January 2025
-            'December': 2024 * 12 + 12, // December 2024
-            'November': 2024 * 12 + 11, // November 2024
-            'October': 2024 * 12 + 10,  // October 2024
-            'September': 2024 * 12 + 9, // September 2024
-            'August': 2024 * 12 + 8,    // August 2024
-            'July': 2024 * 12 + 7,      // July 2024
-            'June': 2024 * 12 + 6       // June 2024
-          };
-          return weights[month] || 0;
+        // Define month order weights with June 2025 being the most recent
+        const monthOrder = {
+          'June 2025': 2025 * 12 + 6,      // June 2025
+          'May 2025': 2025 * 12 + 5,      // May 2025
+          'April 2025': 2025 * 12 + 4,    // April 2025
+          'March 2025': 2025 * 12 + 3,    // March 2025
+          'February 2025': 2025 * 12 + 2, // February 2025
+          'January 2025': 2025 * 12 + 1,  // January 2025
+          'December 2024': 2024 * 12 + 12, // December 2024
+          'November 2024': 2024 * 12 + 11, // November 2024
+          'October 2024': 2024 * 12 + 10,  // October 2024
+          'September 2024': 2024 * 12 + 9, // September 2024
+          'August 2024': 2024 * 12 + 8,    // August 2024
+          'July 2024': 2024 * 12 + 7,      // July 2024
+          'June 2024': 2024 * 12 + 6       // June 2024
         };
         
         // Sort months chronologically and pick the most recent one
-        const sortedMonths = months.sort((a, b) => getMonthWeight(b) - getMonthWeight(a));
+        const sortedMonths = months.sort((a, b) => monthOrder[b] - monthOrder[a]);
         setSelectedMonth(sortedMonths[0]); // First in sorted array is most recent
       }
     }
@@ -226,16 +225,6 @@ const ImprovedPLDashboard = ({ plData, summaryData }) => {
 
   // Get the selected month's data
   const selectedMonthData = plData?.monthly?.[selectedMonth];
-
-  console.log('ImprovedPLDashboard data:', {
-    selectedMonth,
-    selectedMonthData,
-    incomeData: selectedMonthData?.incomeData,
-    expenseData: selectedMonthData?.expenseData,
-    categories: selectedMonthData?.categories,
-    totalIncome: selectedMonthData?.totalIncome,
-    totalExpenses: selectedMonthData?.totalExpenses
-  });
 
   return (
     <div className="space-y-6">

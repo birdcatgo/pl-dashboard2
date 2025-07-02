@@ -9,23 +9,12 @@ async function processPLData(batchResponse) {
 
     // Process monthly detail sheets more efficiently
     const monthSheets = batchResponse.data.valueRanges.filter(range => 
-      /^(May|April|March|February|January|December|November|October|September|August|July|June)!/.test(range.range)
+      /^'(June 2025|May 2025|April 2025|March 2025|February 2025|January 2025|December 2024|November 2024|October 2024|September 2024|August 2024|July 2024|June 2024)'!/.test(range.range)
     );
 
     // Process all months in parallel
     await Promise.all(monthSheets.map(async monthSheet => {
-      const monthName = monthSheet.range.split('!')[0];
-      
-      // Special logging for May
-      if (monthName === 'May') {
-        console.log('Processing May sheet data:', {
-          range: monthSheet.range,
-          hasValues: !!monthSheet.values,
-          valuesLength: monthSheet.values?.length,
-          firstRow: monthSheet.values?.[0],
-          sampleRows: monthSheet.values?.slice(0, 3)
-        });
-      }
+      const monthName = monthSheet.range.split('!')[0].replace(/['"]/g, '');
       
       if (monthSheet.values && monthSheet.values.length > 1) {
         // Map rows more efficiently with a single pass, matching exact sheet column order
@@ -35,13 +24,14 @@ async function processPLData(batchResponse) {
           if (row[1]) {
             amount = parseFloat(row[1].replace(/[$,]/g, '')) || 0;
           }
-
-          // Get Card/Account value, ensuring we handle undefined/null cases
+          // Get Card/Account value, if present, otherwise set to '-'
           let cardAccount = '-';
           if (row.length >= 5 && row[4] !== undefined && row[4] !== null && row[4] !== '') {
             cardAccount = row[4].trim();
           }
-          
+          if (row.length < 5) {
+            cardAccount = '-';
+          }
           return {
             Date: monthName,
             Category: row[2]?.trim() || '',
@@ -51,7 +41,6 @@ async function processPLData(batchResponse) {
             'Income/Expense': row[3]?.trim() || ''
           };
         });
-
         // Calculate totals in a single reduce operation
         const { incomeData, expenseData, totalIncome, totalExpenses } = monthlyRows.reduce((acc, row) => {
           if (row['Income/Expense']?.toLowerCase() === 'income') {
@@ -63,7 +52,6 @@ async function processPLData(batchResponse) {
           }
           return acc;
         }, { incomeData: [], expenseData: [], totalIncome: 0, totalExpenses: 0 });
-
         // Group expenses by category more efficiently
         const categories = expenseData.reduce((acc, expense) => {
           const category = expense.Category || 'Uncategorized';
@@ -71,7 +59,6 @@ async function processPLData(batchResponse) {
           acc[category].push(expense);
           return acc;
         }, {});
-
         monthlyData[monthName] = {
           monthDataArray: monthlyRows,
           incomeData,
@@ -80,10 +67,8 @@ async function processPLData(batchResponse) {
           totalIncome,
           totalExpenses
         };
-
         const netProfit = totalIncome - totalExpenses;
         const netPercent = totalIncome > 0 ? (netProfit / totalIncome) * 100 : 0;
-
         summaryData.push({
           Month: monthName,
           Income: totalIncome,
@@ -93,10 +78,8 @@ async function processPLData(batchResponse) {
         });
       }
     }));
-
     const result = { summary: summaryData, monthly: monthlyData };
     return result;
-
   } catch (error) {
     console.error('Error in processPLData:', error);
     throw new Error('Failed to process P&L data: ' + error.message);
@@ -415,18 +398,19 @@ export default async function handler(req, res) {
       "'Media Buyer Spend'!A:B",
       "'Summary'!A:V",
       "'Network Payment Schedule'!A:H",
-      "'May'!A:E",
-      "'April'!A:E",
-      "'March'!A:E",
-      "'February'!A:E",
-      "'January'!A:E",
-      "'December'!A:E",
-      "'November'!A:E",
-      "'October'!A:E",
-      "'September'!A:E",
-      "'August'!A:E",
-      "'July'!A:E",
-      "'June'!A:E",
+      "'June 2025'!A:E",
+      "'May 2025'!A:E",
+      "'April 2025'!A:E",
+      "'March 2025'!A:E",
+      "'February 2025'!A:E",
+      "'January 2025'!A:E",
+      "'December 2024'!A:E",
+      "'November 2024'!A:E",
+      "'October 2024'!A:E",
+      "'September 2024'!A:E",
+      "'August 2024'!A:E",
+      "'July 2024'!A:E",
+      "'June 2024'!A:E",
       "'Network Terms'!A:J",
       "'Network Exposure'!A:H",
       "'Invoices'!A:F",
@@ -504,18 +488,19 @@ export default async function handler(req, res) {
       mediaBuyerResponse,
       summaryResponse,
       networkPaymentsResponse,
-      mayResponse,
-      aprilResponse,
-      marchResponse,
-      februaryResponse,
-      januaryResponse,
-      decemberResponse,
-      novemberResponse,
-      octoberResponse,
-      septemberResponse,
-      augustResponse,
-      julyResponse,
-      juneResponse,
+      june2025Response,
+      may2025Response,
+      april2025Response,
+      march2025Response,
+      february2025Response,
+      january2025Response,
+      december2024Response,
+      november2024Response,
+      october2024Response,
+      september2024Response,
+      august2024Response,
+      july2024Response,
+      june2024Response,
       networkTermsResponse,
       networkExposureResponse,
       invoicesResponse,
@@ -698,22 +683,22 @@ export default async function handler(req, res) {
       const plData = await processPLData({
         data: {
           valueRanges: [
-            mayResponse,
-            aprilResponse,
-            marchResponse,
-            februaryResponse,
-            januaryResponse,
-            decemberResponse,
-            novemberResponse,
-            octoberResponse,
-            septemberResponse,
-            augustResponse,
-            julyResponse,
-            juneResponse
+            june2025Response,
+            may2025Response,
+            april2025Response,
+            march2025Response,
+            february2025Response,
+            january2025Response,
+            december2024Response,
+            november2024Response,
+            october2024Response,
+            september2024Response,
+            august2024Response,
+            july2024Response
           ]
         }
       });
-      processedData.plData = plData;
+      processedData.plData = { summary: plData.summary, monthly: plData.monthly };
       console.log('Processed P&L data:', !!processedData.plData);
 
       // Process commissions data
@@ -728,8 +713,8 @@ export default async function handler(req, res) {
         // Get all month columns from the header
         const headerRow = commissionsResponse.values[0];
         const monthColumns = headerRow.reduce((acc, header, index) => {
-          // Match both formats: "May 2025", "April 2025" and "May 2025 Commission(s)", "April 2025 Commission(s)"
-          const monthMatch = header.match(/^(May|April|March|February)\s+2025(?:\s+Commissions?)?$/);
+          // Match both formats: "June 2025", "May 2025", "April 2025", "March 2025", "February 2025" and "June 2025 Commission(s)", etc.
+          const monthMatch = header.match(/^(June|May|April|March|February)\s+2025(?:\s+Commissions?)?$/);
           if (monthMatch) {
             acc[header] = index;
           }

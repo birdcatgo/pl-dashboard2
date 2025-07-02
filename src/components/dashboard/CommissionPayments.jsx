@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 
 const CommissionPayments = ({ commissions }) => {
-  const [selectedMonth, setSelectedMonth] = useState('May 2025');
+  const [selectedMonth, setSelectedMonth] = useState('June 2025');
 
   // Helper function to format currency
   const formatCurrency = (value) => {
@@ -40,6 +40,7 @@ const CommissionPayments = ({ commissions }) => {
           onChange={(e) => setSelectedMonth(e.target.value)}
           className="w-48 px-3 py-2 border border-gray-300 rounded-md text-sm"
         >
+          <option value="June 2025">June 2025</option>
           <option value="May 2025">May 2025</option>
           <option value="April 2025">April 2025</option>
           <option value="March 2025">March 2025</option>
@@ -152,4 +153,4 @@ const CommissionPayments = ({ commissions }) => {
   );
 };
 
-export default CommissionPayments; 
+export default CommissionPayments;

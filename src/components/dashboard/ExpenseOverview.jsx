@@ -466,7 +466,7 @@ const ExportModal = ({ onClose, monthlyData, plData }) => {
       rows.push([category, '', '', '', '']); // Category header
 
       // Get expenses for this category
-      const monthExpenses = plData.monthly['March']?.expenseData.filter(e => {
+      const monthExpenses = plData.monthly['March 2025']?.expenseData.filter(e => {
         const expenseCategory = e.CATEGORY?.toLowerCase() || '';
         if (category === 'Payroll') {
           return expenseCategory.includes('payroll') || expenseCategory.includes('salary');
@@ -554,7 +554,7 @@ const ExportModal = ({ onClose, monthlyData, plData }) => {
             <tbody>
               ${['Payroll', 'Advertising', 'Subscriptions', 'Miscellaneous']
                 .map(category => {
-                const expenses = plData.monthly['March']?.expenseData
+                const expenses = plData.monthly['March 2025']?.expenseData
                     .filter(e => e.CATEGORY?.toLowerCase().includes(category.toLowerCase())) || [];
                   
                   return `
@@ -1428,21 +1428,21 @@ const IncomeComparisonTable = ({ monthlyData, plData }) => {
             <div className="bg-gray-50 px-6 py-3 border-b">
               <div className="grid grid-cols-4 gap-4 text-xs font-medium text-gray-600 uppercase tracking-wider">
                 <div>Network Source</div>
+                <div className="text-right">June 2025</div>
                 <div className="text-right">May 2025</div>
                 <div className="text-right">April 2025</div>
-                <div className="text-right">March 2025</div>
               </div>
             </div>
             
             {/* Data Rows */}
             <div className="divide-y divide-gray-100 max-h-96 overflow-y-auto">
               {revenueData.sources.map((source, index) => {
+                const juneAmount = source.amounts['June'] || 0;
                 const mayAmount = source.amounts['May'] || 0;
                 const aprilAmount = source.amounts['April'] || 0;
-                const marchAmount = source.amounts['March'] || 0;
                 
-                // Calculate trend between May and April
-                const trend = aprilAmount ? ((mayAmount - aprilAmount) / aprilAmount * 100) : 0;
+                // Calculate trend between June and May
+                const trend = mayAmount ? ((juneAmount - mayAmount) / mayAmount * 100) : 0;
                 const isGrowing = trend > 5;
                 const isDeclining = trend < -5;
                 
@@ -1456,9 +1456,9 @@ const IncomeComparisonTable = ({ monthlyData, plData }) => {
                         {isDeclining && <span className="text-red-600 text-xs">📉</span>}
                       </div>
                       
-                      {/* May Amount */}
+                      {/* June Amount */}
                       <div className="text-right">
-                        <div className="font-semibold text-gray-900">{formatCurrency(mayAmount)}</div>
+                        <div className="font-semibold text-gray-900">{formatCurrency(juneAmount)}</div>
                         {trend !== 0 && Math.abs(trend) > 5 && (
                           <div className={`text-xs ${trend > 0 ? 'text-green-600' : 'text-red-600'}`}>
                             {trend > 0 ? '↑' : '↓'} {Math.abs(trend).toFixed(0)}%
@@ -1466,17 +1466,17 @@ const IncomeComparisonTable = ({ monthlyData, plData }) => {
                         )}
                       </div>
                       
+                      {/* May Amount */}
+                      <div className="text-right">
+                        <span className={`${mayAmount > 0 ? 'text-gray-700' : 'text-gray-400'}`}>
+                          {mayAmount > 0 ? formatCurrency(mayAmount) : '—'}
+                        </span>
+                      </div>
+                      
                       {/* April Amount */}
                       <div className="text-right">
                         <span className={`${aprilAmount > 0 ? 'text-gray-700' : 'text-gray-400'}`}>
                           {aprilAmount > 0 ? formatCurrency(aprilAmount) : '—'}
-                        </span>
-                      </div>
-                      
-                      {/* March Amount */}
-                      <div className="text-right">
-                        <span className={`${marchAmount > 0 ? 'text-gray-700' : 'text-gray-400'}`}>
-                          {marchAmount > 0 ? formatCurrency(marchAmount) : '—'}
                         </span>
                       </div>
                     </div>
@@ -1490,13 +1490,13 @@ const IncomeComparisonTable = ({ monthlyData, plData }) => {
               <div className="grid grid-cols-4 gap-4 items-center font-semibold text-green-800">
                 <div>Total Active Revenue</div>
                 <div className="text-right">
+                  {formatCurrency(revenueData.sources.reduce((sum, s) => sum + (s.amounts['June'] || 0), 0))}
+                </div>
+                <div className="text-right">
                   {formatCurrency(revenueData.sources.reduce((sum, s) => sum + (s.amounts['May'] || 0), 0))}
                 </div>
                 <div className="text-right">
                   {formatCurrency(revenueData.sources.reduce((sum, s) => sum + (s.amounts['April'] || 0), 0))}
-                </div>
-                <div className="text-right">
-                  {formatCurrency(revenueData.sources.reduce((sum, s) => sum + (s.amounts['March'] || 0), 0))}
                 </div>
               </div>
             </div>
@@ -1752,7 +1752,7 @@ const ProfitTrendChart = ({ plData }) => {
     const monthOrder = [
       'July 2024', 'August 2024', 'September 2024', 'October 2024', 
       'November 2024', 'December 2024', 'January 2025', 'February 2025', 
-      'March 2025', 'April 2025', 'May 2025'
+      'March 2025', 'April 2025', 'May 2025', 'June 2025'
     ];
     
     return monthOrder.map(monthYear => {
@@ -1970,7 +1970,7 @@ const processMonthlyData = (monthlyData) => {
   if (!monthlyData) return [];
 
   // Define the months we want to show in correct order (May, April, March)
-  const targetMonths = ['May', 'April', 'March'];
+  const targetMonths = ['June 2025', 'May 2025', 'April 2025'];
 
   console.log('processMonthlyData debug:', {
     inputMonthlyData: monthlyData,
@@ -2235,15 +2235,15 @@ const ExpenseOverview = ({ plData, cashFlowData, invoicesData, networkTerms }) =
     }
 
     // Define the months we want to show in order - ONLY 3 months
-    const targetMonths = ['May 2025', 'April 2025', 'March 2025'];
+    const targetMonths = ['June 2025', 'May 2025', 'April 2025'];
 
     // Add debug logging
     console.log('Processing monthly data:', {
       availableMonths: Object.keys(plData.monthly),
-      hasMarchData: !!plData.monthly['March'],
-      marchData: plData.monthly['March'],
-      marchExpenseData: plData.monthly['March']?.expenseData,
-      marchTotalExpenses: plData.monthly['March']?.totalExpenses
+      hasMarchData: !!plData.monthly['March 2025'],
+      marchData: plData.monthly['March 2025'],
+      marchExpenseData: plData.monthly['March 2025']?.expenseData,
+      marchTotalExpenses: plData.monthly['March 2025']?.totalExpenses
     });
 
     return targetMonths.map(monthStr => {

@@ -36,10 +36,14 @@ const parseAmount = (amount) => {
 };
 
 const SummaryTable = ({ summaryData }) => {
-  // Helper function to get the year for a month
+  // Helper function to extract year from month name (e.g., "June 2025" -> "2025")
   const getYearForMonth = (month) => {
-    // January, February, March, April, and May are in 2025, all other months are in 2024
-    return ['January', 'February', 'March', 'April', 'May'].includes(month) ? 2025 : 2024;
+    // If month already includes year, extract it
+    if (month.includes('2025')) return '2025';
+    if (month.includes('2024')) return '2024';
+    
+    // Fallback for old format without years
+    return ['January', 'February', 'March', 'April', 'May', 'June'].includes(month) ? '2025' : '2024';
   };
 
   return (
@@ -66,7 +70,7 @@ const SummaryTable = ({ summaryData }) => {
               {summaryData.map((row, index) => (
                 <tr key={index} className="hover:bg-gray-50">
                   <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                    {`${row.Month} ${getYearForMonth(row.Month)}`}
+                    {row.Month.includes('2025') || row.Month.includes('2024') ? row.Month : `${row.Month} ${getYearForMonth(row.Month)}`}
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap text-sm text-right text-green-600">{formatCurrency(row.Income)}</td>
                   <td className="px-6 py-4 whitespace-nowrap text-sm text-right text-red-600">{formatCurrency(row.Expenses)}</td>
@@ -84,7 +88,8 @@ const SummaryTable = ({ summaryData }) => {
 
 const MonthlyDetails = ({ monthData, month }) => {
   const [expandedCategories, setExpandedCategories] = React.useState({});
-  const year = ['January', 'February', 'March', 'April', 'May'].includes(month) ? '2025' : '2024';
+  // Extract year from month name (e.g., "June 2025" -> "2025")
+  const year = month.includes('2025') ? '2025' : '2024';
 
   // Process income and expenses
   const incomeData = monthData?.incomeData || [];
@@ -230,28 +235,29 @@ const MonthlyDetails = ({ monthData, month }) => {
 };
 
 const ExpenseCategoriesTrend = ({ monthlyData }) => {
-  // Get the last 6 months based on current date, excluding current month
   const getLastSixMonths = () => {
-    const months = [
-      'January', 'February', 'March', 'April', 'May', 'June',
-      'July', 'August', 'September', 'October', 'November', 'December'
-    ];
+    // Get all available months from the data
+    const availableMonths = Object.keys(monthlyData).sort((a, b) => {
+      // Sort by year and month
+      const aYear = a.includes('2025') ? 2025 : 2024;
+      const bYear = b.includes('2025') ? 2025 : 2024;
+      if (aYear !== bYear) return bYear - aYear;
+      
+      const monthOrder = {
+        'January': 1, 'February': 2, 'March': 3, 'April': 4, 'May': 5, 'June': 6,
+        'July': 7, 'August': 8, 'September': 9, 'October': 10, 'November': 11, 'December': 12
+      };
+      
+      const aMonth = a.split(' ')[0];
+      const bMonth = b.split(' ')[0];
+      return monthOrder[bMonth] - monthOrder[aMonth];
+    });
     
-    const currentDate = new Date();
-    const currentMonth = currentDate.getMonth();
-    const currentYear = currentDate.getFullYear();
-    
-    const result = [];
-    // Start from previous month (i=1) instead of current month (i=0)
-    for (let i = 1; i <= 6; i++) {
-      const monthIndex = (currentMonth - i + 12) % 12;
-      const year = currentMonth - i < 0 ? currentYear - 1 : currentYear;
-      result.unshift({
-        month: months[monthIndex],
-        year: year.toString()
-      });
-    }
-    return result;
+    // Return the last 6 months
+    return availableMonths.slice(0, 6).map(month => ({
+      month: month,
+      year: month.includes('2025') ? '2025' : '2024'
+    }));
   };
 
   const monthOrder = getLastSixMonths();
@@ -317,7 +323,7 @@ const ExpenseCategoriesTrend = ({ monthlyData }) => {
                 </th>
                 {monthOrder.map(({ month, year }) => (
                   <th key={`${month}-${year}`} className="px-3 py-2 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    {month.slice(0, 3)} {year.slice(2)}
+                    {month.split(' ')[0].slice(0, 3)} {year.slice(2)}
                   </th>
                 ))}
                 <th className="px-3 py-2 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
@@ -370,18 +376,19 @@ const ExpenseCategoriesTrend = ({ monthlyData }) => {
 const PLWrapper = ({ plData, monthlyData, selectedMonth, onMonthChange, selectedMonthData }) => {
   const getMonthWeight = (month) => {
     const weights = {
-      'May': 2025 * 12 + 5,      // May 2025
-      'April': 2025 * 12 + 4,    // April 2025
-      'March': 2025 * 12 + 3,    // March 2025
-      'February': 2025 * 12 + 2, // February 2025
-      'January': 2025 * 12 + 1,  // January 2025
-      'December': 2024 * 12 + 12, // December 2024
-      'November': 2024 * 12 + 11, // November 2024
-      'October': 2024 * 12 + 10,  // October 2024
-      'September': 2024 * 12 + 9, // September 2024
-      'August': 2024 * 12 + 8,    // August 2024
-      'July': 2024 * 12 + 7,      // July 2024
-      'June': 2024 * 12 + 6       // June 2024
+      'June 2025': 2025 * 12 + 6,      // June 2025
+      'May 2025': 2025 * 12 + 5,      // May 2025
+      'April 2025': 2025 * 12 + 4,    // April 2025
+      'March 2025': 2025 * 12 + 3,    // March 2025
+      'February 2025': 2025 * 12 + 2, // February 2025
+      'January 2025': 2025 * 12 + 1,  // January 2025
+      'December 2024': 2024 * 12 + 12, // December 2024
+      'November 2024': 2024 * 12 + 11, // November 2024
+      'October 2024': 2024 * 12 + 10,  // October 2024
+      'September 2024': 2024 * 12 + 9, // September 2024
+      'August 2024': 2024 * 12 + 8,    // August 2024
+      'July 2024': 2024 * 12 + 7,      // July 2024
+      'June 2024': 2024 * 12 + 6        // June 2024
     };
     return weights[month] || 0;
   };
@@ -390,17 +397,12 @@ const PLWrapper = ({ plData, monthlyData, selectedMonth, onMonthChange, selected
   const availableMonths = Object.keys(plData?.monthly || {})
     .sort((a, b) => getMonthWeight(b) - getMonthWeight(a));
 
-  const year = ['January', 'February', 'March', 'April', 'May'].includes(selectedMonth) ? '2025' : '2024';
-
   return (
     <div className="space-y-6">
       {/* Header and Month Selector */}
       <div className="flex justify-between items-center">
         <h2 className="text-2xl font-bold text-gray-900">Cash View (Money In/Out)</h2>
         <div className="flex items-center gap-4">
-          <div className="text-sm text-gray-500">
-            {selectedMonth} {year}
-          </div>
           <select
             value={selectedMonth}
             onChange={(e) => onMonthChange(e.target.value)}
@@ -408,7 +410,7 @@ const PLWrapper = ({ plData, monthlyData, selectedMonth, onMonthChange, selected
           >
             {availableMonths.map(month => (
               <option key={month} value={month}>
-                {month} {['January', 'February', 'March', 'April', 'May'].includes(month) ? '2025' : '2024'}
+                {month}
               </option>
             ))}
           </select>
