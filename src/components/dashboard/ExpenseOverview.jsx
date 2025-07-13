@@ -342,9 +342,9 @@ const ExpenseCategory = ({ title, monthlyData, plData }) => {
     if (title.toLowerCase().includes('subscription')) {
       // Get the most recent month's data
       const mostRecentMonth = Object.entries(plData.monthly)
-        .filter(([month]) => ['April', 'March', 'February', 'January'].includes(month))
+        .filter(([month]) => ['June 2025', 'May 2025', 'April 2025', 'March 2025'].includes(month))
         .sort(([monthA], [monthB]) => {
-          const monthOrder = { 'April': 4, 'March': 3, 'February': 2, 'January': 1 };
+          const monthOrder = { 'June 2025': 6, 'May 2025': 5, 'April 2025': 4, 'March 2025': 3 };
           return monthOrder[monthB] - monthOrder[monthA];
         })[0];
 
@@ -365,19 +365,19 @@ const ExpenseCategory = ({ title, monthlyData, plData }) => {
     return `${title} ${trend > 0 ? 'increased' : 'decreased'} by ${formatCurrency(difference)} (${Math.abs(trend)}%) compared to ${monthDisplay}`;
   };
 
-  // Ensure data is in chronological order (May, April, March)
+  // Ensure data is in chronological order (June, May, April)
   const orderedData = [
+    monthlyData.find(d => d.month.includes('June')),
     monthlyData.find(d => d.month.includes('May')),
-    monthlyData.find(d => d.month.includes('April')),
-    monthlyData.find(d => d.month.includes('March'))
+    monthlyData.find(d => d.month.includes('April'))
   ].filter(Boolean);
 
   if (!orderedData.length) {
     console.log('No data available for display:', {
       monthlyData,
+      juneData: monthlyData.find(d => d.month.includes('June')),
       mayData: monthlyData.find(d => d.month.includes('May')),
-      aprilData: monthlyData.find(d => d.month.includes('April')),
-      marchData: monthlyData.find(d => d.month.includes('March'))
+      aprilData: monthlyData.find(d => d.month.includes('April'))
     });
   }
 
@@ -427,9 +427,9 @@ const ExpenseCategory = ({ title, monthlyData, plData }) => {
       {showExpenseDetails && (
         <ExpenseDetails
           expenses={Object.entries(plData.monthly)
-            .filter(([month]) => ['May', 'April', 'March', 'February'].includes(month))
+            .filter(([month]) => ['June 2025', 'May 2025', 'April 2025', 'March 2025'].includes(month))
             .sort(([monthA], [monthB]) => {
-              const monthSortOrder = { 'May': 5, 'April': 4, 'March': 3, 'February': 2 };
+              const monthSortOrder = { 'June 2025': 6, 'May 2025': 5, 'April 2025': 4, 'March 2025': 3 };
               return monthSortOrder[monthB] - monthSortOrder[monthA];
             })[0]?.[1]?.expenseData?.filter(expense => {
               const category = expense.Category?.toLowerCase() || '';
@@ -1135,6 +1135,15 @@ const ExpenseComparisonTable = ({ monthlyData, plData }) => {
   
   // Process expenses by category
   const categories = useMemo(() => {
+    console.log('ExpenseComparisonTable: Processing expense data:', {
+      hasPlData: !!plData,
+      hasMonthly: !!plData?.monthly,
+      monthlyKeys: plData?.monthly ? Object.keys(plData.monthly) : [],
+      juneData: plData?.monthly?.['June 2025'],
+      mayData: plData?.monthly?.['May 2025'],
+      aprilData: plData?.monthly?.['April 2025']
+    });
+
     if (!plData?.monthly) {
       console.log('ExpenseComparisonTable: No plData.monthly available');
       return {};
@@ -1213,12 +1222,14 @@ const ExpenseComparisonTable = ({ monthlyData, plData }) => {
       other: categoryMap.other.length
     });
 
-    // Filter out expenses that have $0 across all months, but be more lenient
+    // Filter out expenses that have $0 across all months
     Object.keys(categoryMap).forEach(categoryKey => {
       const originalLength = categoryMap[categoryKey].length;
       categoryMap[categoryKey] = categoryMap[categoryKey].filter(expense => {
-        const totalAmount = Object.values(expense.amounts).reduce((sum, amount) => sum + amount, 0);
-        return totalAmount > 0.01; // Keep expenses with even small amounts (> 1 cent)
+        // Check if the expense has any amount in the last 3 months
+        const lastThreeMonths = ['June 2025', 'May 2025', 'April 2025'];
+        const recentAmount = lastThreeMonths.reduce((sum, month) => sum + (expense.amounts[month] || 0), 0);
+        return recentAmount > 0; // Only keep expenses with actual amounts in the last 3 months
       });
       const filteredLength = categoryMap[categoryKey].length;
       console.log(`ExpenseComparisonTable: ${categoryKey} filtered from ${originalLength} to ${filteredLength} items`);
@@ -1231,6 +1242,13 @@ const ExpenseComparisonTable = ({ monthlyData, plData }) => {
       other: categoryMap.other.length
     });
 
+    console.log('ExpenseComparisonTable: Final category data:', {
+      payroll: categoryMap.payroll.slice(0, 3).map(e => ({ name: e.name, amounts: e.amounts })),
+      advertising: categoryMap.advertising.slice(0, 3).map(e => ({ name: e.name, amounts: e.amounts })),
+      subscriptions: categoryMap.subscriptions.slice(0, 3).map(e => ({ name: e.name, amounts: e.amounts })),
+      other: categoryMap.other.slice(0, 3).map(e => ({ name: e.name, amounts: e.amounts }))
+    });
+
     return categoryMap;
   }, [plData]);
 
@@ -1239,12 +1257,13 @@ const ExpenseComparisonTable = ({ monthlyData, plData }) => {
     if (!plData?.monthly) return [];
     
     const months = Object.keys(plData.monthly)
-      .filter(month => ['May', 'April', 'March', 'February'].includes(month))
+      .filter(month => ['June 2025', 'May 2025', 'April 2025', 'March 2025'].includes(month))
       .sort((a, b) => {
-        const monthOrder = { 'May': 5, 'April': 4, 'March': 3, 'February': 2 };
+        const monthOrder = { 'June 2025': 6, 'May 2025': 5, 'April 2025': 4, 'March 2025': 3 };
         return monthOrder[b] - monthOrder[a];
       });
 
+    console.log('ExpenseComparisonTable: Last three months:', months);
     return months;
   }, [plData]);
 
@@ -1259,6 +1278,12 @@ const ExpenseComparisonTable = ({ monthlyData, plData }) => {
     return totals;
   }, [categories, lastThreeMonths]);
 
+  // Only show the section if there are actual expenses to display
+  const hasExpenses = Object.values(categories).some(expenses => expenses.length > 0);
+  if (!hasExpenses) {
+    return null;
+  }
+
   return (
     <div className="mt-8 border-t pt-6">
       <h3 className="text-lg font-medium text-gray-900 mb-4">Expense Analysis by Category</h3>
@@ -1268,16 +1293,6 @@ const ExpenseComparisonTable = ({ monthlyData, plData }) => {
             .filter(([category, expenses]) => expenses.length > 0);
           
           console.log('ExpenseComparisonTable: Categories to display:', filteredCategories.map(([cat, exp]) => `${cat}: ${exp.length} items`));
-          
-          if (filteredCategories.length === 0) {
-            console.log('ExpenseComparisonTable: No categories to display - showing fallback message');
-            return (
-              <div className="text-center py-8 text-gray-500">
-                <p>No expense data available for the selected months.</p>
-                <p className="text-sm mt-2">Available months: {Object.keys(plData?.monthly || {}).join(', ')}</p>
-              </div>
-            );
-          }
           
           return filteredCategories.map(([category, expenses]) => (
           <div key={category} className="border rounded-lg overflow-hidden">
@@ -1304,7 +1319,7 @@ const ExpenseComparisonTable = ({ monthlyData, plData }) => {
                 <div className="grid grid-cols-4 gap-4 px-4 py-2 bg-gray-50 text-xs font-medium text-gray-500 uppercase">
                   <div>Description</div>
                   {lastThreeMonths.map(month => (
-                    <div key={month} className="text-right">{month} 2025</div>
+                    <div key={month} className="text-right">{month}</div>
                   ))}
                 </div>
                 {expenses
@@ -1323,7 +1338,7 @@ const ExpenseComparisonTable = ({ monthlyData, plData }) => {
                         return (
                           <div key={month} className="text-right">
                             <div>{amount > 0 ? formatCurrency(amount) : '—'}</div>
-                            {growth !== '0' && Math.abs(parseFloat(growth)) > 5 && (
+                            {amount > 0 && growth !== '0' && Math.abs(parseFloat(growth)) > 5 && (
                               <div className={`text-xs ${growth.includes('-') ? 'text-green-600' : 'text-red-600'}`}>
                                 {growth.includes('-') ? '↓' : '↑'} {Math.abs(parseFloat(growth))}%
                               </div>
@@ -1348,6 +1363,15 @@ const IncomeComparisonTable = ({ monthlyData, plData }) => {
   
   // Process revenue data
   const revenueData = useMemo(() => {
+    console.log('IncomeComparisonTable: Processing revenue data:', {
+      hasPlData: !!plData,
+      hasMonthly: !!plData?.monthly,
+      monthlyKeys: plData?.monthly ? Object.keys(plData.monthly) : [],
+      juneData: plData?.monthly?.['June 2025'],
+      mayData: plData?.monthly?.['May 2025'],
+      aprilData: plData?.monthly?.['April 2025']
+    });
+
     if (!plData?.monthly) return { sources: [], total: 0, totalSources: 0 };
 
     const sources = new Map();
@@ -1379,18 +1403,30 @@ const IncomeComparisonTable = ({ monthlyData, plData }) => {
     });
 
     // Filter sources: only show those with revenue in the last 3 months OR significant total revenue
-    const lastThreeMonths = ['May', 'April', 'March'];
+    const lastThreeMonths = ['June 2025', 'May 2025', 'April 2025'];
     const filteredSources = Array.from(sources.values()).filter(source => {
       const recentRevenue = lastThreeMonths.reduce((sum, month) => sum + (source.amounts[month] || 0), 0);
-      return recentRevenue > 100 || source.totalRevenue > 1000; // Show if > $100 recently or > $1000 total
+      // Only show sources that have actual revenue in the last 3 months (no zero amounts)
+      return recentRevenue > 0;
     });
 
-    // Sort by most recent month's revenue (May), then by total revenue
+    // Sort by most recent month's revenue (June 2025), then by total revenue
     filteredSources.sort((a, b) => {
-      const aRecent = a.amounts['May'] || 0;
-      const bRecent = b.amounts['May'] || 0;
+      const aRecent = a.amounts['June 2025'] || 0;
+      const bRecent = b.amounts['June 2025'] || 0;
       if (aRecent !== bRecent) return bRecent - aRecent;
       return b.totalRevenue - a.totalRevenue;
+    });
+
+    console.log('IncomeComparisonTable: Final revenue data:', {
+      sourcesCount: filteredSources.length,
+      total: total / Object.keys(plData.monthly).length,
+      totalSources,
+      sampleSources: filteredSources.slice(0, 3).map(s => ({
+        name: s.name,
+        amounts: s.amounts,
+        totalRevenue: s.totalRevenue
+      }))
     });
 
     return {
@@ -1399,6 +1435,11 @@ const IncomeComparisonTable = ({ monthlyData, plData }) => {
       totalSources
     };
   }, [plData]);
+
+  // Only show the section if there's actual revenue data
+  if (revenueData.sources.length === 0) {
+    return null;
+  }
 
   return (
     <div className="mt-8 border-t pt-6">
@@ -1437,9 +1478,9 @@ const IncomeComparisonTable = ({ monthlyData, plData }) => {
             {/* Data Rows */}
             <div className="divide-y divide-gray-100 max-h-96 overflow-y-auto">
               {revenueData.sources.map((source, index) => {
-                const juneAmount = source.amounts['June'] || 0;
-                const mayAmount = source.amounts['May'] || 0;
-                const aprilAmount = source.amounts['April'] || 0;
+                const juneAmount = source.amounts['June 2025'] || 0;
+                const mayAmount = source.amounts['May 2025'] || 0;
+                const aprilAmount = source.amounts['April 2025'] || 0;
                 
                 // Calculate trend between June and May
                 const trend = mayAmount ? ((juneAmount - mayAmount) / mayAmount * 100) : 0;
@@ -1468,14 +1509,14 @@ const IncomeComparisonTable = ({ monthlyData, plData }) => {
                       
                       {/* May Amount */}
                       <div className="text-right">
-                        <span className={`${mayAmount > 0 ? 'text-gray-700' : 'text-gray-400'}`}>
+                        <span className="text-gray-700">
                           {mayAmount > 0 ? formatCurrency(mayAmount) : '—'}
                         </span>
                       </div>
                       
                       {/* April Amount */}
                       <div className="text-right">
-                        <span className={`${aprilAmount > 0 ? 'text-gray-700' : 'text-gray-400'}`}>
+                        <span className="text-gray-700">
                           {aprilAmount > 0 ? formatCurrency(aprilAmount) : '—'}
                         </span>
                       </div>
@@ -1490,13 +1531,22 @@ const IncomeComparisonTable = ({ monthlyData, plData }) => {
               <div className="grid grid-cols-4 gap-4 items-center font-semibold text-green-800">
                 <div>Total Active Revenue</div>
                 <div className="text-right">
-                  {formatCurrency(revenueData.sources.reduce((sum, s) => sum + (s.amounts['June'] || 0), 0))}
+                  {(() => {
+                    const total = revenueData.sources.reduce((sum, s) => sum + (s.amounts['June 2025'] || 0), 0);
+                    return total > 0 ? formatCurrency(total) : '—';
+                  })()}
                 </div>
                 <div className="text-right">
-                  {formatCurrency(revenueData.sources.reduce((sum, s) => sum + (s.amounts['May'] || 0), 0))}
+                  {(() => {
+                    const total = revenueData.sources.reduce((sum, s) => sum + (s.amounts['May 2025'] || 0), 0);
+                    return total > 0 ? formatCurrency(total) : '—';
+                  })()}
                 </div>
                 <div className="text-right">
-                  {formatCurrency(revenueData.sources.reduce((sum, s) => sum + (s.amounts['April'] || 0), 0))}
+                  {(() => {
+                    const total = revenueData.sources.reduce((sum, s) => sum + (s.amounts['April 2025'] || 0), 0);
+                    return total > 0 ? formatCurrency(total) : '—';
+                  })()}
                 </div>
               </div>
             </div>
@@ -1562,7 +1612,7 @@ const RevenueCategory = ({ monthlyData, plData }) => {
   const trend = calculateTrend();
 
   const getRevenuesForMonth = (monthDate) => {
-    const monthName = format(monthDate, 'MMMM');
+    const monthName = format(monthDate, 'MMMM yyyy');
     return plData.monthly[monthName]?.incomeData || [];
   };
 
@@ -1756,8 +1806,7 @@ const ProfitTrendChart = ({ plData }) => {
     ];
     
     return monthOrder.map(monthYear => {
-      const [month, year] = monthYear.split(' ');
-      const data = plData.monthly[month];
+      const data = plData.monthly[monthYear];
       if (!data) return null;
 
       // Calculate revenue (excluding cash injections)
@@ -1976,14 +2025,18 @@ const processMonthlyData = (monthlyData) => {
     inputMonthlyData: monthlyData,
     availableKeys: monthlyData ? Object.keys(monthlyData) : [],
     targetMonths,
-    mayExists: !!monthlyData?.['May'],
-    mayData: monthlyData?.['May']
+    juneExists: !!monthlyData?.['June 2025'],
+    mayExists: !!monthlyData?.['May 2025'],
+    aprilExists: !!monthlyData?.['April 2025'],
+    juneData: monthlyData?.['June 2025'],
+    mayData: monthlyData?.['May 2025'],
+    aprilData: monthlyData?.['April 2025']
   });
 
-  return targetMonths.map(month => {
-    const data = monthlyData[month];
+  return targetMonths.map(monthStr => {
+    const data = monthlyData[monthStr];
     
-    console.log(`Processing month ${month}:`, {
+    console.log(`Processing month ${monthStr}:`, {
       hasData: !!data,
       data: data,
       totalIncome: data?.totalIncome,
@@ -1991,10 +2044,11 @@ const processMonthlyData = (monthlyData) => {
     });
     
     if (!data) {
-      console.log(`No data found for ${month}, returning zero values`);
+      console.log(`No data found for ${monthStr}, returning zero values`);
+      const [month, year] = monthStr.split(' ');
       return {
         month,
-        year: ['January', 'February', 'March', 'April', 'May'].includes(month) ? '2025' : '2024',
+        year,
         revenue: 0,
         payroll: 0,
         adSpend: 0,
@@ -2093,9 +2147,11 @@ const processMonthlyData = (monthlyData) => {
     const profit = revenue - totalExpenses;
     const profitMargin = revenue ? ((profit / revenue) * 100).toFixed(1) : '0.0';
 
+    const [month, year] = monthStr.split(' ');
+
     return {
       month,
-      year: ['January', 'February', 'March', 'April', 'May'].includes(month) ? '2025' : '2024',
+      year,
       revenue,
       payroll,
       adSpend,
@@ -2191,7 +2247,15 @@ const ExpenseOverview = ({ plData, cashFlowData, invoicesData, networkTerms }) =
     }, { total: 0, overdue: 0 });
   }, [processedInvoices]);
 
-  console.log('P&L Data received:', plData);
+  console.log('P&L Data received:', {
+    hasPlData: !!plData,
+    plDataKeys: plData ? Object.keys(plData) : [],
+    hasMonthly: !!plData?.monthly,
+    monthlyKeys: plData?.monthly ? Object.keys(plData.monthly) : [],
+    hasSummary: !!plData?.summary,
+    summaryLength: plData?.summary?.length || 0,
+    fullPlData: plData
+  });
 
   const lastThreeMonths = useMemo(() => {
     if (!plData?.summary) return [];
@@ -2240,18 +2304,20 @@ const ExpenseOverview = ({ plData, cashFlowData, invoicesData, networkTerms }) =
     // Add debug logging
     console.log('Processing monthly data:', {
       availableMonths: Object.keys(plData.monthly),
-      hasMarchData: !!plData.monthly['March 2025'],
-      marchData: plData.monthly['March 2025'],
-      marchExpenseData: plData.monthly['March 2025']?.expenseData,
-      marchTotalExpenses: plData.monthly['March 2025']?.totalExpenses
+      hasJuneData: !!plData.monthly['June 2025'],
+      hasMayData: !!plData.monthly['May 2025'],
+      hasAprilData: !!plData.monthly['April 2025'],
+      juneData: plData.monthly['June 2025'],
+      mayData: plData.monthly['May 2025'],
+      aprilData: plData.monthly['April 2025']
     });
 
     return targetMonths.map(monthStr => {
-      const [month, year] = monthStr.split(' ');
-      const monthData = plData.monthly[month];
+      const monthData = plData.monthly[monthStr];
       
       if (!monthData) {
         console.log(`No data available for ${monthStr}`);
+        const [month, year] = monthStr.split(' ');
         return {
           month: new Date(`${month} 1, ${year}`),
           revenue: 0,
@@ -2373,6 +2439,9 @@ const ExpenseOverview = ({ plData, cashFlowData, invoicesData, networkTerms }) =
       const profit = monthlyRevenue - totalExpenses;
       const profitMargin = monthlyRevenue ? ((profit / monthlyRevenue) * 100).toFixed(1) : '0.0';
 
+      // Extract month and year from monthStr for date creation
+      const [month, year] = monthStr.split(' ');
+
       return {
         month: new Date(`${month} 1, ${year}`),
         revenue: monthlyRevenue,
@@ -2388,11 +2457,19 @@ const ExpenseOverview = ({ plData, cashFlowData, invoicesData, networkTerms }) =
     });
   }, [plData]);
 
+  const monthlyData = processMonthlyData(plData.monthly);
+
   if (!processedData) {
+    console.log('No processed data available, showing loading state');
     return <div>Loading expense overview...</div>;
   }
 
-  const monthlyData = processMonthlyData(plData.monthly);
+  console.log('Rendering ExpenseOverview with data:', {
+    processedDataLength: processedData?.length,
+    processedData: processedData,
+    monthlyDataLength: monthlyData?.length,
+    monthlyData: monthlyData
+  });
 
   // Debug logging
   console.log('ExpenseOverview data debug:', {
@@ -2400,7 +2477,9 @@ const ExpenseOverview = ({ plData, cashFlowData, invoicesData, networkTerms }) =
     hasMonthly: !!plData?.monthly,
     availableMonths: plData?.monthly ? Object.keys(plData.monthly) : [],
     processedMonthlyData: monthlyData,
-    processedDataLength: processedData?.length
+    processedDataLength: processedData?.length,
+    processedData: processedData,
+    monthlyDataLength: monthlyData?.length
   });
 
   return (
@@ -2458,7 +2537,7 @@ const ExpenseOverview = ({ plData, cashFlowData, invoicesData, networkTerms }) =
               <ExpenseCategory 
                 title="Monthly Revenue"
                 monthlyData={monthlyData.map(d => ({
-                  month: `${d.month} ${d.year}`,
+                  month: d.month,
                   amount: d.revenue
                 }))}
               />
@@ -2467,7 +2546,7 @@ const ExpenseOverview = ({ plData, cashFlowData, invoicesData, networkTerms }) =
               <ExpenseCategory 
                 title="Payroll (Salaries, Bonuses, Commissions)"
                 monthlyData={monthlyData.map(d => ({
-                  month: `${d.month} ${d.year}`,
+                  month: d.month,
                   amount: d.payroll
                 }))}
               />
@@ -2476,7 +2555,7 @@ const ExpenseOverview = ({ plData, cashFlowData, invoicesData, networkTerms }) =
               <ExpenseCategory 
                 title="Advertising Spend"
                 monthlyData={monthlyData.map(d => ({
-                  month: `${d.month} ${d.year}`,
+                  month: d.month,
                   amount: d.adSpend
                 }))}
               />
@@ -2485,7 +2564,7 @@ const ExpenseOverview = ({ plData, cashFlowData, invoicesData, networkTerms }) =
               <ExpenseCategory 
                 title="Subscriptions (Tools & Software)"
                 monthlyData={monthlyData.map(d => ({
-                  month: `${d.month} ${d.year}`,
+                  month: d.month,
                   amount: d.subscriptions
                 }))}
                 plData={plData}  // Pass plData here
@@ -2495,7 +2574,7 @@ const ExpenseOverview = ({ plData, cashFlowData, invoicesData, networkTerms }) =
               <ExpenseCategory 
                 title="Miscellaneous Expenses"
                 monthlyData={monthlyData.map(d => ({
-                  month: `${d.month} ${d.year}`,
+                  month: d.month,
                   amount: d.miscellaneous
                 }))}
               />
