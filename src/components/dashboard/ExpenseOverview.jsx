@@ -1226,9 +1226,9 @@ const ExpenseComparisonTable = ({ monthlyData, plData }) => {
     Object.keys(categoryMap).forEach(categoryKey => {
       const originalLength = categoryMap[categoryKey].length;
       categoryMap[categoryKey] = categoryMap[categoryKey].filter(expense => {
-        // Check if the expense has any amount in the last 3 months
-        const lastThreeMonths = ['June 2025', 'May 2025', 'April 2025'];
-        const recentAmount = lastThreeMonths.reduce((sum, month) => sum + (expense.amounts[month] || 0), 0);
+        // Check if the expense has any amount in the last 3 months (most recent to oldest)
+        const targetMonths = ['June 2025', 'May 2025', 'April 2025'];
+        const recentAmount = targetMonths.reduce((sum, month) => sum + (expense.amounts[month] || 0), 0);
         return recentAmount > 0; // Only keep expenses with actual amounts in the last 3 months
       });
       const filteredLength = categoryMap[categoryKey].length;
@@ -1252,15 +1252,15 @@ const ExpenseComparisonTable = ({ monthlyData, plData }) => {
     return categoryMap;
   }, [plData]);
 
-  // Get the last 3 months in chronological order
+  // Get the last 3 months in chronological order (most recent to oldest)
   const lastThreeMonths = useMemo(() => {
     if (!plData?.monthly) return [];
     
     const months = Object.keys(plData.monthly)
-      .filter(month => ['June 2025', 'May 2025', 'April 2025', 'March 2025'].includes(month))
+      .filter(month => ['June 2025', 'May 2025', 'April 2025'].includes(month))
       .sort((a, b) => {
-        const monthOrder = { 'June 2025': 6, 'May 2025': 5, 'April 2025': 4, 'March 2025': 3 };
-        return monthOrder[b] - monthOrder[a];
+        const monthOrder = { 'June 2025': 6, 'May 2025': 5, 'April 2025': 4 };
+        return monthOrder[b] - monthOrder[a]; // Most recent first (June 2025, May 2025, April 2025)
       });
 
     console.log('ExpenseComparisonTable: Last three months:', months);
@@ -1402,7 +1402,7 @@ const IncomeComparisonTable = ({ monthlyData, plData }) => {
       });
     });
 
-    // Filter sources: only show those with revenue in the last 3 months OR significant total revenue
+    // Filter sources: only show those with revenue in the last 3 months (most recent to oldest)
     const lastThreeMonths = ['June 2025', 'May 2025', 'April 2025'];
     const filteredSources = Array.from(sources.values()).filter(source => {
       const recentRevenue = lastThreeMonths.reduce((sum, month) => sum + (source.amounts[month] || 0), 0);
