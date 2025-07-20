@@ -292,6 +292,33 @@ const MediaBuyerPL = ({ performanceData }) => {
     }));
   }, [monthlyTotals]);
 
+  // Calculate YTD totals
+  const ytdTotals = useMemo(() => {
+    if (!monthlyTotals.length) return { revenue: 0, spend: 0, profit: 0, roi: 0 };
+    
+    const currentYear = new Date().getFullYear();
+    
+    // Filter for current year data
+    const ytdMonths = monthlyTotals.filter(month => {
+      const monthYear = month.monthStart.getFullYear();
+      return monthYear === currentYear;
+    });
+    
+    if (ytdMonths.length === 0) return { revenue: 0, spend: 0, profit: 0, roi: 0 };
+    
+    // Calculate totals
+    const totals = ytdMonths.reduce((acc, month) => ({
+      revenue: acc.revenue + month.totalRevenue,
+      spend: acc.spend + month.totalAdSpend,
+      profit: acc.profit + month.finalProfitWithDaily
+    }), { revenue: 0, spend: 0, profit: 0 });
+    
+    // Calculate ROI
+    totals.roi = totals.spend > 0 ? (totals.profit / totals.spend) * 100 : 0;
+    
+    return totals;
+  }, [monthlyTotals]);
+
   // Function to send the break-even notification
   const sendBreakEvenNotification = async (currentProfit, breakEvenPoint, monthData) => {
     try {
@@ -363,6 +390,101 @@ const MediaBuyerPL = ({ performanceData }) => {
 
   return (
     <div className="space-y-6">
+      {/* YTD Overview Widget */}
+      {monthlyTotals.length > 0 && (
+        <div className="bg-white rounded-lg shadow-sm border border-gray-100">
+          <div className="p-6">
+            <div className="flex items-center justify-between mb-6">
+              <div>
+                <h3 className="text-lg font-semibold text-gray-900">Year-to-Date Performance</h3>
+                <p className="text-sm text-gray-500">Performance summary for {new Date().getFullYear()}</p>
+              </div>
+              <div className="flex items-center gap-2 text-sm text-gray-500">
+                <Calendar className="w-4 h-4" />
+                <span>YTD</span>
+              </div>
+            </div>
+            
+            <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+              {/* YTD Revenue */}
+              <div className="bg-gradient-to-r from-green-50 to-green-100 p-4 rounded-lg border border-green-200">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-sm text-green-600 font-medium">YTD Revenue</p>
+                    <p className="text-2xl font-bold text-green-700">
+                      {formatCurrency(ytdTotals.revenue)}
+                    </p>
+                  </div>
+                  <DollarSign className="w-8 h-8 text-green-500" />
+                </div>
+              </div>
+              
+              {/* YTD Spend */}
+              <div className="bg-gradient-to-r from-red-50 to-red-100 p-4 rounded-lg border border-red-200">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-sm text-red-600 font-medium">YTD Spend</p>
+                    <p className="text-2xl font-bold text-red-700">
+                      {formatCurrency(ytdTotals.spend)}
+                    </p>
+                  </div>
+                  <BarChart2 className="w-8 h-8 text-red-500" />
+                </div>
+              </div>
+              
+              {/* YTD Profit */}
+              <div className={`bg-gradient-to-r ${ytdTotals.profit >= 0 ? 'from-green-50 to-green-100 border-green-200' : 'from-red-50 to-red-100 border-red-200'} p-4 rounded-lg border`}>
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className={`text-sm font-medium ${ytdTotals.profit >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                      YTD Profit
+                    </p>
+                    <p className={`text-2xl font-bold ${ytdTotals.profit >= 0 ? 'text-green-700' : 'text-red-700'}`}>
+                      {formatCurrency(ytdTotals.profit)}
+                    </p>
+                  </div>
+                  <TrendingUp className={`w-8 h-8 ${ytdTotals.profit >= 0 ? 'text-green-500' : 'text-red-500'}`} />
+                </div>
+              </div>
+              
+              {/* YTD ROI */}
+              <div className="bg-gradient-to-r from-blue-50 to-blue-100 p-4 rounded-lg border border-blue-200">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-sm text-blue-600 font-medium">YTD ROI</p>
+                    <p className={`text-2xl font-bold ${ytdTotals.roi >= 0 ? 'text-blue-700' : 'text-red-700'}`}>
+                      {formatPercent(ytdTotals.roi)}
+                    </p>
+                  </div>
+                  <Percent className="w-8 h-8 text-blue-500" />
+                </div>
+              </div>
+            </div>
+            
+            {/* YTD Summary */}
+            <div className="mt-6 p-4 bg-gray-50 rounded-lg">
+              <div className="flex items-center justify-between">
+                <div className="text-sm text-gray-600">
+                  <span className="font-medium">Summary:</span> 
+                  {ytdTotals.profit >= 0 ? (
+                    <span className="text-green-600 ml-1">
+                      Profitable year with {formatPercent(ytdTotals.roi)} return on ad spend
+                    </span>
+                  ) : (
+                    <span className="text-red-600 ml-1">
+                      Currently at a loss of {formatCurrency(Math.abs(ytdTotals.profit))} YTD
+                    </span>
+                  )}
+                </div>
+                <div className="text-xs text-gray-500">
+                  {monthlyTotals.filter(month => month.monthStart.getFullYear() === new Date().getFullYear()).length} months of data
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Current Month Status */}
       {monthlyTotals.length > 0 && (
         <div className="bg-white rounded-lg shadow-sm border border-gray-100">
