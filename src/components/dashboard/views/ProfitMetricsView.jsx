@@ -161,7 +161,10 @@ const ProfitMetricsView = ({
           />
         )}
         {accountingSubview === 'media-buyer-pl' && (
-          <MediaBuyerPL performanceData={performanceData?.data || []} />
+          <MediaBuyerPL 
+            performanceData={performanceData?.data || []}
+            commissions={performanceData?.commissions || []}
+          />
         )}
         {accountingSubview === 'credit-line' && (
           <CreditLine 

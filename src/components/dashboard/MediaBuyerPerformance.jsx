@@ -1222,7 +1222,19 @@ const MediaBuyerPerformance = ({ performanceData, dateRange: initialDateRange, c
                 .filter(buyer => (selectedBuyers.includes('all') || selectedBuyers.includes(buyer.name)) && 
                                buyer.name.toLowerCase() !== 'unknown' && isActiveBuyer(buyer.name))
                 .map((buyer) => {
-                  const commission = buyer.margin > 0 ? buyer.margin * 0.10 : 0;
+                  // Get commission rate for this buyer
+                  const getCommissionRate = (buyerName) => {
+                    if (!buyerName) return 0.10;
+                    const commissionObj = commissions.find(
+                      c => c.mediaBuyer && c.mediaBuyer.trim().toLowerCase() === buyerName.trim().toLowerCase()
+                    );
+                    if (commissionObj && typeof commissionObj.commissionRate === 'number' && !isNaN(commissionObj.commissionRate)) {
+                      return commissionObj.commissionRate;
+                    }
+                    return 0.10;
+                  };
+                  const commissionRate = getCommissionRate(buyer.name);
+                  const commission = buyer.margin > 0 ? buyer.margin * commissionRate : 0;
                   // Calculate total Ringba costs from all ACA networks (2% of Revenue)
                   const ringbaCosts = Object.entries(buyer.networkData)
                     .reduce((total, [network, data]) => {
@@ -1280,7 +1292,8 @@ const MediaBuyerPerformance = ({ performanceData, dateRange: initialDateRange, c
                         </td>
                       </tr>
                       {expandedBuyers.has(buyer.name) && Object.entries(buyer.networkData).map(([network, data]) => {
-                        const networkCommission = data.margin > 0 ? data.margin * 0.10 : 0;
+                        // Use the same commission rate for the network breakdown
+                        const networkCommission = data.margin > 0 ? data.margin * commissionRate : 0;
                         const networkRingbaCosts = network.includes('ACA') ? data.revenue * 0.02 : 0;
                         const networkAdjustedCommission = Math.max(0, networkCommission - networkRingbaCosts);
                         const networkUpdatedProfit = data.margin - networkAdjustedCommission;

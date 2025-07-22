@@ -20,7 +20,7 @@ const formatPercent = (value) => {
   return `${Number(value).toFixed(1)}%`;
 };
 
-const MediaBuyerPL = ({ performanceData }) => {
+const MediaBuyerPL = ({ performanceData, commissions = [] }) => {
   const [expandedMonths, setExpandedMonths] = useState(new Set());
   const [notificationSent, setNotificationSent] = useState(false);
   const [isSendingNotification, setIsSendingNotification] = useState(false);
@@ -116,6 +116,17 @@ const MediaBuyerPL = ({ performanceData }) => {
     return indicators[status] || indicators.stable;
   };
 
+  const getCommissionRate = (buyerName) => {
+    if (!buyerName) return 0.10;
+    const commissionObj = commissions.find(
+      c => c.mediaBuyer && c.mediaBuyer.trim().toLowerCase() === buyerName.trim().toLowerCase()
+    );
+    if (commissionObj && typeof commissionObj.commissionRate === 'number' && !isNaN(commissionObj.commissionRate)) {
+      return commissionObj.commissionRate;
+    }
+    return 0.10;
+  };
+
   // Set the current month to be expanded by default
   React.useEffect(() => {
     const currentMonthKey = format(new Date(), 'yyyy-MM');
@@ -197,21 +208,40 @@ const MediaBuyerPL = ({ performanceData }) => {
               : entry['Total Revenue'] || 0) : 0);
         }, 0);
 
+        // --- NEW LOGIC: Calculate commission for each media buyer ---
+        // Group entries by media buyer
+        const buyerGroups = _.groupBy(entries, entry => entry['Media Buyer'] || 'Unknown');
+        let totalMediaBuyerCommission = 0;
+        Object.entries(buyerGroups).forEach(([buyerName, buyerEntries]) => {
+          const buyerRevenue = buyerEntries.reduce((sum, entry) => {
+            const revenue = typeof entry['Total Revenue'] === 'string' 
+              ? parseFloat(entry['Total Revenue'].replace(/[$,]/g, '')) 
+              : entry['Total Revenue'] || 0;
+            return sum + revenue;
+          }, 0);
+          const buyerAdSpend = buyerEntries.reduce((sum, entry) => {
+            const spend = typeof entry['Ad Spend'] === 'string'
+              ? parseFloat(entry['Ad Spend'].replace(/[$,]/g, ''))
+              : entry['Ad Spend'] || 0;
+            return sum + spend;
+          }, 0);
+          const buyerBaseProfit = buyerRevenue - buyerAdSpend;
+          const commissionRate = getCommissionRate(buyerName);
+          totalMediaBuyerCommission += buyerBaseProfit * commissionRate;
+        });
+        // --- END NEW LOGIC ---
+
         const baseProfit = totalRevenue - totalAdSpend;
-        const mediaBuyerCommission = baseProfit * 0.10; // 10% of profit
-        
+        const mediaBuyerCommission = totalMediaBuyerCommission;
         // Only exclude Ringba expense for dates April 2024 and later
         const date = new Date(dateKey);
         const cutoffDate = new Date('2024-04-01');
         const ringbaExpense = date >= cutoffDate ? 0 : acaRevenue * 0.02; // 2% of ACA-ACA revenue before April 2024
-        
         const dailyExpenses = 2819.81; // Fixed daily expenses amount (Payroll and General $59,217) / 21 working days
         const totalExpenses = mediaBuyerCommission + ringbaExpense; // Removed dailyExpenses from daily breakdown
-
         // Calculate final profit and ROI
         const finalProfit = baseProfit - totalExpenses;
         const roi = totalAdSpend ? (finalProfit / totalAdSpend) * 100 : 0;
-
         return {
           date: new Date(dateKey),
           totalRevenue,
