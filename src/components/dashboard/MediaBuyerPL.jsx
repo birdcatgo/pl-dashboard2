@@ -892,7 +892,7 @@ const MediaBuyerPL = ({ performanceData, commissions = [] }) => {
               </tbody>
             </table>
             <div className="mt-4 text-sm text-gray-500 italic">
-              * MB Comm based on 10% of base profit | ** Daily Exp total $59,217 per month (prorated for current month based on days of data)
+              * MB Comm based on individual commission rates per media buyer | ** Daily Exp total $59,217 per month (prorated for current month based on days of data)
             </div>
           </div>
         </div>
@@ -951,7 +951,7 @@ const MediaBuyerPL = ({ performanceData, commissions = [] }) => {
                                 <div className="group relative">
                                   <HelpCircle className="h-4 w-4 text-gray-400" />
                                   <div className="absolute right-0 bottom-full mb-2 hidden group-hover:block w-64 p-2 bg-gray-900 text-white text-xs rounded shadow-lg">
-                                    Media Buyer Commission: 10% of base profit for each media buyer
+                                    Media Buyer Commission: Individual commission rates per media buyer
                                   </div>
                                 </div>
                               </div>
