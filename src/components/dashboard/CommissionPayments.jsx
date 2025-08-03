@@ -1,7 +1,7 @@
 import React, { useState, useMemo } from 'react';
 
 const CommissionPayments = ({ commissions, employeeData = [], performanceData = [] }) => {
-  const [selectedMonth, setSelectedMonth] = useState('June 2025');
+  const [selectedMonth, setSelectedMonth] = useState('July 2025');
   const [selectedPeriod, setSelectedPeriod] = useState('30days');
   const [showBaseSalaryAnalysis, setShowBaseSalaryAnalysis] = useState(false);
 
@@ -291,6 +291,8 @@ const CommissionPayments = ({ commissions, employeeData = [], performanceData = 
     return analysis.sort((a, b) => b.profitVsTotalCost - a.profitVsTotalCost);
   }, [mediaBuyerAnalysis, selectedPeriod]);
 
+
+
   if (!commissions?.length) {
     return (
       <div className="text-gray-500 text-center py-8">
@@ -303,6 +305,8 @@ const CommissionPayments = ({ commissions, employeeData = [], performanceData = 
   const activeCommissions = mediaBuyerAnalysis.filter(c => c.status === 'ACTIVE');
   const inactiveCommissions = mediaBuyerAnalysis.filter(c => c.status === 'INACTIVE');
 
+
+
   return (
     <div className="space-y-6">
       {/* Controls */}
@@ -313,6 +317,7 @@ const CommissionPayments = ({ commissions, employeeData = [], performanceData = 
             onChange={(e) => setSelectedMonth(e.target.value)}
             className="w-48 px-3 py-2 border border-gray-300 rounded-md text-sm"
           >
+            <option value="July 2025">July 2025</option>
             <option value="June 2025">June 2025</option>
             <option value="May 2025">May 2025</option>
             <option value="April 2025">April 2025</option>

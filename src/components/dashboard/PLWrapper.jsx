@@ -376,6 +376,7 @@ const ExpenseCategoriesTrend = ({ monthlyData }) => {
 const PLWrapper = ({ plData, monthlyData, selectedMonth, onMonthChange, selectedMonthData }) => {
   const getMonthWeight = (month) => {
     const weights = {
+      'July 2025': 2025 * 12 + 7,      // July 2025
       'June 2025': 2025 * 12 + 6,      // June 2025
       'May 2025': 2025 * 12 + 5,      // May 2025
       'April 2025': 2025 * 12 + 4,    // April 2025

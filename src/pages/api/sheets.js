@@ -9,7 +9,7 @@ async function processPLData(batchResponse) {
 
     // Process monthly detail sheets more efficiently
     const monthSheets = batchResponse.data.valueRanges.filter(range => 
-      /^'(June 2025|May 2025|April 2025|March 2025|February 2025|January 2025|December 2024|November 2024|October 2024|September 2024|August 2024|July 2024|June 2024)'!/.test(range.range)
+      /^'(July 2025|June 2025|May 2025|April 2025|March 2025|February 2025|January 2025|December 2024|November 2024|October 2024|September 2024|August 2024|July 2024|June 2024)'!/.test(range.range)
     );
 
     // Process all months in parallel
@@ -384,8 +384,12 @@ export default async function handler(req, res) {
       });
       
       console.log('Available sheets:', {
-        sheets: spreadsheet.data.sheets.map(sheet => sheet.properties.title)
+        sheets: spreadsheet.data.sheets.map(sheet => sheet.properties.title),
+        totalSheets: spreadsheet.data.sheets.length
       });
+      
+
+      
     } catch (error) {
       console.error('Error getting sheet names:', error);
     }
@@ -398,6 +402,7 @@ export default async function handler(req, res) {
       "'Media Buyer Spend'!A:B",
       "'Summary'!A:V",
       "'Network Payment Schedule'!A:H",
+      "'July 2025'!A:E",
       "'June 2025'!A:E",
       "'May 2025'!A:E",
       "'April 2025'!A:E",
@@ -416,7 +421,7 @@ export default async function handler(req, res) {
       "'Invoices'!A:F",
       "'Tradeshift Check'!A:I",
       "'Monthly Expenses'!A:D",
-      "'Commissions'!A:H",
+      "'Commissions'!A:Z",
       "'Employees'!A:J",
       "'DigitSolution Accounts'!A:Z"
     ];
@@ -470,15 +475,7 @@ export default async function handler(req, res) {
       networkExposure: []
     };
 
-    // Log all sheet names and their responses
-    console.log('All Sheet Responses:', batchResponse.data.valueRanges.map(range => ({
-      range: range.range,
-      hasValues: !!range.values,
-      valuesCount: range.values?.length,
-      firstRow: range.values?.[0],
-      error: range.error,
-      status: range.status
-    })));
+
 
     // Extract array positions for debugging
     const [
@@ -510,58 +507,9 @@ export default async function handler(req, res) {
       employeeResponse
     ] = batchResponse.data.valueRanges;
 
-    // Add specific logging for Network Terms sheet
-    console.log('Network Terms Sheet Details:', {
-      sheetName: 'Network Terms',
-      range: "'Network Terms'!A:J",
-      response: {
-        hasResponse: !!networkTermsResponse,
-        hasValues: !!networkTermsResponse?.values,
-        valuesLength: networkTermsResponse?.values?.length,
-        firstRow: networkTermsResponse?.values?.[0],
-        sampleRows: networkTermsResponse?.values?.slice(0, 3),
-        fullResponse: networkTermsResponse
-      }
-    });
 
-    // Add this right after the batchResponse is received
-    console.log('Network Terms Raw Data:', {
-      hasResponse: !!networkTermsResponse,
-      range: networkTermsResponse?.range,
-      hasValues: !!networkTermsResponse?.values,
-      valuesCount: networkTermsResponse?.values?.length,
-      headerRow: networkTermsResponse?.values?.[0],
-      allRows: networkTermsResponse?.values?.slice(1),
-      networks: networkTermsResponse?.values?.slice(1).map(row => row[0]).filter(Boolean)
-    });
 
-    // Add specific logging for Tradeshift sheet
-    console.log('Tradeshift Sheet Details:', {
-      sheetName: 'Tradeshift Check',
-      range: "'Tradeshift Check'!A:I",
-      response: {
-        hasResponse: !!tradeshiftResponse,
-        hasValues: !!tradeshiftResponse?.values,
-        valuesLength: tradeshiftResponse?.values?.length,
-        firstRow: tradeshiftResponse?.values?.[0],
-        sampleRows: tradeshiftResponse?.values?.slice(0, 3),
-        fullResponse: tradeshiftResponse
-      }
-    });
 
-    // Add specific logging for Network Exposure sheet
-    console.log('Network Exposure Sheet Details:', {
-      sheetName: 'Network Exposure',
-      range: "'Network Exposure'!A:H",
-      response: {
-        hasResponse: !!networkExposureResponse,
-        hasValues: !!networkExposureResponse?.values,
-        valuesLength: networkExposureResponse?.values?.length,
-        firstRow: networkExposureResponse?.values?.[0],
-        sampleRows: networkExposureResponse?.values?.slice(0, 3),
-        fullResponse: networkExposureResponse
-      }
-    });
 
     // Process each response with error handling
     try {
@@ -701,29 +649,45 @@ export default async function handler(req, res) {
       processedData.plData = { summary: plData.summary, monthly: plData.monthly };
       console.log('Processed P&L data:', !!processedData.plData);
 
+      // Find the actual Commissions sheet response
+      const actualCommissionsResponse = batchResponse.data.valueRanges.find(range => 
+        range.range && range.range.includes('Commissions')
+      );
+      
+      console.log('Found Commissions sheet:', {
+        found: !!actualCommissionsResponse,
+        range: actualCommissionsResponse?.range,
+        hasValues: !!actualCommissionsResponse?.values,
+        valuesCount: actualCommissionsResponse?.values?.length,
+        headerRow: actualCommissionsResponse?.values?.[0],
+        firstDataRow: actualCommissionsResponse?.values?.[1]
+      });
+
       // Process commissions data
-      if (commissionsResponse?.values && commissionsResponse.values.length > 1) {
-        console.log('Raw Commission Data:', {
-          headerRow: commissionsResponse.values[0],
-          firstDataRow: commissionsResponse.values[1],
-          rowCount: commissionsResponse.values.length - 1,
-          allRows: commissionsResponse.values
-        });
+      console.log('Commission Response:', {
+        hasResponse: !!actualCommissionsResponse,
+        hasValues: !!actualCommissionsResponse?.values,
+        valuesLength: actualCommissionsResponse?.values?.length,
+        firstRow: actualCommissionsResponse?.values?.[0],
+        sampleData: actualCommissionsResponse?.values?.slice(1, 3),
+        range: actualCommissionsResponse?.range
+      });
+
+      if (actualCommissionsResponse?.values && actualCommissionsResponse.values.length > 1) {
+
 
         // Get all month columns from the header
-        const headerRow = commissionsResponse.values[0];
+        const headerRow = actualCommissionsResponse.values[0];
         const monthColumns = headerRow.reduce((acc, header, index) => {
           // Match both formats: "June 2025", "May 2025", "April 2025", "March 2025", "February 2025" and "June 2025 Commission(s)", etc.
-          const monthMatch = header.match(/^(June|May|April|March|February)\s+2025(?:\s+Commissions?)?$/);
+          const monthMatch = header.match(/^(June|May|April|March|February|July)\s+2025(?:\s+Commissions?)?$/);
           if (monthMatch) {
             acc[header] = index;
           }
           return acc;
         }, {});
 
-        console.log('Month columns:', monthColumns);
-
-        processedData.commissions = commissionsResponse.values.slice(1).map((row, index) => {
+        processedData.commissions = actualCommissionsResponse.values.slice(1).map((row, index) => {
           const commission = {
             mediaBuyer: row[0] || '',
             commissionRate: parseFloat((row[1] || '0').replace('%', '')) / 100,
@@ -732,28 +696,20 @@ export default async function handler(req, res) {
           };
 
           // Add each month's data directly
-          Object.entries(monthColumns).forEach(([header, index]) => {
-            commission[header] = row[index] || '0';
-          });
-
-          // Log each processed row for debugging
-          console.log(`Processed Commission Row ${index + 1}:`, {
-            mediaBuyer: commission.mediaBuyer,
-            months: Object.keys(monthColumns),
-            monthData: Object.entries(monthColumns).map(([header, index]) => ({
-              header,
-              value: row[index]
-            }))
+          Object.entries(monthColumns).forEach(([header, colIndex]) => {
+            commission[header] = row[colIndex] || '0';
           });
 
           return commission;
         });
 
-        console.log('Final Commission Data:', {
+        console.log('Processed Commission Data:', {
           count: processedData.commissions.length,
           sample: processedData.commissions[0],
-          allCommissions: processedData.commissions
+          monthColumns: monthColumns
         });
+
+
       } else {
         console.log('No Commission Data Found:', {
           hasResponse: !!commissionsResponse,

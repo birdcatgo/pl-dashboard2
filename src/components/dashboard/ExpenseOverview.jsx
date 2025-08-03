@@ -342,9 +342,9 @@ const ExpenseCategory = ({ title, monthlyData, plData }) => {
     if (title.toLowerCase().includes('subscription')) {
       // Get the most recent month's data
       const mostRecentMonth = Object.entries(plData.monthly)
-        .filter(([month]) => ['June 2025', 'May 2025', 'April 2025', 'March 2025'].includes(month))
+        .filter(([month]) => ['July 2025', 'June 2025', 'May 2025', 'April 2025'].includes(month))
         .sort(([monthA], [monthB]) => {
-          const monthOrder = { 'June 2025': 6, 'May 2025': 5, 'April 2025': 4, 'March 2025': 3 };
+          const monthOrder = { 'July 2025': 7, 'June 2025': 6, 'May 2025': 5, 'April 2025': 4 };
           return monthOrder[monthB] - monthOrder[monthA];
         })[0];
 
@@ -365,19 +365,19 @@ const ExpenseCategory = ({ title, monthlyData, plData }) => {
     return `${title} ${trend > 0 ? 'increased' : 'decreased'} by ${formatCurrency(difference)} (${Math.abs(trend)}%) compared to ${monthDisplay}`;
   };
 
-  // Ensure data is in chronological order (June, May, April)
+  // Ensure data is in chronological order (July, June, May)
   const orderedData = [
+    monthlyData.find(d => d.month.includes('July')),
     monthlyData.find(d => d.month.includes('June')),
-    monthlyData.find(d => d.month.includes('May')),
-    monthlyData.find(d => d.month.includes('April'))
+    monthlyData.find(d => d.month.includes('May'))
   ].filter(Boolean);
 
   if (!orderedData.length) {
     console.log('No data available for display:', {
       monthlyData,
+      julyData: monthlyData.find(d => d.month.includes('July')),
       juneData: monthlyData.find(d => d.month.includes('June')),
-      mayData: monthlyData.find(d => d.month.includes('May')),
-      aprilData: monthlyData.find(d => d.month.includes('April'))
+      mayData: monthlyData.find(d => d.month.includes('May'))
     });
   }
 
@@ -427,9 +427,9 @@ const ExpenseCategory = ({ title, monthlyData, plData }) => {
       {showExpenseDetails && (
         <ExpenseDetails
           expenses={Object.entries(plData.monthly)
-            .filter(([month]) => ['June 2025', 'May 2025', 'April 2025', 'March 2025'].includes(month))
+            .filter(([month]) => ['July 2025', 'June 2025', 'May 2025', 'April 2025'].includes(month))
             .sort(([monthA], [monthB]) => {
-              const monthSortOrder = { 'June 2025': 6, 'May 2025': 5, 'April 2025': 4, 'March 2025': 3 };
+              const monthSortOrder = { 'July 2025': 7, 'June 2025': 6, 'May 2025': 5, 'April 2025': 4 };
               return monthSortOrder[monthB] - monthSortOrder[monthA];
             })[0]?.[1]?.expenseData?.filter(expense => {
               const category = expense.Category?.toLowerCase() || '';
@@ -1139,9 +1139,9 @@ const ExpenseComparisonTable = ({ monthlyData, plData }) => {
       hasPlData: !!plData,
       hasMonthly: !!plData?.monthly,
       monthlyKeys: plData?.monthly ? Object.keys(plData.monthly) : [],
+      julyData: plData?.monthly?.['July 2025'],
       juneData: plData?.monthly?.['June 2025'],
-      mayData: plData?.monthly?.['May 2025'],
-      aprilData: plData?.monthly?.['April 2025']
+      mayData: plData?.monthly?.['May 2025']
     });
 
     if (!plData?.monthly) {
@@ -1227,7 +1227,7 @@ const ExpenseComparisonTable = ({ monthlyData, plData }) => {
       const originalLength = categoryMap[categoryKey].length;
       categoryMap[categoryKey] = categoryMap[categoryKey].filter(expense => {
         // Check if the expense has any amount in the last 3 months (most recent to oldest)
-        const targetMonths = ['June 2025', 'May 2025', 'April 2025'];
+        const targetMonths = ['July 2025', 'June 2025', 'May 2025'];
         const recentAmount = targetMonths.reduce((sum, month) => sum + (expense.amounts[month] || 0), 0);
         return recentAmount > 0; // Only keep expenses with actual amounts in the last 3 months
       });
@@ -1257,10 +1257,10 @@ const ExpenseComparisonTable = ({ monthlyData, plData }) => {
     if (!plData?.monthly) return [];
     
     const months = Object.keys(plData.monthly)
-      .filter(month => ['June 2025', 'May 2025', 'April 2025'].includes(month))
+      .filter(month => ['July 2025', 'June 2025', 'May 2025'].includes(month))
       .sort((a, b) => {
-        const monthOrder = { 'June 2025': 6, 'May 2025': 5, 'April 2025': 4 };
-        return monthOrder[b] - monthOrder[a]; // Most recent first (June 2025, May 2025, April 2025)
+        const monthOrder = { 'July 2025': 7, 'June 2025': 6, 'May 2025': 5 };
+        return monthOrder[b] - monthOrder[a]; // Most recent first (July 2025, June 2025, May 2025)
       });
 
     console.log('ExpenseComparisonTable: Last three months:', months);
@@ -1367,9 +1367,9 @@ const IncomeComparisonTable = ({ monthlyData, plData }) => {
       hasPlData: !!plData,
       hasMonthly: !!plData?.monthly,
       monthlyKeys: plData?.monthly ? Object.keys(plData.monthly) : [],
+      julyData: plData?.monthly?.['July 2025'],
       juneData: plData?.monthly?.['June 2025'],
-      mayData: plData?.monthly?.['May 2025'],
-      aprilData: plData?.monthly?.['April 2025']
+      mayData: plData?.monthly?.['May 2025']
     });
 
     if (!plData?.monthly) return { sources: [], total: 0, totalSources: 0 };
@@ -1403,17 +1403,17 @@ const IncomeComparisonTable = ({ monthlyData, plData }) => {
     });
 
     // Filter sources: only show those with revenue in the last 3 months (most recent to oldest)
-    const lastThreeMonths = ['June 2025', 'May 2025', 'April 2025'];
+    const lastThreeMonths = ['July 2025', 'June 2025', 'May 2025'];
     const filteredSources = Array.from(sources.values()).filter(source => {
       const recentRevenue = lastThreeMonths.reduce((sum, month) => sum + (source.amounts[month] || 0), 0);
       // Only show sources that have actual revenue in the last 3 months (no zero amounts)
       return recentRevenue > 0;
     });
 
-    // Sort by most recent month's revenue (June 2025), then by total revenue
+    // Sort by most recent month's revenue (July 2025), then by total revenue
     filteredSources.sort((a, b) => {
-      const aRecent = a.amounts['June 2025'] || 0;
-      const bRecent = b.amounts['June 2025'] || 0;
+      const aRecent = a.amounts['July 2025'] || 0;
+      const bRecent = b.amounts['July 2025'] || 0;
       if (aRecent !== bRecent) return bRecent - aRecent;
       return b.totalRevenue - a.totalRevenue;
     });
@@ -1469,21 +1469,21 @@ const IncomeComparisonTable = ({ monthlyData, plData }) => {
             <div className="bg-gray-50 px-6 py-3 border-b">
               <div className="grid grid-cols-4 gap-4 text-xs font-medium text-gray-600 uppercase tracking-wider">
                 <div>Network Source</div>
+                <div className="text-right">July 2025</div>
                 <div className="text-right">June 2025</div>
                 <div className="text-right">May 2025</div>
-                <div className="text-right">April 2025</div>
               </div>
             </div>
             
             {/* Data Rows */}
             <div className="divide-y divide-gray-100 max-h-96 overflow-y-auto">
               {revenueData.sources.map((source, index) => {
+                const julyAmount = source.amounts['July 2025'] || 0;
                 const juneAmount = source.amounts['June 2025'] || 0;
                 const mayAmount = source.amounts['May 2025'] || 0;
-                const aprilAmount = source.amounts['April 2025'] || 0;
                 
-                // Calculate trend between June and May
-                const trend = mayAmount ? ((juneAmount - mayAmount) / mayAmount * 100) : 0;
+                // Calculate trend between July and June
+                const trend = juneAmount ? ((julyAmount - juneAmount) / juneAmount * 100) : 0;
                 const isGrowing = trend > 5;
                 const isDeclining = trend < -5;
                 
@@ -1497,9 +1497,9 @@ const IncomeComparisonTable = ({ monthlyData, plData }) => {
                         {isDeclining && <span className="text-red-600 text-xs">📉</span>}
                       </div>
                       
-                      {/* June Amount */}
+                      {/* July Amount */}
                       <div className="text-right">
-                        <div className="font-semibold text-gray-900">{formatCurrency(juneAmount)}</div>
+                        <div className="font-semibold text-gray-900">{formatCurrency(julyAmount)}</div>
                         {trend !== 0 && Math.abs(trend) > 5 && (
                           <div className={`text-xs ${trend > 0 ? 'text-green-600' : 'text-red-600'}`}>
                             {trend > 0 ? '↑' : '↓'} {Math.abs(trend).toFixed(0)}%
@@ -1507,17 +1507,17 @@ const IncomeComparisonTable = ({ monthlyData, plData }) => {
                         )}
                       </div>
                       
+                      {/* June Amount */}
+                      <div className="text-right">
+                        <span className="text-gray-700">
+                          {juneAmount > 0 ? formatCurrency(juneAmount) : '—'}
+                        </span>
+                      </div>
+                      
                       {/* May Amount */}
                       <div className="text-right">
                         <span className="text-gray-700">
                           {mayAmount > 0 ? formatCurrency(mayAmount) : '—'}
-                        </span>
-                      </div>
-                      
-                      {/* April Amount */}
-                      <div className="text-right">
-                        <span className="text-gray-700">
-                          {aprilAmount > 0 ? formatCurrency(aprilAmount) : '—'}
                         </span>
                       </div>
                     </div>
@@ -1532,6 +1532,12 @@ const IncomeComparisonTable = ({ monthlyData, plData }) => {
                 <div>Total Active Revenue</div>
                 <div className="text-right">
                   {(() => {
+                    const total = revenueData.sources.reduce((sum, s) => sum + (s.amounts['July 2025'] || 0), 0);
+                    return total > 0 ? formatCurrency(total) : '—';
+                  })()}
+                </div>
+                <div className="text-right">
+                  {(() => {
                     const total = revenueData.sources.reduce((sum, s) => sum + (s.amounts['June 2025'] || 0), 0);
                     return total > 0 ? formatCurrency(total) : '—';
                   })()}
@@ -1539,12 +1545,6 @@ const IncomeComparisonTable = ({ monthlyData, plData }) => {
                 <div className="text-right">
                   {(() => {
                     const total = revenueData.sources.reduce((sum, s) => sum + (s.amounts['May 2025'] || 0), 0);
-                    return total > 0 ? formatCurrency(total) : '—';
-                  })()}
-                </div>
-                <div className="text-right">
-                  {(() => {
-                    const total = revenueData.sources.reduce((sum, s) => sum + (s.amounts['April 2025'] || 0), 0);
                     return total > 0 ? formatCurrency(total) : '—';
                   })()}
                 </div>
@@ -1802,7 +1802,7 @@ const ProfitTrendChart = ({ plData }) => {
     const monthOrder = [
       'July 2024', 'August 2024', 'September 2024', 'October 2024', 
       'November 2024', 'December 2024', 'January 2025', 'February 2025', 
-      'March 2025', 'April 2025', 'May 2025', 'June 2025'
+      'March 2025', 'April 2025', 'May 2025', 'June 2025', 'July 2025'
     ];
     
     return monthOrder.map(monthYear => {
@@ -2018,19 +2018,19 @@ const ProfitTrendChart = ({ plData }) => {
 const processMonthlyData = (monthlyData) => {
   if (!monthlyData) return [];
 
-  // Define the months we want to show in correct order (May, April, March)
-  const targetMonths = ['June 2025', 'May 2025', 'April 2025'];
+  // Define the months we want to show in correct order (July, June, May)
+  const targetMonths = ['July 2025', 'June 2025', 'May 2025'];
 
   console.log('processMonthlyData debug:', {
     inputMonthlyData: monthlyData,
     availableKeys: monthlyData ? Object.keys(monthlyData) : [],
     targetMonths,
+    julyExists: !!monthlyData?.['July 2025'],
     juneExists: !!monthlyData?.['June 2025'],
     mayExists: !!monthlyData?.['May 2025'],
-    aprilExists: !!monthlyData?.['April 2025'],
+    julyData: monthlyData?.['July 2025'],
     juneData: monthlyData?.['June 2025'],
-    mayData: monthlyData?.['May 2025'],
-    aprilData: monthlyData?.['April 2025']
+    mayData: monthlyData?.['May 2025']
   });
 
   return targetMonths.map(monthStr => {
@@ -2299,17 +2299,17 @@ const ExpenseOverview = ({ plData, cashFlowData, invoicesData, networkTerms }) =
     }
 
     // Define the months we want to show in order - ONLY 3 months
-    const targetMonths = ['June 2025', 'May 2025', 'April 2025'];
+    const targetMonths = ['July 2025', 'June 2025', 'May 2025'];
 
     // Add debug logging
     console.log('Processing monthly data:', {
       availableMonths: Object.keys(plData.monthly),
+      hasJulyData: !!plData.monthly['July 2025'],
       hasJuneData: !!plData.monthly['June 2025'],
       hasMayData: !!plData.monthly['May 2025'],
-      hasAprilData: !!plData.monthly['April 2025'],
+      julyData: plData.monthly['July 2025'],
       juneData: plData.monthly['June 2025'],
-      mayData: plData.monthly['May 2025'],
-      aprilData: plData.monthly['April 2025']
+      mayData: plData.monthly['May 2025']
     });
 
     return targetMonths.map(monthStr => {

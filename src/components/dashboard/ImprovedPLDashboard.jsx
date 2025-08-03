@@ -199,8 +199,9 @@ const ImprovedPLDashboard = ({ plData, summaryData }) => {
       const months = Object.keys(plData.monthly);
       
       if (months.length > 0 && !selectedMonth) {
-        // Define month order weights with June 2025 being the most recent
+        // Define month order weights with July 2025 being the most recent
         const monthOrder = {
+          'July 2025': 2025 * 12 + 7,      // July 2025
           'June 2025': 2025 * 12 + 6,      // June 2025
           'May 2025': 2025 * 12 + 5,      // May 2025
           'April 2025': 2025 * 12 + 4,    // April 2025
