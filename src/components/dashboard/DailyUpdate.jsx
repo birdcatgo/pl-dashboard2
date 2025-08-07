@@ -24,6 +24,8 @@ const DailyUpdate = () => {
   const [tasks, setTasks] = useState([]);
   const [newTask, setNewTask] = useState('');
   const [addedMondayItems, setAddedMondayItems] = useState(new Set());
+  const [isEditingTemplate, setIsEditingTemplate] = useState(false);
+  const [templateText, setTemplateText] = useState('');
 
   // Daily task template
   const dailyTaskTemplate = [
@@ -142,9 +144,22 @@ const DailyUpdate = () => {
     localStorage.setItem(`tasks-${today}`, JSON.stringify(taskList));
   };
 
+  const loadDailyTemplate = () => {
+    const savedTemplate = localStorage.getItem('daily-task-template');
+    if (savedTemplate) {
+      return JSON.parse(savedTemplate);
+    }
+    return dailyTaskTemplate;
+  };
+
+  const saveDailyTemplate = (template) => {
+    localStorage.setItem('daily-task-template', JSON.stringify(template));
+  };
+
   const populateDailyTasks = () => {
     const today = format(new Date(), 'yyyy-MM-dd');
-    const templateTasks = dailyTaskTemplate.map((taskText, index) => ({
+    const currentTemplate = loadDailyTemplate();
+    const templateTasks = currentTemplate.map((taskText, index) => ({
       id: Date.now() + index,
       text: taskText,
       completed: false,
@@ -155,6 +170,29 @@ const DailyUpdate = () => {
     
     setTasks(templateTasks);
     saveTasks(templateTasks);
+  };
+
+  const startEditingTemplate = () => {
+    const currentTemplate = loadDailyTemplate();
+    setTemplateText(currentTemplate.join('\n'));
+    setIsEditingTemplate(true);
+  };
+
+  const saveTemplate = () => {
+    const newTemplate = templateText.split('\n').filter(line => line.trim());
+    saveDailyTemplate(newTemplate);
+    setIsEditingTemplate(false);
+    toast.success('Daily template updated successfully');
+  };
+
+  const cancelEditTemplate = () => {
+    setIsEditingTemplate(false);
+    setTemplateText('');
+  };
+
+  const resetToDefaultTemplate = () => {
+    saveDailyTemplate(dailyTaskTemplate);
+    toast.success('Template reset to default');
   };
 
   const addTask = async () => {
@@ -545,6 +583,12 @@ const DailyUpdate = () => {
                 Reset Template
               </button>
               <button
+                onClick={startEditingTemplate}
+                className="text-xs px-2 py-1 bg-green-100 text-green-700 rounded hover:bg-green-200"
+              >
+                Edit Template
+              </button>
+              <button
                 onClick={loadPreviousTasks}
                 className="text-xs px-2 py-1 bg-gray-100 text-gray-700 rounded hover:bg-gray-200"
               >
@@ -612,6 +656,47 @@ const DailyUpdate = () => {
             placeholder="Enter each priority on a new line (P & L reporting will always be included first)"
             className="min-h-[100px] hidden"
           />
+
+          {/* Edit Template Modal */}
+          {isEditingTemplate && (
+            <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+              <div className="bg-white rounded-lg p-6 max-w-md w-full mx-4">
+                <h3 className="text-lg font-medium mb-4">Edit Daily Task Template</h3>
+                <p className="text-sm text-gray-600 mb-4">
+                  Edit the default tasks that appear every day. Enter each task on a new line.
+                </p>
+                <Textarea
+                  value={templateText}
+                  onChange={(e) => setTemplateText(e.target.value)}
+                  placeholder="Enter each task on a new line..."
+                  className="min-h-[200px] mb-4"
+                />
+                <div className="flex space-x-2 mb-3">
+                  <Button
+                    onClick={saveTemplate}
+                    className="flex-1"
+                  >
+                    Save Template
+                  </Button>
+                  <Button
+                    onClick={cancelEditTemplate}
+                    variant="outline"
+                    className="flex-1"
+                  >
+                    Cancel
+                  </Button>
+                </div>
+                <div className="text-center">
+                  <button
+                    onClick={resetToDefaultTemplate}
+                    className="text-xs text-gray-500 hover:text-gray-700 underline"
+                  >
+                    Reset to Default Template
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
         </div>
 
         {/* Monday.com Tasks Integration */}
