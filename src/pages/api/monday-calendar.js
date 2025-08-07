@@ -10,21 +10,29 @@ export default async function handler(req, res) {
     const USER_ID = '17155872'; // Your Monday.com user ID
 
     if (!MONDAY_API_TOKEN) {
-      return res.status(500).json({ error: 'Monday.com API token not configured' });
+      console.error('Monday.com API token not configured');
+      return res.status(500).json({ 
+        error: 'Monday.com API token not configured',
+        message: 'Please check environment variables in production'
+      });
     }
+
+    console.log('Monday.com API token configured:', !!MONDAY_API_TOKEN);
+    console.log('Monday.com API token starts with:', MONDAY_API_TOKEN ? MONDAY_API_TOKEN.substring(0, 20) + '...' : 'N/A');
 
     // Get today's date in YYYY-MM-DD format
     const today = new Date().toISOString().split('T')[0];
 
     // GraphQL query to fetch calendar items from the specific board
+    // Using a more targeted query to reduce data transfer
     const query = `
       query {
         boards(ids: ${CALENDAR_BOARD_ID}) {
-          items_page(limit: 500) {
+          items_page(limit: 100) {
             items {
               id
               name
-              column_values {
+              column_values(ids: ["timeline__1", "date4", "date", "multiple_person_mkq8raaf", "person", "status", "dropdown"]) {
                 id
                 type
                 value
@@ -36,6 +44,8 @@ export default async function handler(req, res) {
       }
     `;
 
+    console.log('Making Monday.com API request...');
+    
     const response = await fetch('https://api.monday.com/v2', {
       method: 'POST',
       headers: {
@@ -46,11 +56,25 @@ export default async function handler(req, res) {
       body: JSON.stringify({ query })
     });
 
+    console.log('Monday.com API response status:', response.status);
+    console.log('Monday.com API response headers:', Object.fromEntries(response.headers.entries()));
+
     if (!response.ok) {
-      throw new Error(`Monday.com API error: ${response.status}`);
+      const errorText = await response.text();
+      console.error('Monday.com API error response:', errorText);
+      throw new Error(`Monday.com API error: ${response.status} - ${errorText}`);
     }
 
-    const data = await response.json();
+    const responseText = await response.text();
+    console.log('Monday.com API raw response:', responseText);
+
+    let data;
+    try {
+      data = JSON.parse(responseText);
+    } catch (parseError) {
+      console.error('Failed to parse Monday.com API response as JSON:', parseError);
+      throw new Error(`Invalid JSON response from Monday.com API: ${responseText}`);
+    }
 
     if (data.errors) {
       console.error('Monday.com API errors:', data.errors);
@@ -60,7 +84,8 @@ export default async function handler(req, res) {
     // Debug: Log the response structure
     console.log('Calendar API response structure:', JSON.stringify(data.data, null, 2));
 
-    const allItems = data.data.boards[0].items_page?.items || [];
+    const board = data.data.boards[0];
+    const allItems = board.items_page?.items || [];
     console.log('Total calendar items returned:', allItems.length);
 
     // Process calendar items to extract relevant information
@@ -140,9 +165,30 @@ export default async function handler(req, res) {
 
   } catch (error) {
     console.error('Error fetching Monday.com calendar:', error);
-    res.status(500).json({ 
-      error: 'Failed to fetch Monday.com calendar',
-      details: error.message 
-    });
+    
+    // In production, return empty results instead of failing completely
+    if (process.env.NODE_ENV === 'production') {
+      console.log('Returning empty calendar results due to error in production');
+      return res.status(200).json({
+        success: true,
+        items: [],
+        totalItems: 0,
+        todaysItems: 0,
+        today: new Date().toISOString().split('T')[0],
+        error: 'Calendar temporarily unavailable'
+      });
+    }
+    
+    // In development, return detailed error
+    try {
+      res.status(500).json({ 
+        error: 'Failed to fetch Monday.com calendar',
+        details: error.message,
+        stack: error.stack
+      });
+    } catch (jsonError) {
+      console.error('Failed to send error response:', jsonError);
+      res.status(500).send('Internal Server Error');
+    }
   }
 } 

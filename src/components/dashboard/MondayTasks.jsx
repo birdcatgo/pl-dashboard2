@@ -79,10 +79,20 @@ const MondayTasks = ({ onAddToPriorities, addedItems = new Set() }) => {
           <div className="text-center">
             <p className="text-red-700 text-sm mb-2">Failed to load Monday.com tasks</p>
             <p className="text-red-600 text-xs mb-3">{error}</p>
-            <Button onClick={fetchMondayTasks} size="sm" variant="outline">
-              <RefreshCw className="h-3 w-3 mr-1" />
-              Retry
-            </Button>
+            <div className="space-y-2">
+              <Button onClick={fetchMondayTasks} size="sm" variant="outline">
+                <RefreshCw className="h-3 w-3 mr-1" />
+                Retry
+              </Button>
+              <div className="text-xs text-gray-500">
+                <p>This might be due to:</p>
+                <ul className="text-left mt-1 space-y-1">
+                  <li>• API token not configured in production</li>
+                  <li>• Network connectivity issues</li>
+                  <li>• Monday.com API rate limiting</li>
+                </ul>
+              </div>
+            </div>
           </div>
         </CardContent>
       </Card>

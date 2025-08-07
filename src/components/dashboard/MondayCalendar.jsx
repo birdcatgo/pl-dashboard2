@@ -16,13 +16,40 @@ const MondayCalendar = ({ onAddToPriorities, addedItems = new Set() }) => {
     
     try {
       const response = await fetch('/api/monday-calendar');
-      const data = await response.json();
       
+      // Check if response is ok before trying to parse JSON
       if (!response.ok) {
-        throw new Error(data.error || 'Failed to fetch calendar items');
+        const errorText = await response.text();
+        console.error('Monday calendar API error response:', errorText);
+        
+        let errorMessage = 'Failed to fetch calendar items';
+        try {
+          const errorData = JSON.parse(errorText);
+          errorMessage = errorData.error || errorData.details || errorMessage;
+        } catch (parseError) {
+          errorMessage = errorText || errorMessage;
+        }
+        
+        throw new Error(errorMessage);
+      }
+      
+      const responseText = await response.text();
+      let data;
+      
+      try {
+        data = JSON.parse(responseText);
+      } catch (parseError) {
+        console.error('Failed to parse Monday calendar response as JSON:', parseError);
+        console.error('Raw response:', responseText);
+        throw new Error('Invalid response format from server');
       }
       
       setItems(data.items || []);
+      
+      // Show warning if calendar is temporarily unavailable
+      if (data.error) {
+        toast.warning('Calendar data may be incomplete');
+      }
     } catch (err) {
       console.error('Error fetching Monday calendar:', err);
       setError(err.message);
@@ -86,10 +113,20 @@ const MondayCalendar = ({ onAddToPriorities, addedItems = new Set() }) => {
           <div className="text-center">
             <p className="text-red-700 text-sm mb-2">Failed to load Monday.com calendar</p>
             <p className="text-red-600 text-xs mb-3">{error}</p>
-            <Button onClick={fetchCalendarItems} size="sm" variant="outline">
-              <RefreshCw className="h-3 w-3 mr-1" />
-              Retry
-            </Button>
+            <div className="space-y-2">
+              <Button onClick={fetchCalendarItems} size="sm" variant="outline">
+                <RefreshCw className="h-3 w-3 mr-1" />
+                Retry
+              </Button>
+              <div className="text-xs text-gray-500">
+                <p>This might be due to:</p>
+                <ul className="text-left mt-1 space-y-1">
+                  <li>• API token not configured in production</li>
+                  <li>• Network connectivity issues</li>
+                  <li>• Monday.com API rate limiting</li>
+                </ul>
+              </div>
+            </div>
           </div>
         </CardContent>
       </Card>
