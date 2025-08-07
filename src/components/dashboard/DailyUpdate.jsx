@@ -1,8 +1,14 @@
 import React, { useState, useEffect } from 'react';
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
+import { Checkbox } from "@/components/ui/checkbox";
+import { Input } from "@/components/ui/input";
 import { toast } from 'sonner';
-import { format } from 'date-fns';
+import { format, subDays } from 'date-fns';
+import { Plus, CheckCircle } from 'lucide-react';
+import MondayTasks from './MondayTasks';
+import MondayCalendar from './MondayCalendar';
+import ScheduledTasksToday from './ScheduledTasksToday';
 
 const DEFAULT_PL_PRIORITY = "P & L reporting";
 const DEFAULT_SCHEDULE = "No Planned Interruptions";
@@ -13,14 +19,36 @@ const DailyUpdate = () => {
   const [challenges, setChallenges] = useState('');
   const [schedule, setSchedule] = useState(DEFAULT_SCHEDULE);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  
+  // Task management state
+  const [tasks, setTasks] = useState([]);
+  const [newTask, setNewTask] = useState('');
+  const [addedMondayItems, setAddedMondayItems] = useState(new Set());
 
-  // Load previous day's priorities when component mounts
+  // Daily task template
+  const dailyTaskTemplate = [
+    "Task Management",
+    "Calendar",
+    "Slack Update",
+    "P & L Reporting",
+    "Prep for tomorrow's P & L",
+    "Identify any Redtrack Issues",
+    "Bank Account/Credit Card Update",
+    "Invoice Check",
+    "Check EOD Reports for ALL Media Buyers",
+    "Status Brew Check - Fanpage Activity",
+    "Comment Rev Review with Zel/Jess",
+    "Clear Telegram, Teams, Slack"
+  ];
+
+  // Load previous day's priorities and today's accomplished when component mounts
   useEffect(() => {
     const loadPreviousPriorities = () => {
       const today = new Date();
       const yesterday = new Date(today);
       yesterday.setDate(yesterday.getDate() - 1);
       const yesterdayKey = format(yesterday, 'yyyy-MM-dd');
+      const todayKey = format(today, 'yyyy-MM-dd');
       
       // Get yesterday's priorities from localStorage
       const previousPriorities = localStorage.getItem(`priorities-${yesterdayKey}`);
@@ -28,10 +56,348 @@ const DailyUpdate = () => {
         // Move yesterday's priorities to accomplished
         setAccomplished(previousPriorities);
       }
+
+      // Load today's accomplished from TaskManager
+      const todayAccomplished = localStorage.getItem(`accomplished-${todayKey}`);
+      if (todayAccomplished) {
+        setAccomplished(todayAccomplished);
+      }
+
+      // Load today's priorities from TaskManager (uncompleted tasks from yesterday)
+      const todayPriorities = localStorage.getItem(`priorities-${todayKey}`);
+      if (todayPriorities) {
+        // Convert the text back to task objects
+        const priorityLines = todayPriorities.split('\n').filter(line => line.trim());
+        const priorityTasks = priorityLines.map((text, index) => ({
+          id: Date.now() + index,
+          text: text.trim(),
+          completed: false,
+          createdAt: new Date().toISOString(),
+          completedAt: null,
+          fromYesterday: true
+        }));
+        setTasks(priorityTasks);
+      }
+
+      // Load yesterday's challenges
+      const yesterdayChallenges = localStorage.getItem(`challenges-${yesterdayKey}`);
+      if (yesterdayChallenges && !challenges) {
+        setChallenges(yesterdayChallenges);
+      }
     };
 
-    loadPreviousPriorities();
+    const initializeData = async () => {
+      loadPreviousPriorities();
+      await loadTasks();
+    };
+    
+    initializeData();
   }, []);
+
+  // Task management functions
+  const loadTasks = async () => {
+    const today = format(new Date(), 'yyyy-MM-dd');
+    const savedTasks = localStorage.getItem(`tasks-${today}`);
+    
+    if (savedTasks) {
+      const parsedTasks = JSON.parse(savedTasks);
+      setTasks(parsedTasks);
+      
+      // Check if we need to add scheduled tasks
+      const hasScheduledTasks = parsedTasks.some(task => task.fromScheduled);
+      if (!hasScheduledTasks) {
+        await loadScheduledTasks();
+      }
+    } else {
+      // If no tasks exist for today, populate with daily template
+      populateDailyTasks();
+      await loadScheduledTasks();
+    }
+  };
+
+  const loadScheduledTasks = async () => {
+    try {
+      const response = await fetch('/api/scheduled-tasks');
+      if (response.ok) {
+        const data = await response.json();
+        if (data.success && data.scheduledTasks.length > 0) {
+          const existingTaskIds = new Set(tasks.map(task => task.id));
+          const newScheduledTasks = data.scheduledTasks.filter(task => !existingTaskIds.has(task.id));
+          
+          if (newScheduledTasks.length > 0) {
+            const updatedTasks = [...tasks, ...newScheduledTasks];
+            setTasks(updatedTasks);
+            saveTasks(updatedTasks);
+            console.log(`Added ${newScheduledTasks.length} scheduled tasks for today`);
+          }
+        }
+      }
+    } catch (error) {
+      console.error('Error loading scheduled tasks:', error);
+    }
+  };
+
+  const saveTasks = (taskList) => {
+    const today = format(new Date(), 'yyyy-MM-dd');
+    localStorage.setItem(`tasks-${today}`, JSON.stringify(taskList));
+  };
+
+  const populateDailyTasks = () => {
+    const today = format(new Date(), 'yyyy-MM-dd');
+    const templateTasks = dailyTaskTemplate.map((taskText, index) => ({
+      id: Date.now() + index,
+      text: taskText,
+      completed: false,
+      createdAt: new Date().toISOString(),
+      completedAt: null,
+      isTemplateTask: true
+    }));
+    
+    setTasks(templateTasks);
+    saveTasks(templateTasks);
+  };
+
+  const addTask = async () => {
+    if (!newTask.trim()) {
+      toast.error('Please enter a task');
+      return;
+    }
+
+    const taskText = newTask.trim();
+    const task = {
+      id: Date.now(),
+      text: taskText,
+      completed: false,
+      createdAt: new Date().toISOString(),
+      completedAt: null
+    };
+
+    const updatedTasks = [...tasks, task];
+    setTasks(updatedTasks);
+    saveTasks(updatedTasks);
+    setNewTask('');
+    toast.success('Task added successfully');
+
+    // Create corresponding item in Monday.com ANGE group
+    try {
+      const response = await fetch('/api/monday-create-item', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          itemName: taskText
+        }),
+      });
+
+      if (!response.ok) {
+        console.error('Failed to create Monday.com item');
+      } else {
+        const data = await response.json();
+        // Update the task with the Monday.com item ID for future status updates
+        const taskWithMondayId = {
+          ...task,
+          mondayId: data.itemId
+        };
+        const updatedTasksWithMondayId = tasks.map(t => 
+          t.id === task.id ? taskWithMondayId : t
+        );
+        setTasks(updatedTasksWithMondayId);
+        saveTasks(updatedTasksWithMondayId);
+        console.log('Successfully created Monday.com item for task:', taskText);
+      }
+    } catch (error) {
+      console.error('Error creating Monday.com item:', error);
+    }
+  };
+
+  const addMondayTaskToPriorities = async (taskName, date = null, mondayId = null, isScheduled = false) => {
+    // If date is provided, include it in the task text
+    const taskText = date ? `${taskName} (${date})` : taskName;
+    
+    const task = {
+      id: isScheduled ? `scheduled-${Date.now()}` : Date.now(),
+      text: taskText,
+      completed: false,
+      createdAt: new Date().toISOString(),
+      completedAt: null,
+      fromMonday: !isScheduled,
+      fromScheduled: isScheduled,
+      mondayId: mondayId
+    };
+
+    const updatedTasks = [...tasks, task];
+    setTasks(updatedTasks);
+    saveTasks(updatedTasks);
+    
+    // Track that this Monday.com item has been added
+    if (mondayId) {
+      setAddedMondayItems(prev => new Set([...prev, mondayId]));
+    }
+
+    // If this is a Monday.com task (not scheduled), update the status to "Working on It"
+    if (mondayId && !isScheduled) {
+      try {
+        // Determine which board the task came from
+        let boardId = '6741994585'; // Default to ANGE board
+        
+        // If it's a calendar item, use the calendar board
+        if (taskText.includes('(') && taskText.includes(')')) {
+          boardId = '1449674691'; // Calendar board
+        }
+        
+        console.log('Updating Monday.com status to Working on It for task:', {
+          taskText: taskText,
+          mondayId: mondayId,
+          boardId: boardId
+        });
+        
+        const response = await fetch('/api/monday-update-to-working', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            itemId: mondayId,
+            boardId: boardId
+          }),
+        });
+
+        if (!response.ok) {
+          const errorData = await response.json();
+          console.error('Failed to update Monday.com status to Working on It:', errorData);
+        } else {
+          const successData = await response.json();
+          console.log('Successfully updated Monday.com status to Working on It for task:', taskText, successData);
+        }
+      } catch (error) {
+        console.error('Error updating Monday.com status to Working on It:', error);
+      }
+    }
+  };
+
+  const toggleTask = async (taskId) => {
+    const task = tasks.find(t => t.id === taskId);
+    const isCompleting = !task.completed;
+    
+    const updatedTasks = tasks.map(task => {
+      if (task.id === taskId) {
+        return {
+          ...task,
+          completed: !task.completed,
+          completedAt: !task.completed ? new Date().toISOString() : null
+        };
+      }
+      return task;
+    });
+    setTasks(updatedTasks);
+    saveTasks(updatedTasks);
+
+    // If completing a Monday.com task, update the status on Monday.com
+    if (isCompleting && task.mondayId) {
+      try {
+        // Determine which board the task came from
+        let boardId = '6741994585'; // Default to ANGE board
+        
+        // If it's a calendar item, use the calendar board
+        if (task.text.includes('(') && task.text.includes(')')) {
+          boardId = '1449674691'; // Calendar board
+        }
+        
+        console.log('Updating Monday.com status for task:', {
+          taskText: task.text,
+          mondayId: task.mondayId,
+          boardId: boardId,
+          isCompleting: isCompleting
+        });
+        
+        const response = await fetch('/api/monday-update-status', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            itemId: task.mondayId,
+            boardId: boardId
+          }),
+        });
+
+        if (!response.ok) {
+          const errorData = await response.json();
+          console.error('Failed to update Monday.com status:', errorData);
+        } else {
+          const successData = await response.json();
+          console.log('Successfully updated Monday.com status for task:', task.text, successData);
+        }
+      } catch (error) {
+        console.error('Error updating Monday.com status:', error);
+      }
+    }
+  };
+
+  const deleteTask = (taskId) => {
+    const updatedTasks = tasks.filter(task => task.id !== taskId);
+    setTasks(updatedTasks);
+    saveTasks(updatedTasks);
+    toast.success('Task deleted');
+  };
+
+  const moveCompletedToAccomplished = () => {
+    const completedTasks = tasks.filter(task => task.completed);
+    if (completedTasks.length === 0) {
+      toast.error('No completed tasks to move');
+      return;
+    }
+
+    // Format completed tasks for Daily Update
+    const completedTaskText = completedTasks
+      .map(task => task.text)
+      .join('\n');
+    
+    // Combine with existing accomplished items
+    const newAccomplished = accomplished 
+      ? `${accomplished}\n${completedTaskText}`
+      : completedTaskText;
+    
+    setAccomplished(newAccomplished);
+    
+    // Remove completed tasks from current day
+    const remainingTasks = tasks.filter(task => !task.completed);
+    setTasks(remainingTasks);
+    saveTasks(remainingTasks);
+    
+    toast.success(`${completedTasks.length} completed task(s) moved to "Accomplished Yesterday"`);
+  };
+
+  const loadPreviousTasks = () => {
+    const yesterday = format(subDays(new Date(), 1), 'yyyy-MM-dd');
+    const yesterdayTasks = localStorage.getItem(`tasks-${yesterday}`);
+    
+    if (yesterdayTasks) {
+      const tasks = JSON.parse(yesterdayTasks);
+      const uncompletedTasks = tasks.filter(task => !task.completed);
+      
+      if (uncompletedTasks.length > 0) {
+        const today = format(new Date(), 'yyyy-MM-dd');
+        const currentTasks = JSON.parse(localStorage.getItem(`tasks-${today}`) || '[]');
+        
+        // Add uncompleted tasks from yesterday to today
+        const updatedTasks = [...currentTasks, ...uncompletedTasks];
+        setTasks(updatedTasks);
+        saveTasks(updatedTasks);
+        
+        toast.success(`${uncompletedTasks.length} uncompleted task(s) carried over from yesterday`);
+      }
+    }
+  };
+
+  const clearChallenges = () => {
+    setChallenges('');
+    toast.success('Challenges cleared');
+  };
+
+  const completedTasks = tasks.filter(task => task.completed);
+  const uncompletedTasks = tasks.filter(task => !task.completed);
 
   const formatMessage = () => {
     const formatList = (text) => {
@@ -42,13 +408,15 @@ const DailyUpdate = () => {
         .join('\n');
     };
 
-    const formatPriorities = (text) => {
+    const formatPriorities = () => {
+      // Use tasks instead of textarea
+      const taskLines = uncompletedTasks.map(task => task.text);
+      
       // Ensure P&L reporting is always first
-      const lines = text.split('\n').filter(line => line.trim());
-      if (!lines.includes(DEFAULT_PL_PRIORITY)) {
-        lines.unshift(DEFAULT_PL_PRIORITY);
+      if (!taskLines.includes(DEFAULT_PL_PRIORITY)) {
+        taskLines.unshift(DEFAULT_PL_PRIORITY);
       }
-      return lines.map(line => `:pushpin: ${line.trim()}`).join('\n');
+      return taskLines.map(line => `:pushpin: ${line.trim()}`).join('\n');
     };
 
     const formatChallenges = (text) => {
@@ -67,16 +435,23 @@ const DailyUpdate = () => {
         .join('\n');
     };
 
-    return `*Daily Update from Ange*\n\n` +
+    let message = `*Daily Update from Ange*\n\n` +
     `:one: Accomplished Yesterday:\n${formatList(accomplished)}\n\n` +
-    `:two: Priorities for Today:\n${formatPriorities(priorities)}\n\n` +
-    `:three: Challenges & Support Needed:\n${formatChallenges(challenges)}\n\n` +
-    `:four: My Schedule This Week:\n${formatSchedule(schedule)}`;
+    `:two: Priorities for Today:\n${formatPriorities()}\n\n`;
+    
+    // Only include challenges if it's not blank
+    if (challenges.trim()) {
+      message += `:three: Challenges & Support Needed:\n${formatChallenges(challenges)}\n\n`;
+    }
+    
+    message += `:four: My Schedule This Week:\n${formatSchedule(schedule)}`;
+    
+    return message;
   };
 
   const handleSubmit = async () => {
-    if (!accomplished.trim() || !priorities.trim() || !challenges.trim() || !schedule.trim()) {
-      toast.error('Please fill in all sections');
+    if (!accomplished.trim() || !priorities.trim() || !schedule.trim()) {
+      toast.error('Please fill in Accomplished Yesterday, Priorities for Today, and My Schedule This Week');
       return;
     }
 
@@ -105,14 +480,26 @@ const DailyUpdate = () => {
         throw new Error(data.error || data.details || 'Failed to send message to Slack');
       }
 
-      // Save today's priorities for tomorrow
+      // Move completed tasks to accomplished and save uncompleted tasks for tomorrow
       const today = new Date();
       const todayKey = format(today, 'yyyy-MM-dd');
-      localStorage.setItem(`priorities-${todayKey}`, priorities);
+      
+      // Get completed tasks to move to accomplished
+      const completedTaskText = completedTasks.map(task => task.text).join('\n');
+      
+      // Combine with existing accomplished items
+      const newAccomplished = accomplished 
+        ? `${accomplished}\n${completedTaskText}`
+        : completedTaskText;
+      
+      // Save uncompleted tasks for tomorrow's priorities
+      const uncompletedTaskText = uncompletedTasks.map(task => task.text).join('\n');
+      localStorage.setItem(`priorities-${todayKey}`, uncompletedTaskText);
+      localStorage.setItem(`challenges-${todayKey}`, challenges);
 
       toast.success('Daily update sent successfully!');
       // Clear the form but keep P&L reporting as default priority and default schedule
-      setAccomplished('');
+      setAccomplished(newAccomplished);
       setPriorities(DEFAULT_PL_PRIORITY);
       setChallenges('');
       setSchedule(DEFAULT_SCHEDULE);
@@ -148,17 +535,113 @@ const DailyUpdate = () => {
         </div>
 
         <div className="space-y-2">
-          <label className="text-sm font-medium">Priorities for Today</label>
+          <div className="flex items-center justify-between">
+            <label className="text-sm font-medium">Priorities for Today</label>
+            <div className="flex space-x-1">
+              <button
+                onClick={populateDailyTasks}
+                className="text-xs px-2 py-1 bg-blue-100 text-blue-700 rounded hover:bg-blue-200"
+              >
+                Reset Template
+              </button>
+              <button
+                onClick={loadPreviousTasks}
+                className="text-xs px-2 py-1 bg-gray-100 text-gray-700 rounded hover:bg-gray-200"
+              >
+                Load Yesterday
+              </button>
+
+            </div>
+          </div>
+          
+          {/* Task List */}
+          <div className="border rounded-lg p-3 bg-gray-50 min-h-[100px]">
+            {/* Add New Task */}
+            <div className="flex mb-3">
+              <input
+                value={newTask}
+                onChange={(e) => setNewTask(e.target.value)}
+                placeholder="+ Add task..."
+                onKeyPress={(e) => e.key === 'Enter' && addTask()}
+                className="flex-1 text-sm border-b border-gray-300 px-1 py-1 focus:outline-none focus:border-blue-500 bg-transparent"
+              />
+            </div>
+
+            {/* Task List */}
+            <div className="space-y-0.5">
+              {tasks.map((task) => (
+                <div key={task.id} className="flex items-center py-1 hover:bg-white rounded">
+                  <Checkbox
+                    checked={task.completed}
+                    onCheckedChange={() => toggleTask(task.id)}
+                    className="h-4 w-4 mr-2"
+                  />
+                  <span className={`flex-1 text-sm ${task.completed ? 'line-through text-gray-500' : ''}`}>{task.text}</span>
+                  {task.isTemplateTask && (
+                    <span className="text-xs text-blue-600 mr-2">•</span>
+                  )}
+                  {task.fromMonday && (
+                    <span className="text-xs text-purple-600 mr-2">📅</span>
+                  )}
+                  {task.fromScheduled && (
+                    <span className="text-xs text-yellow-600 mr-2">⏰</span>
+                  )}
+                  <button
+                    onClick={() => deleteTask(task.id)}
+                    className="text-gray-400 hover:text-red-500 text-xs px-1"
+                  >
+                    ×
+                  </button>
+                </div>
+              ))}
+
+
+
+              {tasks.length === 0 && (
+                <div className="text-center py-4 text-gray-400 text-sm">
+                  No tasks. Click "Reset Template" to load daily routine.
+                </div>
+              )}
+            </div>
+          </div>
+
+          {/* Legacy Textarea (hidden but functional) */}
           <Textarea
             value={priorities}
             onChange={(e) => setPriorities(e.target.value)}
             placeholder="Enter each priority on a new line (P & L reporting will always be included first)"
-            className="min-h-[100px]"
+            className="min-h-[100px] hidden"
           />
         </div>
 
+        {/* Monday.com Tasks Integration */}
         <div className="space-y-2">
-          <label className="text-sm font-medium">Challenges & Support Needed</label>
+          <label className="text-sm font-medium">Monday.com Tasks</label>
+          <MondayTasks onAddToPriorities={addMondayTaskToPriorities} addedItems={addedMondayItems} />
+        </div>
+
+        {/* Monday.com Calendar Integration */}
+        <div className="space-y-2">
+          <label className="text-sm font-medium">Today's Calendar</label>
+          <MondayCalendar onAddToPriorities={addMondayTaskToPriorities} addedItems={addedMondayItems} />
+        </div>
+
+        {/* Scheduled Tasks for Today */}
+        <div className="space-y-2">
+          <label className="text-sm font-medium">Scheduled Tasks for Today</label>
+          <ScheduledTasksToday onAddToPriorities={addMondayTaskToPriorities} addedItems={addedMondayItems} />
+        </div>
+
+        <div className="space-y-2">
+          <div className="flex items-center justify-between">
+            <label className="text-sm font-medium">Challenges & Support Needed</label>
+            <button
+              onClick={clearChallenges}
+              className="text-xs px-2 py-1 bg-red-100 text-red-700 rounded hover:bg-red-200"
+            >
+              Clear
+            </button>
+          </div>
           <Textarea
             value={challenges}
             onChange={(e) => setChallenges(e.target.value)}

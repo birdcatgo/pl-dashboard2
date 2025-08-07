@@ -9,6 +9,8 @@ import TimezoneConverter from '../TimezoneConverter';
 import CashFlowPlanner from '../CashFlowPlanner';
 import NetworkPayTerms from '../NetworkPayTerms';
 import NetworkCapsTab from '../NetworkCapsTab';
+import ScheduledTasksManager from '../ScheduledTasksManager';
+
 
 const ToolsView = ({ 
   toolsSubview, 
@@ -72,6 +74,13 @@ const ToolsView = ({
           >
             Network Pay Terms
           </Button>
+          <Button
+            variant={toolsSubview === 'scheduled-tasks' ? 'default' : 'outline'}
+            onClick={() => setToolsSubview('scheduled-tasks')}
+          >
+            Scheduled Tasks
+          </Button>
+
         </div>
       </div>
 
@@ -96,6 +105,8 @@ const ToolsView = ({
           />
         )}
         {toolsSubview === 'network-pay-terms' && <NetworkPayTerms performanceData={performanceData} />}
+        {toolsSubview === 'scheduled-tasks' && <ScheduledTasksManager />}
+
       </div>
     </div>
   );

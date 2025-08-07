@@ -463,6 +463,21 @@ const DashboardIndexView = ({ setActiveTab, setAccountingSubview, setAccountsSub
                 </div>
               </div>
             </button>
+            <button
+              onClick={() => {
+                setActiveTab('tools');
+                setToolsSubview('task-manager');
+              }}
+              className="w-full text-left px-4 py-3 bg-white rounded-lg shadow hover:shadow-md transition-shadow duration-200"
+            >
+              <div className="flex items-center space-x-3">
+                <span className="text-xl">✅</span>
+                <div>
+                  <h3 className="font-medium">Task Manager</h3>
+                  <p className="text-sm text-gray-600">Manage daily tasks and integrate with Daily Updates</p>
+                </div>
+              </div>
+            </button>
           </div>
         </div>
       </div>
