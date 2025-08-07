@@ -237,7 +237,7 @@ const DailyUpdate = () => {
           ...task,
           mondayId: data.itemId
         };
-        const updatedTasksWithMondayId = tasks.map(t => 
+        const updatedTasksWithMondayId = updatedTasks.map(t => 
           t.id === task.id ? taskWithMondayId : t
         );
         setTasks(updatedTasksWithMondayId);

@@ -26,13 +26,18 @@ export default async function handler(req, res) {
           board_id: ${BOARD_ID}, 
           group_id: "${GROUP_ID}", 
           item_name: "${itemName.replace(/"/g, '\\"')}",
-          column_values: "{\"multiple_person_mkq8raaf\":{\"personsAndTeams\":[{\"id\":17155872,\"kind\":\"person\"}]}}"
+          column_values: "{\\\"multiple_person_mkq8raaf\\\":{\\\"personsAndTeams\\\":[{\\\"id\\\":17155872,\\\"kind\\\":\\\"person\\\"}]}}"
         ) {
           id
           name
         }
       }
     `;
+
+    console.log('Sending Monday.com create item request:', {
+      itemName,
+      mutation: mutation
+    });
 
     const response = await fetch('https://api.monday.com/v2', {
       method: 'POST',
@@ -44,11 +49,16 @@ export default async function handler(req, res) {
       body: JSON.stringify({ query: mutation })
     });
 
+    console.log('Monday.com API response status:', response.status);
+
     if (!response.ok) {
-      throw new Error(`Monday.com API error: ${response.status}`);
+      const errorText = await response.text();
+      console.error('Monday.com API error response:', errorText);
+      throw new Error(`Monday.com API error: ${response.status} - ${errorText}`);
     }
 
     const data = await response.json();
+    console.log('Monday.com API response data:', data);
 
     if (data.errors) {
       console.error('Monday.com API errors:', data.errors);
