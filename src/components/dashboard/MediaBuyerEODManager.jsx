@@ -308,8 +308,8 @@ const MediaBuyerEODManager = () => {
                       </div>
                     </TableHead>
                     <TableHead>Status</TableHead>
-                    <TableHead>Latest Report</TableHead>
-                    <TableHead>EOD Report</TableHead>
+                    <TableHead>MB Report</TableHead>
+                    <TableHead>Ange's Report</TableHead>
                     <TableHead>Active Fanpages</TableHead>
                     <TableHead>Revenue</TableHead>
                     <TableHead>Spend</TableHead>
@@ -329,12 +329,7 @@ const MediaBuyerEODManager = () => {
                         </Badge>
                       </TableCell>
                       <TableCell>
-                        <div className="flex items-center space-x-2">
-                          <span>{buyer.mostRecentDate}</span>
-                          <Badge className={`text-xs ${getDateStatusColor(buyer.mostRecentDate)}`}>
-                            {getDateStatus(buyer.mostRecentDate)}
-                          </Badge>
-                        </div>
+                        <span>{buyer.mostRecentDate}</span>
                       </TableCell>
                       <TableCell>
                         {buyer.latestEODDate}
