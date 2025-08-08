@@ -37,8 +37,22 @@ export default async function handler(req, res) {
         latestEODDate = cachedEODData.latestEODDate;
         eodData = cachedEODData.eodData || [];
       } else {
-        const eodResponse = await fetch('http://localhost:3000/api/eod-report-data');
-        if (eodResponse.ok) {
+        // Build base URL dynamically so this works both locally and in production
+        const forwardedHost = req.headers['x-forwarded-host'];
+        const host = forwardedHost || req.headers.host || process.env.VERCEL_URL;
+        const forwardedProto = req.headers['x-forwarded-proto'];
+        const isLocalhost = host && host.includes('localhost');
+        const protocol = forwardedProto || (isLocalhost ? 'http' : 'https');
+        const fallbackSiteUrl = process.env.NEXT_PUBLIC_SITE_URL;
+        const baseUrl = host ? `${protocol}://${host}` : (fallbackSiteUrl || 'http://localhost:3000');
+        const eodUrl = `${baseUrl}/api/eod-report-data`;
+
+        console.log('Fetching EOD report data from:', eodUrl);
+
+        const eodResponse = await fetch(eodUrl);
+        if (!eodResponse.ok) {
+          console.warn('EOD report fetch failed with status:', eodResponse.status, eodResponse.statusText);
+        } else {
           const eodResponseData = await eodResponse.json();
           latestEODDate = eodResponseData.latestEODDate;
           eodData = eodResponseData.eodData || [];
