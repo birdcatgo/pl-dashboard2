@@ -2,12 +2,23 @@ import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '../ui/card';
 import { Button } from '../ui/button';
 import { Badge } from '../ui/badge';
-import { Plus, Calendar, Clock, Trash2, Edit } from 'lucide-react';
+import { Input } from '../ui/input';
+import { Label } from '../ui/label';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../ui/select';
+import { Plus, Calendar, Clock, Trash2, Edit, X } from 'lucide-react';
 import { toast } from 'sonner';
 
 const ScheduledTasksManager = () => {
   const [scheduledTasks, setScheduledTasks] = useState([]);
   const [loading, setLoading] = useState(false);
+  const [showAddForm, setShowAddForm] = useState(false);
+  const [newTask, setNewTask] = useState({
+    name: '',
+    type: 'weekly',
+    dayOfWeek: 1,
+    dayOfMonth: 1,
+    enabled: true
+  });
 
   // Default scheduled tasks configuration
   const defaultScheduledTasks = [
@@ -86,6 +97,83 @@ const ScheduledTasksManager = () => {
     toast.success('Scheduled task deleted');
   };
 
+  const addNewTask = () => {
+    if (!newTask.name.trim()) {
+      toast.error('Please enter a task name');
+      return;
+    }
+
+    // Generate a unique ID
+    const taskId = `custom-${Date.now()}`;
+    
+    // Create schedule description based on type
+    let schedule = '';
+    
+    // Helper function to get proper ordinal suffix
+    const getOrdinalSuffix = (day) => {
+      if (day >= 11 && day <= 13) return 'th';
+      switch (day % 10) {
+        case 1: return 'st';
+        case 2: return 'nd';
+        case 3: return 'rd';
+        default: return 'th';
+      }
+    };
+    
+    switch (newTask.type) {
+      case 'daily':
+        schedule = 'Every day';
+        break;
+      case 'weekly':
+        const dayNames = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+        schedule = `Every ${dayNames[newTask.dayOfWeek]}`;
+        break;
+      case 'bi-monthly':
+        schedule = `${newTask.dayOfMonth}${getOrdinalSuffix(newTask.dayOfMonth)} of every month`;
+        break;
+      case 'monthly':
+        schedule = `${newTask.dayOfMonth}${getOrdinalSuffix(newTask.dayOfMonth)} of every month`;
+        break;
+      default:
+        schedule = 'Custom schedule';
+    }
+
+    const taskToAdd = {
+      id: taskId,
+      name: newTask.name.trim(),
+      type: newTask.type,
+      schedule,
+      dayOfWeek: newTask.type === 'weekly' ? newTask.dayOfWeek : undefined,
+      dayOfMonth: ['bi-monthly', 'monthly'].includes(newTask.type) ? newTask.dayOfMonth : undefined,
+      enabled: newTask.enabled
+    };
+
+    const updatedTasks = [...scheduledTasks, taskToAdd];
+    saveScheduledTasks(updatedTasks);
+    
+    // Reset form
+    setNewTask({
+      name: '',
+      type: 'weekly',
+      dayOfWeek: 1,
+      dayOfMonth: 1,
+      enabled: true
+    });
+    setShowAddForm(false);
+    toast.success('Scheduled task added successfully');
+  };
+
+  const resetForm = () => {
+    setNewTask({
+      name: '',
+      type: 'weekly',
+      dayOfWeek: 1,
+      dayOfMonth: 1,
+      enabled: true
+    });
+    setShowAddForm(false);
+  };
+
   const getTypeColor = (type) => {
     switch (type) {
       case 'daily':
@@ -138,6 +226,15 @@ const ScheduledTasksManager = () => {
         <div className="flex items-center justify-between">
           <CardTitle className="text-sm font-medium">Scheduled Tasks Manager</CardTitle>
           <div className="flex space-x-2">
+            <Button
+              onClick={() => setShowAddForm(true)}
+              size="sm"
+              variant="default"
+              className="bg-blue-600 hover:bg-blue-700"
+            >
+              <Plus className="h-4 w-4 mr-1" />
+              Add Task
+            </Button>
             <Button
               onClick={testScheduledTasks}
               size="sm"
@@ -213,6 +310,128 @@ const ScheduledTasksManager = () => {
           </ul>
         </div>
       </CardContent>
+
+      {/* Add Task Modal */}
+      {showAddForm && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-lg p-6 max-w-md w-full mx-4">
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-lg font-medium">Add Scheduled Task</h3>
+              <Button
+                onClick={resetForm}
+                size="sm"
+                variant="ghost"
+                className="h-8 w-8 p-0"
+              >
+                <X className="h-4 w-4" />
+              </Button>
+            </div>
+            
+            <div className="space-y-4">
+              <div>
+                <Label htmlFor="taskName">Task Name</Label>
+                <Input
+                  id="taskName"
+                  value={newTask.name}
+                  onChange={(e) => setNewTask({ ...newTask, name: e.target.value })}
+                  placeholder="Enter task name..."
+                  className="mt-1"
+                />
+              </div>
+
+              <div>
+                <Label htmlFor="taskType">Schedule Type</Label>
+                <Select
+                  value={newTask.type}
+                  onValueChange={(value) => setNewTask({ ...newTask, type: value })}
+                >
+                  <SelectTrigger className="mt-1 bg-white border border-gray-300 text-gray-900">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent className="bg-white border border-gray-200 shadow-lg">
+                    <SelectItem value="daily" className="text-gray-900 hover:bg-gray-100">Daily</SelectItem>
+                    <SelectItem value="weekly" className="text-gray-900 hover:bg-gray-100">Weekly</SelectItem>
+                    <SelectItem value="bi-monthly" className="text-gray-900 hover:bg-gray-100">Bi-Monthly</SelectItem>
+                    <SelectItem value="monthly" className="text-gray-900 hover:bg-gray-100">Monthly</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+
+              {newTask.type === 'weekly' && (
+                <div>
+                  <Label htmlFor="dayOfWeek">Day of Week</Label>
+                  <Select
+                    value={newTask.dayOfWeek.toString()}
+                    onValueChange={(value) => setNewTask({ ...newTask, dayOfWeek: parseInt(value) })}
+                  >
+                    <SelectTrigger className="mt-1 bg-white border border-gray-300 text-gray-900">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent className="bg-white border border-gray-200 shadow-lg">
+                      <SelectItem value="0" className="text-gray-900 hover:bg-gray-100">Sunday</SelectItem>
+                      <SelectItem value="1" className="text-gray-900 hover:bg-gray-100">Monday</SelectItem>
+                      <SelectItem value="2" className="text-gray-900 hover:bg-gray-100">Tuesday</SelectItem>
+                      <SelectItem value="3" className="text-gray-900 hover:bg-gray-100">Wednesday</SelectItem>
+                      <SelectItem value="4" className="text-gray-900 hover:bg-gray-100">Thursday</SelectItem>
+                      <SelectItem value="5" className="text-gray-900 hover:bg-gray-100">Friday</SelectItem>
+                      <SelectItem value="6" className="text-gray-900 hover:bg-gray-100">Saturday</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+              )}
+
+              {(newTask.type === 'bi-monthly' || newTask.type === 'monthly') && (
+                <div>
+                  <Label htmlFor="dayOfMonth">Day of Month</Label>
+                  <Select
+                    value={newTask.dayOfMonth.toString()}
+                    onValueChange={(value) => setNewTask({ ...newTask, dayOfMonth: parseInt(value) })}
+                  >
+                    <SelectTrigger className="mt-1 bg-white border border-gray-300 text-gray-900">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent className="bg-white border border-gray-200 shadow-lg max-h-60">
+                      {Array.from({ length: 28 }, (_, i) => i + 1).map(day => (
+                        <SelectItem key={day} value={day.toString()} className="text-gray-900 hover:bg-gray-100">
+                          {day}{day === 1 ? 'st' : day === 2 ? 'nd' : day === 3 ? 'rd' : 'th'}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              )}
+
+              <div className="flex items-center space-x-2">
+                <input
+                  type="checkbox"
+                  id="enabled"
+                  checked={newTask.enabled}
+                  onChange={(e) => setNewTask({ ...newTask, enabled: e.target.checked })}
+                  className="rounded"
+                />
+                <Label htmlFor="enabled" className="text-sm">Enable task immediately</Label>
+              </div>
+            </div>
+
+            <div className="flex space-x-2 mt-6">
+              <Button
+                onClick={addNewTask}
+                className="flex-1"
+                disabled={!newTask.name.trim()}
+              >
+                Add Task
+              </Button>
+              <Button
+                onClick={resetForm}
+                variant="outline"
+                className="flex-1"
+              >
+                Cancel
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
     </Card>
   );
 };
