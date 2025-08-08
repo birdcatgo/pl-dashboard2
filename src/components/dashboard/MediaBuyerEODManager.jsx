@@ -136,10 +136,19 @@ const MediaBuyerEODManager = () => {
   useEffect(() => {
     fetchEODData();
     
-    // Auto-refresh every 10 minutes
-    const interval = setInterval(() => {
-      fetchEODData();
-    }, 10 * 60 * 1000);
+    // Check if we need to auto-refresh (once per day)
+    const checkAndRefresh = () => {
+      const today = new Date().toDateString();
+      const lastRefreshDate = localStorage.getItem('eod-last-refresh-date');
+      
+      if (lastRefreshDate !== today) {
+        fetchEODData();
+        localStorage.setItem('eod-last-refresh-date', today);
+      }
+    };
+    
+    // Check every hour if we need to refresh
+    const interval = setInterval(checkAndRefresh, 60 * 60 * 1000);
     
     return () => clearInterval(interval);
   }, []);
