@@ -394,6 +394,31 @@ export default async function handler(req, res) {
           });
         }
 
+        // Compute Ange's totals (Revenue and Spend) for this media buyer from EOD board
+        // IMPORTANT: Use ONLY the items that match the date shown in Ange's Report column (latestEODDate)
+        let angeRevenueTotal = 0;
+        let angeSpendTotal = 0;
+        try {
+          const angeDateKey = (latestEODDate || '').split(' ')[0];
+          const buyerEodItemsForDate = eodData.filter(eodItem => {
+            const eodMediaBuyer = eodItem.name?.split(' - ').pop()?.trim() || '';
+            const buyerMatches = eodMediaBuyer && buyer.name && (
+              eodMediaBuyer.toLowerCase().includes(buyer.name.toLowerCase()) ||
+              buyer.name.toLowerCase().includes(eodMediaBuyer.toLowerCase())
+            );
+            const dateMatches = angeDateKey && (eodItem.date || '').includes(angeDateKey);
+            return buyerMatches && dateMatches;
+          });
+          buyerEodItemsForDate.forEach(item => {
+            const rev = parseFloat(item.adRev?.toString().replace(/[^0-9.-]+/g, '')) || 0;
+            const spend = parseFloat(item.adSpend?.toString().replace(/[^0-9.-]+/g, '')) || 0;
+            angeRevenueTotal += isNaN(rev) ? 0 : rev;
+            angeSpendTotal += isNaN(spend) ? 0 : spend;
+          });
+        } catch (aggErr) {
+          console.warn('Failed to compute Ange totals for', buyer.name, aggErr);
+        }
+
         return {
           name: buyer.name,
           boardId: buyer.boardId,
@@ -406,7 +431,11 @@ export default async function handler(req, res) {
           allItems: sortedItems.slice(0, 5), // Keep last 5 items for debugging
           isCompleted: isCompleted || false,
           datesMatch: datesMatch,
-          latestEODDate: latestEODDate
+          latestEODDate: latestEODDate,
+          angeTotals: {
+            revenue: angeRevenueTotal,
+            spend: angeSpendTotal
+          }
         };
 
       } catch (error) {

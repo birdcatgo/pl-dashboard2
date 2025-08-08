@@ -263,14 +263,21 @@ const MediaBuyerEODManager = () => {
                 </div>
                 <div className="flex items-center space-x-4">
                   <div>
-                    Total Revenue: <span className="font-medium text-green-600">
+                    Ange Revenue: <span className="font-medium text-green-600">
                       {formatCurrency(
                         filteredData.reduce((total, buyer) => {
-                          const buyerTotal = buyer.subitems?.reduce((sum, subitem) => {
-                            const rev = parseFloat(subitem.adRev?.replace(/[^0-9.-]+/g, '') || 0);
-                            return sum + (isNaN(rev) ? 0 : rev);
-                          }, 0) || 0;
-                          return total + buyerTotal;
+                          const val = parseFloat((buyer.angeTotals?.revenue ?? 0));
+                          return total + (isNaN(val) ? 0 : val);
+                        }, 0).toString()
+                      )}
+                    </span>
+                  </div>
+                  <div>
+                    Ange Spend: <span className="font-medium text-red-600">
+                      {formatCurrency(
+                        filteredData.reduce((total, buyer) => {
+                          const val = parseFloat((buyer.angeTotals?.spend ?? 0));
+                          return total + (isNaN(val) ? 0 : val);
                         }, 0).toString()
                       )}
                     </span>
@@ -311,8 +318,8 @@ const MediaBuyerEODManager = () => {
                     <TableHead>MB Report</TableHead>
                     <TableHead>Ange's Report</TableHead>
                     <TableHead>Active Fanpages</TableHead>
-                    <TableHead>Revenue</TableHead>
-                    <TableHead>Spend</TableHead>
+                    <TableHead>Ange Revenue</TableHead>
+                    <TableHead>Ange Spend</TableHead>
                     <TableHead>Actions</TableHead>
                   </TableRow>
                 </TableHeader>
@@ -338,20 +345,10 @@ const MediaBuyerEODManager = () => {
                         {buyer.subitems?.length || 0}
                       </TableCell>
                       <TableCell className="font-medium text-green-600">
-                        {formatCurrency(
-                          buyer.subitems?.reduce((sum, subitem) => {
-                            const rev = parseFloat(subitem.adRev?.replace(/[^0-9.-]+/g, '') || 0);
-                            return sum + (isNaN(rev) ? 0 : rev);
-                          }, 0).toString()
-                        )}
+                        {formatCurrency((buyer.angeTotals?.revenue ?? 0).toString())}
                       </TableCell>
                       <TableCell className="font-medium text-red-600">
-                        {formatCurrency(
-                          buyer.subitems?.reduce((sum, subitem) => {
-                            const spend = parseFloat(subitem.adSpend?.replace(/[^0-9.-]+/g, '') || 0);
-                            return sum + (isNaN(spend) ? 0 : spend);
-                          }, 0).toString()
-                        )}
+                        {formatCurrency((buyer.angeTotals?.spend ?? 0).toString())}
                       </TableCell>
                       <TableCell>
                         <div className="flex items-center space-x-2">
