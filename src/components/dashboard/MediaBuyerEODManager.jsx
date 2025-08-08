@@ -154,6 +154,10 @@ const MediaBuyerEODManager = () => {
   const getStatusText = (buyer) => {
     if (buyer.error) return 'Error';
     if (buyer.datesMatch) return 'Up to Date';
+    const rev = parseFloat((buyer.angeTotals?.revenue ?? 0));
+    const spend = parseFloat((buyer.angeTotals?.spend ?? 0));
+    const hasAngeNumbers = ((!isNaN(rev) && rev > 0) || (!isNaN(spend) && spend > 0));
+    if (!hasAngeNumbers) return 'N/A';
     if (buyer.subitems && buyer.subitems.length > 0) return 'Report Missing';
     return 'No Data';
   };
@@ -207,6 +211,13 @@ const MediaBuyerEODManager = () => {
       buyer.subitems?.map(subitem => subitem.vertical).filter(v => v && v !== 'N/A') || []
     )
   )].sort();
+
+  // Determine if Ange has any activity for the latest report day across any buyer
+  const hasGlobalAngeActivity = filteredData.some(buyer => {
+    const rev = parseFloat((buyer.angeTotals?.revenue ?? 0));
+    const spend = parseFloat((buyer.angeTotals?.spend ?? 0));
+    return (!isNaN(rev) && rev > 0) || (!isNaN(spend) && spend > 0);
+  });
 
   if (error) {
     return (
@@ -345,10 +356,24 @@ const MediaBuyerEODManager = () => {
                         {buyer.subitems?.length || 0}
                       </TableCell>
                       <TableCell className="font-medium text-green-600">
-                        {formatCurrency((buyer.angeTotals?.revenue ?? 0).toString())}
+                        {(() => {
+                          const val = parseFloat((buyer.angeTotals?.revenue ?? 0));
+                          const spendVal = parseFloat((buyer.angeTotals?.spend ?? 0));
+                          if (hasGlobalAngeActivity && (isNaN(val) || val === 0) && (isNaN(spendVal) || spendVal === 0)) {
+                            return 'N/A';
+                          }
+                          return formatCurrency((val || 0).toString());
+                        })()}
                       </TableCell>
                       <TableCell className="font-medium text-red-600">
-                        {formatCurrency((buyer.angeTotals?.spend ?? 0).toString())}
+                        {(() => {
+                          const val = parseFloat((buyer.angeTotals?.spend ?? 0));
+                          const revVal = parseFloat((buyer.angeTotals?.revenue ?? 0));
+                          if (hasGlobalAngeActivity && (isNaN(val) || val === 0) && (isNaN(revVal) || revVal === 0)) {
+                            return 'N/A';
+                          }
+                          return formatCurrency((val || 0).toString());
+                        })()}
                       </TableCell>
                       <TableCell>
                         <div className="flex items-center space-x-2">
