@@ -16,18 +16,27 @@ const TaskManager = () => {
 
   // Daily task template
   const dailyTaskTemplate = [
-    "Task Management",
-    "Calendar",
-    "Slack Update",
+    "Create To Do List for Priorities for Today",
+    "Check Calendar",
+    "Send My Daily Slack Update",
     "P & L Reporting",
     "Prep for tomorrow's P & L",
     "Identify any Redtrack Issues",
     "Bank Account/Credit Card Update",
     "Invoice Check",
-    "Check EOD Reports for ALL Media Buyers",
+    "Check EOD Reports - Sam",
+    "Check EOD Reports - Mike",
+    "Check EOD Reports - Rutvik",
+    "Check EOD Reports - Bikki",
+    "Check EOD Reports - Daniel",
+    "Check EOD Reports - Ishaan",
+    "Check EOD Reports - Aakash",
+    "Check EOD Reports - Emil",
     "Status Brew Check - Fanpage Activity",
     "Comment Rev Review with Zel/Jess",
-    "Clear Telegram, Teams, Slack"
+    "Clear Telegram",
+    "Clear Teams",
+    "Clear Slack"
   ];
 
   // Load tasks from localStorage on component mount

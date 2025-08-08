@@ -6,7 +6,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { toast } from 'sonner';
-import { RefreshCw, ExternalLink, TrendingUp, Users, DollarSign, Filter } from 'lucide-react';
+import { RefreshCw, ExternalLink, TrendingUp, Users, DollarSign, Filter, ArrowUpDown } from 'lucide-react';
 import VerticalFilter from '../ui/VerticalFilter';
 
 const ActiveFanpagesManager = () => {
@@ -16,6 +16,10 @@ const ActiveFanpagesManager = () => {
   const [searchTerm, setSearchTerm] = useState('');
   const [filterMediaBuyer, setFilterMediaBuyer] = useState('all');
   const [filterVertical, setFilterVertical] = useState('all');
+  const [sortConfig, setSortConfig] = useState({
+    key: null,
+    direction: 'asc'
+  });
 
   const fetchActiveFanpages = async () => {
     setLoading(true);
@@ -29,16 +33,13 @@ const ActiveFanpagesManager = () => {
         throw new Error(errorText || 'Failed to fetch active fanpages');
       }
       
-      const responseText = await response.text();
-      let responseData;
+      const responseData = await response.json();
       
-      try {
-        responseData = JSON.parse(responseText);
-      } catch (parseError) {
-        throw new Error('Invalid response format from server');
+      if (!responseData.success) {
+        throw new Error(responseData.error || 'Failed to fetch active fanpages');
       }
       
-      setData(responseData.activeFanpages || []);
+      setData(responseData.fanpages || []);
     } catch (err) {
       console.error('Error fetching active fanpages:', err);
       setError(err.message);
@@ -61,8 +62,8 @@ const ActiveFanpagesManager = () => {
 
   const formatCurrency = (value) => {
     if (!value || value === 'N/A' || value === '0') return '$0.00';
-    const num = parseFloat(value.replace(/[^0-9.-]+/g, ''));
-    if (isNaN(num)) return value;
+    const num = parseFloat(value.toString().replace(/[^0-9.-]+/g, ''));
+    if (isNaN(num)) return '$0.00';
     return new Intl.NumberFormat('en-US', {
       style: 'currency',
       currency: 'USD',
@@ -104,11 +105,48 @@ const ActiveFanpagesManager = () => {
     return colors[index % colors.length];
   };
 
+  const requestSort = (key) => {
+    let direction = 'asc';
+    if (sortConfig.key === key && sortConfig.direction === 'asc') {
+      direction = 'desc';
+    }
+    setSortConfig({ key, direction });
+  };
+
+  const getSortedData = (items) => {
+    if (!sortConfig.key) return items;
+
+    return [...items].sort((a, b) => {
+      let aValue = a[sortConfig.key];
+      let bValue = b[sortConfig.key];
+
+      // Handle numeric values
+      if (['revenue', 'spend'].includes(sortConfig.key)) {
+        aValue = parseFloat(aValue) || 0;
+        bValue = parseFloat(bValue) || 0;
+      } else {
+        // Convert to lowercase for string comparison
+        aValue = String(aValue).toLowerCase();
+        bValue = String(bValue).toLowerCase();
+      }
+
+      if (aValue < bValue) {
+        return sortConfig.direction === 'asc' ? -1 : 1;
+      }
+      if (aValue > bValue) {
+        return sortConfig.direction === 'asc' ? 1 : -1;
+      }
+      return 0;
+    });
+  };
+
   // Filter data based on search and filters
   const filteredData = data.filter(fanpage => {
-    const matchesSearch = fanpage.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                         fanpage.adAccount.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                         fanpage.network.toLowerCase().includes(searchTerm.toLowerCase());
+    const matchesSearch = 
+      fanpage.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      fanpage.adAccount.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      fanpage.network.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      fanpage.facebookPage.toLowerCase().includes(searchTerm.toLowerCase());
     
     const matchesMediaBuyer = filterMediaBuyer === 'all' || fanpage.mediaBuyer === filterMediaBuyer;
     const matchesVertical = filterVertical === 'all' || fanpage.vertical === filterVertical;
@@ -116,20 +154,32 @@ const ActiveFanpagesManager = () => {
     return matchesSearch && matchesMediaBuyer && matchesVertical;
   });
 
+  // Sort the filtered data
+  const sortedData = getSortedData(filteredData);
+
   // Get unique values for filters
   const uniqueMediaBuyers = [...new Set(data.map(f => f.mediaBuyer))].sort();
   const uniqueVerticals = [...new Set(data.map(f => f.vertical).filter(v => v !== 'N/A'))].sort();
 
   // Calculate totals
-  const totalRevenue = filteredData.reduce((sum, fanpage) => {
-    const rev = parseFloat(fanpage.adRev?.replace(/[^0-9.-]+/g, '') || 0);
-    return sum + (isNaN(rev) ? 0 : rev);
-  }, 0);
+  const totalRevenue = sortedData.reduce((sum, fanpage) => sum + (fanpage.revenue || 0), 0);
+  const totalSpend = sortedData.reduce((sum, fanpage) => sum + (fanpage.spend || 0), 0);
 
-  const totalSpend = filteredData.reduce((sum, fanpage) => {
-    const spend = parseFloat(fanpage.adSpend?.replace(/[^0-9.-]+/g, '') || 0);
-    return sum + (isNaN(spend) ? 0 : spend);
-  }, 0);
+  const SortableTableHead = ({ children, sortKey }) => {
+    const isSorted = sortConfig.key === sortKey;
+    
+    return (
+      <TableHead>
+        <button
+          className="flex items-center space-x-1 hover:text-gray-700"
+          onClick={() => requestSort(sortKey)}
+        >
+          <span>{children}</span>
+          <ArrowUpDown className={`h-4 w-4 ${isSorted ? 'text-blue-500' : 'text-gray-400'}`} />
+        </button>
+      </TableHead>
+    );
+  };
 
   if (error) {
     return (
@@ -174,7 +224,7 @@ const ActiveFanpagesManager = () => {
               <TrendingUp className="h-5 w-5 text-blue-500" />
               <div>
                 <p className="text-sm font-medium">Active Fanpages</p>
-                <p className="text-2xl font-bold">{filteredData.length}</p>
+                <p className="text-2xl font-bold">{sortedData.length}</p>
               </div>
             </div>
           </CardContent>
@@ -198,7 +248,7 @@ const ActiveFanpagesManager = () => {
               <DollarSign className="h-5 w-5 text-green-500" />
               <div>
                 <p className="text-sm font-medium">Total Revenue</p>
-                <p className="text-2xl font-bold">{formatCurrency(totalRevenue.toString())}</p>
+                <p className="text-2xl font-bold">{formatCurrency(totalRevenue)}</p>
               </div>
             </div>
           </CardContent>
@@ -210,7 +260,7 @@ const ActiveFanpagesManager = () => {
               <DollarSign className="h-5 w-5 text-red-500" />
               <div>
                 <p className="text-sm font-medium">Total Spend</p>
-                <p className="text-2xl font-bold">{formatCurrency(totalSpend.toString())}</p>
+                <p className="text-2xl font-bold">{formatCurrency(totalSpend)}</p>
               </div>
             </div>
           </CardContent>
@@ -263,7 +313,7 @@ const ActiveFanpagesManager = () => {
       {/* Fanpages Table */}
       <Card>
         <CardHeader>
-          <CardTitle>Active Fanpages ({filteredData.length})</CardTitle>
+          <CardTitle>Active Fanpages ({sortedData.length})</CardTitle>
         </CardHeader>
         <CardContent>
           {loading ? (
@@ -271,7 +321,7 @@ const ActiveFanpagesManager = () => {
               <RefreshCw className="h-8 w-8 animate-spin mx-auto mb-4" />
               <p className="text-gray-500">Loading active fanpages...</p>
             </div>
-          ) : filteredData.length === 0 ? (
+          ) : sortedData.length === 0 ? (
             <div className="text-center py-8">
               <p className="text-gray-500">No active fanpages found</p>
             </div>
@@ -280,28 +330,25 @@ const ActiveFanpagesManager = () => {
               <Table>
                 <TableHeader>
                   <TableRow>
-                    <TableHead>Campaign Name</TableHead>
-                    <TableHead>Fanpage Name</TableHead>
-                    <TableHead>Media Buyer</TableHead>
-                    <TableHead>Vertical</TableHead>
-                    <TableHead>Network</TableHead>
-                    <TableHead>Ad Account</TableHead>
-                    <TableHead>Revenue</TableHead>
-                    <TableHead>Spend</TableHead>
+                    <SortableTableHead sortKey="name">Campaign Name</SortableTableHead>
+                    <SortableTableHead sortKey="facebookPage">Facebook Page</SortableTableHead>
+                    <SortableTableHead sortKey="mediaBuyer">Media Buyer</SortableTableHead>
+                    <SortableTableHead sortKey="vertical">Vertical</SortableTableHead>
+                    <SortableTableHead sortKey="network">Network</SortableTableHead>
+                    <SortableTableHead sortKey="adAccount">Ad Account</SortableTableHead>
+                    <SortableTableHead sortKey="revenue">Revenue</SortableTableHead>
+                    <SortableTableHead sortKey="spend">Spend</SortableTableHead>
                     <TableHead>ROAS</TableHead>
-                    <TableHead>Actions</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {filteredData.map((fanpage) => {
-                    const revenue = parseFloat(fanpage.adRev?.replace(/[^0-9.-]+/g, '') || 0);
-                    const spend = parseFloat(fanpage.adSpend?.replace(/[^0-9.-]+/g, '') || 0);
-                    const roas = spend > 0 ? (revenue / spend).toFixed(2) : 0;
+                  {sortedData.map((fanpage, index) => {
+                    const roas = fanpage.spend > 0 ? (fanpage.revenue / fanpage.spend).toFixed(2) : 0;
                     
                     return (
-                      <TableRow key={`${fanpage.mediaBuyer}-${fanpage.id}`}>
+                      <TableRow key={`${fanpage.mediaBuyer}-${fanpage.name}-${index}`}>
                         <TableCell className="font-medium">{fanpage.name}</TableCell>
-                        <TableCell>{fanpage.fanpageName}</TableCell>
+                        <TableCell>{fanpage.facebookPage}</TableCell>
                         <TableCell>
                           <Badge className={getMediaBuyerColor(fanpage.mediaBuyer)}>
                             {fanpage.mediaBuyer}
@@ -315,23 +362,13 @@ const ActiveFanpagesManager = () => {
                         <TableCell>{fanpage.network}</TableCell>
                         <TableCell>{fanpage.adAccount}</TableCell>
                         <TableCell className="text-green-600 font-medium">
-                          {formatCurrency(fanpage.adRev)}
+                          {formatCurrency(fanpage.revenue)}
                         </TableCell>
                         <TableCell className="text-red-600 font-medium">
-                          {formatCurrency(fanpage.adSpend)}
+                          {formatCurrency(fanpage.spend)}
                         </TableCell>
                         <TableCell className={`font-medium ${roas >= 1 ? 'text-green-600' : 'text-red-600'}`}>
                           {roas}x
-                        </TableCell>
-                        <TableCell>
-                          <a
-                            href={`https://convert2freedom.monday.com/boards/${fanpage.boardId}/pulses/${fanpage.itemId}`}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="text-blue-500 hover:text-blue-700"
-                          >
-                            <ExternalLink className="h-4 w-4" />
-                          </a>
                         </TableCell>
                       </TableRow>
                     );
@@ -346,4 +383,4 @@ const ActiveFanpagesManager = () => {
   );
 };
 
-export default ActiveFanpagesManager; 
+export default ActiveFanpagesManager;

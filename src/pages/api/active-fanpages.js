@@ -1,27 +1,20 @@
 export default async function handler(req, res) {
   if (req.method !== 'GET') {
-    return res.status(405).json({ error: 'Method not allowed' });
+    return res.status(405).json({ 
+      success: false,
+      error: 'Method not allowed',
+      fanpages: [] 
+    });
   }
 
   try {
     const MONDAY_API_TOKEN = process.env.MONDAY_API_TOKEN;
 
     if (!MONDAY_API_TOKEN) {
-      return res.status(500).json({ error: 'Monday.com API token not configured' });
-    }
-
-    // Check for cached results first
-    const resultsCacheKey = 'active_fanpages_results';
-    const cachedResults = global[resultsCacheKey];
-    const cacheTime = global[`${resultsCacheKey}_time`];
-    
-    // Use cache if it's less than 5 minutes old
-    if (cachedResults && cacheTime && (Date.now() - cacheTime) < 5 * 60 * 1000) {
-      console.log('Using cached final results');
-      return res.status(200).json({
-        success: true,
-        ...cachedResults,
-        fromCache: true
+      return res.status(500).json({ 
+        success: false,
+        error: 'Monday.com API token not configured',
+        fanpages: []
       });
     }
 
@@ -42,26 +35,15 @@ export default async function handler(req, res) {
       try {
         console.log(`Fetching active fanpages for ${buyer.name} (Board: ${buyer.boardId})`);
 
-        // Check cache first
-        const cacheKey = `monday_fanpages_${buyer.boardId}`;
-        const cachedData = global[cacheKey];
-        const cacheTime = global[`${cacheKey}_time`];
-        
-        // Use cache if it's less than 5 minutes old
-        if (cachedData && cacheTime && (Date.now() - cacheTime) < 5 * 60 * 1000) {
-          console.log(`Using cached fanpage data for ${buyer.name}`);
-          return cachedData;
-        }
-
-        // GraphQL query optimized for latest data only
+        // Use the same GraphQL query structure as Media Buyer EOD
         const query = `
           query {
             boards(ids: ${buyer.boardId}) {
-              items_page(limit: 1, query_params: {order_by: {column_id: "date4", direction: desc}}) {
+              items_page(limit: 50) {
                 items {
                   id
                   name
-                  column_values(ids: ["date4"]) {
+                  column_values {
                     id
                     type
                     value
@@ -70,7 +52,7 @@ export default async function handler(req, res) {
                   subitems {
                     id
                     name
-                    column_values(ids: ["status8", "status2", "dropdown", "numbers4", "numbers"]) {
+                    column_values {
                       id
                       type
                       value
@@ -98,117 +80,197 @@ export default async function handler(req, res) {
         }
 
         const data = await response.json();
-        
+
         if (data.errors) {
-          throw new Error('Monday.com API returned errors');
+          console.error(`Monday.com API errors for ${buyer.name}:`, JSON.stringify(data.errors, null, 2));
+          throw new Error(`Monday.com API returned errors: ${data.errors.map(e => e.message).join(', ')}`);
         }
 
-        // Update cache
-        global[cacheKey] = data;
-        global[`${cacheKey}_time`] = Date.now();
+        const items = data.data?.boards?.[0]?.items_page?.items || [];
         
-        return data;
+        // Process items to find dates and sort them (same as Media Buyer EOD)
+        const processedItems = items.map(item => {
+          // Look for date-related columns (same logic as Media Buyer EOD)
+          const dateColumn = item.column_values.find(col => 
+            col.type === 'date' || 
+            col.type === 'timeline' ||
+            col.id === 'date' ||
+            col.id === 'timeline__1' ||
+            col.id === 'date4'
+          );
+
+          return {
+            id: item.id,
+            name: item.name,
+            date: dateColumn?.text || 'No date',
+            rawDateValue: dateColumn?.value || null,
+            subitems: item.subitems || [],
+            dateColumn
+          };
+        });
+
+        // Sort items by date to find the most recent
+        const sortedItems = processedItems.sort((a, b) => {
+          if (!a.date || a.date === 'No date') return 1;
+          if (!b.date || b.date === 'No date') return -1;
+          return new Date(b.date) - new Date(a.date);
+        });
+
+        const latestItem = sortedItems[0];
+        
+        if (!latestItem || !latestItem.date || latestItem.date === 'No date') {
+          console.log(`No items with valid dates found for ${buyer.name}`);
+          return {
+            name: buyer.name,
+            boardId: buyer.boardId,
+            data: { boards: [{ items_page: { items: [] } }] }
+          };
+        }
+
+        console.log(`Latest date for ${buyer.name}: ${latestItem.date}, Item: ${latestItem.name}`);
+
+        return {
+          name: buyer.name,
+          boardId: buyer.boardId,
+          data: {
+            boards: [{
+              items_page: {
+                items: [latestItem]
+              }
+            }]
+          }
+        };
+
       } catch (error) {
         console.error(`Error fetching data for ${buyer.name}:`, error);
         return {
           name: buyer.name,
           boardId: buyer.boardId,
-          error: error.message,
-          items: []
+          error: error.message
         };
       }
     };
 
-    // Process data in chunks to avoid timeouts
-    const chunkSize = 2;
-    const allActiveFanpages = [];
+    const fanpages = [];
+    const errors = [];
+    
+    // Process all boards in parallel
+    const responses = await Promise.all(mediaBuyerBoards.map(fetchBuyerData));
 
-    for (let i = 0; i < mediaBuyerBoards.length; i += chunkSize) {
-      const chunk = mediaBuyerBoards.slice(i, i + chunkSize);
-      const chunkPromises = chunk.map(buyer => fetchBuyerData(buyer));
-      const chunkResults = await Promise.all(chunkPromises);
+    for (const response of responses) {
+      if (response.error) {
+        errors.push(`${response.name}: ${response.error}`);
+        continue;
+      }
 
-      // Process chunk results
-      chunkResults.forEach((data, index) => {
-        const buyer = chunk[index];
+      const items = response.data?.boards?.[0]?.items_page?.items || [];
+      console.log(`Found ${items.length} items for ${response.name}`);
+      
+      // Process the latest item
+      const latestItem = items[0];
+      if (!latestItem) continue;
+
+      console.log(`Processing latest item for ${response.name}: ${latestItem.name}`);
+      const subitems = latestItem.subitems || [];
+      console.log(`Found ${subitems.length} subitems for latest item`);
+      
+      for (const subitem of subitems) {
+        console.log(`Processing subitem: ${subitem.name}`);
         
-        try {
-          if (data.error) {
-            console.error(`Error processing ${buyer.name}:`, data.error);
-            return;
+        // Apply the same column detection logic as Media Buyer EOD
+        const columnValues = subitem.column_values || [];
+        
+        // Get all dropdown columns and sort them by position to find vertical/network
+        const dropdownColumns = columnValues.filter(col => col.type === 'dropdown' && col.text);
+        
+        // First dropdown column is usually vertical, second is usually network
+        // Ad Account is the dropdown with id 'dropdown'
+        const adAccountColumn = columnValues.find(col => 
+          col.id === 'dropdown' && col.type === 'dropdown'
+        );
+        
+        // Remove ad account from other dropdowns to get vertical/network
+        const otherDropdowns = dropdownColumns.filter(col => col.id !== 'dropdown');
+        
+        // Assign based on typical patterns or position
+        let verticalColumn = null;
+        let networkColumn = null;
+        
+        if (otherDropdowns.length >= 2) {
+          // Usually first dropdown is vertical, second is network
+          verticalColumn = otherDropdowns[0];
+          networkColumn = otherDropdowns[1];
+        } else if (otherDropdowns.length === 1) {
+          // If only one, assume it's vertical
+          verticalColumn = otherDropdowns[0];
+        } else {
+          // Fallback: Check for status columns (like Mike's board)
+          const statusColumns = columnValues.filter(col => col.type === 'status' && col.text);
+          if (statusColumns.length >= 2) {
+            verticalColumn = statusColumns[0]; // status8 is usually vertical
+            networkColumn = statusColumns[1];  // status2 is usually network
+          } else if (statusColumns.length === 1) {
+            verticalColumn = statusColumns[0];
           }
-
-          const items = data.data.boards[0]?.items_page?.items || [];
-          const mostRecentItem = items[0]; // We only fetch the most recent item now
-
-          if (mostRecentItem) {
-            const dateColumn = mostRecentItem.column_values[0]; // We only fetch date4 column
-            
-            // Process subitems
-            mostRecentItem.subitems?.forEach(subitem => {
-              const columns = subitem.column_values;
-              const vertical = columns.find(col => col.id === 'status8')?.text || 'N/A';
-              const network = columns.find(col => col.id === 'status2')?.text || 'N/A';
-              const adAccount = columns.find(col => col.id === 'dropdown')?.text || 'N/A';
-              const adRev = columns.find(col => col.id === 'numbers4')?.text || '0';
-              const adSpend = columns.find(col => col.id === 'numbers')?.text || '0';
-
-              // Only add if there's active spend
-              const spend = parseFloat(adSpend.replace(/[^0-9.-]+/g, '') || 0);
-              if (spend > 0) {
-                allActiveFanpages.push({
-                  id: subitem.id,
-                  name: subitem.name, // Campaign name
-                  vertical,
-                  network,
-                  adAccount,
-                  adRev,
-                  adSpend,
-                  mediaBuyer: buyer.name,
-                  reportDate: dateColumn?.text || 'No date'
-                });
-              }
-            });
-          }
-        } catch (error) {
-          console.error(`Error processing ${buyer.name}:`, error);
         }
-      });
+        
+        // Facebook Page Name is in the text column
+        const facebookPageColumn = columnValues.find(col => 
+          col.id === 'text' && col.type === 'text'
+        );
+        
+        // Revenue is usually in numbers4 column
+        const adRevColumn = columnValues.find(col => 
+          col.id === 'numbers4' && col.type === 'numbers'
+        );
+        
+        // Spend is usually in numbers column
+        const adSpendColumn = columnValues.find(col => 
+          col.id === 'numbers' && col.type === 'numbers'
+        );
+
+        const fanpage = {
+          id: subitem.id,
+          name: subitem.name,
+          mediaBuyer: response.name,
+          vertical: verticalColumn?.text || 'N/A',
+          network: networkColumn?.text || 'N/A',
+          adAccount: adAccountColumn?.text || 'N/A',
+          facebookPage: facebookPageColumn?.text || 'N/A',
+          revenue: parseFloat(adRevColumn?.text) || 0,
+          spend: parseFloat(adSpendColumn?.text) || 0,
+          boardId: response.boardId,
+          itemId: latestItem.id
+        };
+
+        console.log(`Processed fanpage: ${JSON.stringify(fanpage, null, 2)}`);
+
+        // Only include fanpages with spend
+        if (fanpage.spend > 0) {
+          console.log(`Adding fanpage with spend: ${fanpage.name}`);
+          fanpages.push(fanpage);
+        } else {
+          console.log(`Skipping fanpage with no spend: ${fanpage.name} (spend: ${fanpage.spend})`);
+        }
+      }
     }
 
-    // Remove duplicates and sort
-    const uniqueFanpages = allActiveFanpages.filter((fanpage, index, self) => 
-      index === self.findIndex(f => 
-        f.name === fanpage.name && f.mediaBuyer === fanpage.mediaBuyer
-      )
-    );
+    console.log(`Found ${fanpages.length} active fanpages`);
 
-    const sortedFanpages = uniqueFanpages.sort((a, b) => {
-      const spendA = parseFloat(a.adSpend.replace(/[^0-9.-]+/g, '') || 0);
-      const spendB = parseFloat(b.adSpend.replace(/[^0-9.-]+/g, '') || 0);
-      return spendB - spendA;
-    });
-
-    // Cache the final results
-    const results = {
-      activeFanpages: sortedFanpages,
-      totalActiveFanpages: sortedFanpages.length,
-      timestamp: new Date().toISOString()
-    };
-
-    global[resultsCacheKey] = results;
-    global[`${resultsCacheKey}_time`] = Date.now();
-
-    res.status(200).json({
+    return res.status(200).json({
       success: true,
-      ...results
+      fanpages,
+      errors: errors.length > 0 ? errors : undefined,
+      total: fanpages.length
     });
 
   } catch (error) {
-    console.error('Error fetching active fanpages:', error);
-    res.status(500).json({ 
-      error: 'Failed to fetch active fanpages',
-      details: error.message 
+    console.error('Error in active-fanpages API:', error);
+    return res.status(500).json({
+      success: false,
+      error: error.message,
+      fanpages: [],
+      total: 0
     });
   }
 }
