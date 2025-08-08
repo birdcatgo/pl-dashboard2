@@ -312,6 +312,7 @@ const MediaBuyerEODManager = () => {
                     <TableHead>EOD Report</TableHead>
                     <TableHead>Active Fanpages</TableHead>
                     <TableHead>Revenue</TableHead>
+                    <TableHead>Spend</TableHead>
                     <TableHead>Actions</TableHead>
                   </TableRow>
                 </TableHeader>
@@ -346,6 +347,14 @@ const MediaBuyerEODManager = () => {
                           buyer.subitems?.reduce((sum, subitem) => {
                             const rev = parseFloat(subitem.adRev?.replace(/[^0-9.-]+/g, '') || 0);
                             return sum + (isNaN(rev) ? 0 : rev);
+                          }, 0).toString()
+                        )}
+                      </TableCell>
+                      <TableCell className="font-medium text-red-600">
+                        {formatCurrency(
+                          buyer.subitems?.reduce((sum, subitem) => {
+                            const spend = parseFloat(subitem.adSpend?.replace(/[^0-9.-]+/g, '') || 0);
+                            return sum + (isNaN(spend) ? 0 : spend);
                           }, 0).toString()
                         )}
                       </TableCell>
