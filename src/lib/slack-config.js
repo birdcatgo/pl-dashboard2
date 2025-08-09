@@ -30,59 +30,8 @@ Let me know if you're running into any issues.`;
 
 // Default detailed message template for EOD reminders
 export function getDefaultEODMessage(mediaBuyer, data) {
-  const totalRevenue = data.subitems?.reduce((sum, subitem) => {
-    const rev = parseFloat(subitem.adRev?.replace(/[^0-9.-]+/g, '') || 0);
-    return sum + (isNaN(rev) ? 0 : rev);
-  }, 0) || 0;
-
-  const totalSpend = data.subitems?.reduce((sum, subitem) => {
-    const spend = parseFloat(subitem.adSpend?.replace(/[^0-9.-]+/g, '') || 0);
-    return sum + (isNaN(spend) ? 0 : spend);
-  }, 0) || 0;
-
-  const campaignList = data.subitems?.map(subitem => 
-    `• ${subitem.name} (${subitem.adAccount})\n   Rev: $${subitem.adRev} | Spend: $${subitem.adSpend}`
-  ).join('\n') || 'No campaigns found';
-
+  // Simplified: send only the default text message, no numbers or extra details
   return {
-    text: `EOD Report Reminder for ${data.latestEODDate}`,
-    blocks: [
-      {
-        type: "header",
-        text: {
-          type: "plain_text",
-          text: "🚨 EOD Report Missing",
-          emoji: true
-        }
-      },
-      {
-        type: "section",
-        text: {
-          type: "mrkdwn",
-          text: `Hi ${mediaBuyer}! I have data for your campaigns in my EOD report for *${data.latestEODDate}*, but I don't see your EOD report yet.\n\nYour latest report is from *${data.mostRecentDate}*.`
-        }
-      },
-      {
-        type: "section",
-        text: {
-          type: "mrkdwn",
-          text: "*Campaign Summary:*\nTotal Revenue: $${totalRevenue.toFixed(2)}\nTotal Spend: $${totalSpend.toFixed(2)}\nTotal Campaigns: ${data.subitems?.length || 0}"
-        }
-      },
-      {
-        type: "section",
-        text: {
-          type: "mrkdwn",
-          text: "*Active Campaigns:*\n" + campaignList
-        }
-      },
-      {
-        type: "section",
-        text: {
-          type: "mrkdwn",
-          text: "Please submit your EOD report as soon as possible so we can ensure our data matches. 🙏"
-        }
-      }
-    ]
+    text: DEFAULT_EOD_REMINDER_MESSAGE
   };
 }

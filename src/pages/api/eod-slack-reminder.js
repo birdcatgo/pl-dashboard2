@@ -1,16 +1,4 @@
-import { getWebhookUrl, isValidWebhookUrl } from '../../lib/slack-config';
-
-// Media buyer Slack user IDs - you'll need to update these with actual Slack user IDs
-const MEDIA_BUYER_SLACK_IDS = {
-  'Mike': '@mike.user',
-  'Sam': '@sam.user', 
-  'Daniel': '@daniel.user',
-  'Bikki': '@bikki.user',
-  'Rutvik': '@rutvik.user',
-  'Aakash': '@aakash.user',
-  'Emil': '@emil.user',
-  'Ishaan': '@ishaan.user'
-};
+import { getMediaBuyerWebhook, isValidWebhookUrl, DEFAULT_EOD_REMINDER_MESSAGE } from '../../lib/slack-config';
 
 export default async function handler(req, res) {
   if (req.method !== 'POST') {
@@ -18,99 +6,32 @@ export default async function handler(req, res) {
   }
 
   try {
-    const { missingBuyers, latestEODDate } = req.body;
+    const { missingBuyers } = req.body;
 
     if (!missingBuyers || !Array.isArray(missingBuyers) || missingBuyers.length === 0) {
       return res.status(400).json({ error: 'Missing buyers array is required' });
     }
 
-    const webhookUrl = getWebhookUrl('MAIN');
-    
-    if (!isValidWebhookUrl(webhookUrl)) {
-      return res.status(500).json({ error: 'Invalid Slack webhook URL configuration' });
-    }
-
-    // Create mention string for all missing media buyers
-    const mentions = missingBuyers
-      .map(buyer => MEDIA_BUYER_SLACK_IDS[buyer.name] || `@${buyer.name}`)
-      .join(' ');
-
-    // Create detailed message
-    const messageBlocks = [
-      {
-        type: "header",
-        text: {
-          type: "plain_text",
-          text: "🚨 EOD Report Reminder",
-          emoji: true
-        }
-      },
-      {
-        type: "section",
-        text: {
-          type: "mrkdwn",
-          text: `${mentions}\n\nYour EOD reports for *${latestEODDate}* are missing, but I have ad spend/revenue data for you in my report.`
-        }
-      },
-      {
-        type: "section",
-        text: {
-          type: "mrkdwn",
-          text: "*Missing Reports:*"
-        }
+    // Send a simple text-only reminder to each missing buyer's dedicated webhook
+    const results = await Promise.all(missingBuyers.map(async (buyer) => {
+      const webhookUrl = getMediaBuyerWebhook(buyer.name);
+      if (!isValidWebhookUrl(webhookUrl)) {
+        throw new Error(`Invalid Slack webhook URL for ${buyer.name}`);
       }
-    ];
-
-    // Add each missing buyer's details
-    missingBuyers.forEach(buyer => {
-      const totalRevenue = buyer.subitems?.reduce((sum, subitem) => {
-        const rev = parseFloat(subitem.adRev?.replace(/[^0-9.-]+/g, '') || 0);
-        return sum + (isNaN(rev) ? 0 : rev);
-      }, 0) || 0;
-
-      const totalSpend = buyer.subitems?.reduce((sum, subitem) => {
-        const spend = parseFloat(subitem.adSpend?.replace(/[^0-9.-]+/g, '') || 0);
-        return sum + (isNaN(spend) ? 0 : spend);
-      }, 0) || 0;
-
-      messageBlocks.push({
-        type: "section",
-        text: {
-          type: "mrkdwn",
-          text: `• *${buyer.name}*: ${buyer.subitems?.length || 0} campaigns, $${totalRevenue.toFixed(2)} revenue, $${totalSpend.toFixed(2)} spend (Latest: ${buyer.mostRecentDate})`
-        }
+      const response = await fetch(webhookUrl, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ text: DEFAULT_EOD_REMINDER_MESSAGE })
       });
-    });
-
-    // Add call to action
-    messageBlocks.push({
-      type: "section",
-      text: {
-        type: "mrkdwn",
-        text: "Please submit your EOD reports ASAP to ensure accurate data reconciliation. 📊"
+      if (!response.ok) {
+        throw new Error(`Slack API responded with status: ${response.status} for ${buyer.name}`);
       }
-    });
+      return buyer.name;
+    }));
 
-    const slackMessage = {
-      text: `EOD Report Reminder for ${latestEODDate}`,
-      blocks: messageBlocks
-    };
-
-    const response = await fetch(webhookUrl, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify(slackMessage),
-    });
-
-    if (!response.ok) {
-      throw new Error(`Slack API responded with status: ${response.status}`);
-    }
-
-    return res.status(200).json({ 
-      success: true, 
-      message: `Reminder sent to ${missingBuyers.length} media buyers`
+    return res.status(200).json({
+      success: true,
+      message: `Reminders sent to: ${results.join(', ')}`
     });
   } catch (error) {
     console.error('Error sending EOD Slack reminder:', error);
