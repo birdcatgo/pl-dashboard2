@@ -9,15 +9,15 @@ const MondayTasks = ({ onAddToPriorities, onAddMultiple, addedItems = new Set(),
   const [tasks, setTasks] = useState([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
-  const [debugInfo, setDebugInfo] = useState(null);
 
-  const fetchMondayTasks = async (debug = false) => {
+
+  const fetchMondayTasks = async () => {
     setLoading(true);
     setError(null);
     
     try {
-      console.log('Fetching Monday tasks...', debug ? '(debug mode)' : '');
-      const url = debug ? '/api/monday-tasks?showAll=true' : '/api/monday-tasks';
+      console.log('Fetching Monday tasks...');
+      const url = '/api/monday-tasks';
       const response = await fetch(url);
       console.log('Response status:', response.status);
       
@@ -41,12 +41,6 @@ const MondayTasks = ({ onAddToPriorities, onAddMultiple, addedItems = new Set(),
       if (data.success) {
         console.log(`Successfully loaded ${data.tasks?.length || 0} tasks`);
         setTasks(data.tasks || []);
-        setDebugInfo({
-          totalTasks: data.totalTasks,
-          activeTasks: data.activeTasks,
-          allTasksShown: data.allTasksShown,
-          debugMode: data.debugMode
-        });
       } else {
         throw new Error(data.error || 'API returned success: false');
       }
@@ -172,13 +166,6 @@ const MondayTasks = ({ onAddToPriorities, onAddMultiple, addedItems = new Set(),
         <div className="flex items-center justify-between">
           <div>
             <CardTitle className="text-sm font-medium">Monday.com Tasks (ANGE)</CardTitle>
-            {debugInfo && (
-              <div className="text-xs text-gray-500 mt-1">
-                {debugInfo.debugMode && <span className="text-orange-600 font-medium">Debug Mode</span>}
-                {debugInfo.allTasksShown && <span className="text-blue-600 font-medium">Showing All Tasks</span>}
-                <span className="ml-2">Active: {debugInfo.activeTasks} / Total: {debugInfo.totalTasks}</span>
-              </div>
-            )}
           </div>
           <div className="flex items-center space-x-2">
             {tasks.filter(task => !addedItems.has(task.mondayId)).length > 0 && (
@@ -202,16 +189,7 @@ const MondayTasks = ({ onAddToPriorities, onAddMultiple, addedItems = new Set(),
               <RefreshCw className={`h-3 w-3 mr-1 ${loading ? 'animate-spin' : ''}`} />
               Refresh
             </Button>
-            <Button
-              onClick={() => fetchMondayTasks(true)}
-              size="sm"
-              variant="outline"
-              className="text-orange-600 border-orange-300 hover:bg-orange-50"
-              disabled={loading}
-              title="Show all tasks (debug mode)"
-            >
-              Debug
-            </Button>
+
             <Button
               onClick={() => {
                 if (onClearAddedItems) {
@@ -241,25 +219,6 @@ const MondayTasks = ({ onAddToPriorities, onAddMultiple, addedItems = new Set(),
           </div>
         ) : (
           <div className="space-y-1">
-            {/* Debug info */}
-            <div className="text-xs text-gray-500 mb-2 p-2 bg-gray-100 rounded">
-              <div>Total tasks: {tasks.length}</div>
-              <div>Added items count: {addedItems.size}</div>
-              <div>Filtered tasks count: {tasks.filter(task => !addedItems.has(task.mondayId)).length}</div>
-              <div>Added items: {[...addedItems].join(', ')}</div>
-              <div className="mt-2">
-                <button 
-                  onClick={() => {
-                    console.log('Current addedItems:', [...addedItems]);
-                    console.log('All task IDs:', tasks.map(t => t.mondayId));
-                  }}
-                  className="text-blue-600 underline text-xs"
-                >
-                  Log to console
-                </button>
-              </div>
-            </div>
-            
             {tasks.filter(task => !addedItems.has(task.mondayId)).map((task) => (
               <div
                 key={task.id}
