@@ -6,7 +6,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { toast } from 'sonner';
-import { RefreshCw, ExternalLink, TrendingUp, Users, DollarSign, Filter, ArrowUpDown } from 'lucide-react';
+import { RefreshCw, ExternalLink, TrendingUp, Users, DollarSign, Filter, ArrowUpDown, CheckSquare, Square, Save, Trash2 } from 'lucide-react';
 import VerticalFilter from '../ui/VerticalFilter';
 
 const ActiveFanpagesManager = () => {
@@ -20,6 +20,7 @@ const ActiveFanpagesManager = () => {
     key: null,
     direction: 'asc'
   });
+  const [statusBrewChecked, setStatusBrewChecked] = useState(new Set());
 
   const fetchActiveFanpages = async () => {
     setLoading(true);
@@ -59,6 +60,23 @@ const ActiveFanpagesManager = () => {
     
     return () => clearInterval(interval);
   }, []);
+
+  // Load Status Brew checkboxes from localStorage
+  useEffect(() => {
+    const savedStatusBrew = localStorage.getItem('statusBrewChecked');
+    if (savedStatusBrew) {
+      try {
+        setStatusBrewChecked(new Set(JSON.parse(savedStatusBrew)));
+      } catch (error) {
+        console.error('Error loading Status Brew checkboxes:', error);
+      }
+    }
+  }, []);
+
+  // Save Status Brew checkboxes to localStorage whenever they change
+  useEffect(() => {
+    localStorage.setItem('statusBrewChecked', JSON.stringify([...statusBrewChecked]));
+  }, [statusBrewChecked]);
 
   const formatCurrency = (value) => {
     if (!value || value === 'N/A' || value === '0') return '$0.00';
@@ -111,6 +129,29 @@ const ActiveFanpagesManager = () => {
       direction = 'desc';
     }
     setSortConfig({ key, direction });
+  };
+
+  const handleStatusBrewToggle = (fanpageId) => {
+    setStatusBrewChecked(prev => {
+      const newSet = new Set(prev);
+      if (newSet.has(fanpageId)) {
+        newSet.delete(fanpageId);
+      } else {
+        newSet.add(fanpageId);
+      }
+      return newSet;
+    });
+  };
+
+  const clearAllStatusBrew = () => {
+    if (confirm('Are you sure you want to clear all Status Brew checkboxes? This action cannot be undone.')) {
+      setStatusBrewChecked(new Set());
+      toast.success('All Status Brew checkboxes cleared');
+    }
+  };
+
+  const saveStatusBrewProgress = () => {
+    toast.success(`Status Brew progress saved for ${statusBrewChecked.size} fanpages`);
   };
 
   const getSortedData = (items) => {
@@ -265,6 +306,18 @@ const ActiveFanpagesManager = () => {
             </div>
           </CardContent>
         </Card>
+
+        <Card>
+          <CardContent className="p-4">
+            <div className="flex items-center space-x-2">
+              <CheckSquare className="h-5 w-5 text-green-500" />
+              <div>
+                <p className="text-sm font-medium">On Status Brew</p>
+                <p className="text-2xl font-bold">{statusBrewChecked.size}</p>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
       </div>
 
       {/* Filters */}
@@ -313,7 +366,28 @@ const ActiveFanpagesManager = () => {
       {/* Fanpages Table */}
       <Card>
         <CardHeader>
-          <CardTitle>Active Fanpages ({sortedData.length})</CardTitle>
+          <div className="flex items-center justify-between">
+            <CardTitle>Active Fanpages ({sortedData.length})</CardTitle>
+            <div className="flex items-center space-x-2">
+              <Button
+                onClick={saveStatusBrewProgress}
+                size="sm"
+                className="flex items-center space-x-2 bg-green-600 hover:bg-green-700"
+              >
+                <Save className="h-4 w-4" />
+                <span>Save</span>
+              </Button>
+              <Button
+                onClick={clearAllStatusBrew}
+                size="sm"
+                variant="outline"
+                className="flex items-center space-x-2 text-red-600 border-red-300 hover:bg-red-50"
+              >
+                <Trash2 className="h-4 w-4" />
+                <span>Clear</span>
+              </Button>
+            </div>
+          </div>
         </CardHeader>
         <CardContent>
           {loading ? (
@@ -330,8 +404,9 @@ const ActiveFanpagesManager = () => {
               <Table>
                 <TableHeader>
                   <TableRow>
-                    <SortableTableHead sortKey="name">Campaign Name</SortableTableHead>
+                    <TableHead className="w-12">Status Brew</TableHead>
                     <SortableTableHead sortKey="facebookPage">Facebook Page</SortableTableHead>
+                    <SortableTableHead sortKey="name">Campaign Name</SortableTableHead>
                     <SortableTableHead sortKey="mediaBuyer">Media Buyer</SortableTableHead>
                     <SortableTableHead sortKey="vertical">Vertical</SortableTableHead>
                     <SortableTableHead sortKey="network">Network</SortableTableHead>
@@ -345,10 +420,26 @@ const ActiveFanpagesManager = () => {
                   {sortedData.map((fanpage, index) => {
                     const roas = fanpage.spend > 0 ? (fanpage.revenue / fanpage.spend).toFixed(2) : 0;
                     
+                    const fanpageId = `${fanpage.mediaBuyer}-${fanpage.name}-${fanpage.network}`;
+                    const isChecked = statusBrewChecked.has(fanpageId);
+                    
                     return (
                       <TableRow key={`${fanpage.mediaBuyer}-${fanpage.name}-${index}`}>
-                        <TableCell className="font-medium">{fanpage.name}</TableCell>
+                        <TableCell className="w-12">
+                          <button
+                            onClick={() => handleStatusBrewToggle(fanpageId)}
+                            className="flex items-center justify-center w-6 h-6 hover:bg-gray-100 rounded transition-colors"
+                            title={isChecked ? "Mark as not on Status Brew" : "Mark as on Status Brew"}
+                          >
+                            {isChecked ? (
+                              <CheckSquare className="h-5 w-5 text-green-600" />
+                            ) : (
+                              <Square className="h-5 w-5 text-gray-400" />
+                            )}
+                          </button>
+                        </TableCell>
                         <TableCell>{fanpage.facebookPage}</TableCell>
+                        <TableCell className="font-medium">{fanpage.name}</TableCell>
                         <TableCell>
                           <Badge className={getMediaBuyerColor(fanpage.mediaBuyer)}>
                             {fanpage.mediaBuyer}

@@ -27,6 +27,7 @@ const DailyUpdate = () => {
   const [isEditingTemplate, setIsEditingTemplate] = useState(false);
   const [templateText, setTemplateText] = useState('');
 
+
   // Daily task template
   const dailyTaskTemplate = [
     "Create To Do List for Priorities for Today",
@@ -232,6 +233,8 @@ const DailyUpdate = () => {
     localStorage.removeItem(`addedMondayItems-${today}`);
     toast.success('Added items tracking cleared');
   };
+
+
 
   const addTask = async () => {
     if (!newTask.trim()) {
@@ -783,6 +786,7 @@ const DailyUpdate = () => {
                     className="h-4 w-4 mr-2"
                   />
                   <span className={`flex-1 text-sm ${task.completed ? 'line-through text-gray-500' : ''}`}>{task.text}</span>
+                  
                   {task.isTemplateTask && (
                     <span className="text-xs text-blue-600 mr-2">•</span>
                   )}
