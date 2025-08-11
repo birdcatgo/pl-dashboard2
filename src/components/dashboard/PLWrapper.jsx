@@ -90,10 +90,15 @@ const MonthlyDetails = ({ monthData, month }) => {
   const [expandedCategories, setExpandedCategories] = React.useState({});
   const [expandedIncome, setExpandedIncome] = React.useState(false);
   
+
+  
   // Process income and expenses using the correct data structure from pl-processor.js
-  const incomeData = monthData?.incomeData || [];
-  const expenseData = monthData?.expenseData || [];
+  // Use income/expenses arrays directly if incomeData/expenseData are empty
+  const incomeData = monthData?.incomeData?.length > 0 ? monthData.incomeData : (monthData?.income || []);
+  const expenseData = monthData?.expenseData?.length > 0 ? monthData.expenseData : (monthData?.expenses || []);
   const categories = monthData?.categories || {};
+  
+
 
   // Calculate totals
   const totalIncome = monthData?.totalIncome || 0;
