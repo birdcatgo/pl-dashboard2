@@ -54,7 +54,7 @@ const ScheduledTasksToday = ({ onAddToPriorities, addedItems = new Set() }) => {
 
   const handleAddToPriorities = async (task) => {
     if (onAddToPriorities) {
-      await onAddToPriorities(task.text, null, null, true); // The last parameter indicates it's a scheduled task
+      await onAddToPriorities(task.text, null, task.id, true); // Pass task.id as mondayId for tracking
       toast.success(`Added "${task.text}" to priorities`);
     }
   };

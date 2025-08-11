@@ -5,7 +5,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import { toast } from 'sonner';
 import { format, subDays } from 'date-fns';
-import { Plus, CheckCircle } from 'lucide-react';
+import { Plus, CheckCircle, Save, Trash2 } from 'lucide-react';
 import MondayTasks from './MondayTasks';
 import MondayCalendar from './MondayCalendar';
 import ScheduledTasksToday from './ScheduledTasksToday';
@@ -84,6 +84,12 @@ const DailyUpdate = () => {
       const todaySchedule = localStorage.getItem(`schedule-${todayKey}`);
       if (todaySchedule) {
         setSchedule(todaySchedule);
+      }
+
+      // Load added Monday items tracking
+      const addedItems = localStorage.getItem(`addedMondayItems-${todayKey}`);
+      if (addedItems) {
+        setAddedMondayItems(new Set(JSON.parse(addedItems)));
       }
     };
 
@@ -203,6 +209,23 @@ const DailyUpdate = () => {
     toast.success('Template reset to default');
   };
 
+  const savePriorities = () => {
+    const today = format(new Date(), 'yyyy-MM-dd');
+    saveTasks(tasks);
+    toast.success('Priorities saved successfully');
+  };
+
+  const clearAllPriorities = () => {
+    if (confirm('Are you sure you want to clear all priorities? This action cannot be undone.')) {
+      setTasks([]);
+      setAddedMondayItems(new Set());
+      const today = format(new Date(), 'yyyy-MM-dd');
+      localStorage.removeItem(`tasks-${today}`);
+      localStorage.removeItem(`addedMondayItems-${today}`);
+      toast.success('All priorities cleared');
+    }
+  };
+
   const addTask = async () => {
     if (!newTask.trim()) {
       toast.error('Please enter a task');
@@ -282,6 +305,17 @@ const DailyUpdate = () => {
       fromScheduled: isScheduled,
       mondayId: mondayId
     };
+    
+    // Add to the tracking set so it gets removed from source components
+    if (mondayId) {
+      setAddedMondayItems(prev => {
+        const newSet = new Set([...prev, mondayId]);
+        // Save to localStorage
+        const today = format(new Date(), 'yyyy-MM-dd');
+        localStorage.setItem(`addedMondayItems-${today}`, JSON.stringify([...newSet]));
+        return newSet;
+      });
+    }
 
     const updatedTasks = [...tasks, task];
     setTasks(updatedTasks);
@@ -633,6 +667,22 @@ const DailyUpdate = () => {
             <label className="text-sm font-medium">Priorities for Today</label>
             <div className="flex space-x-1">
               <button
+                onClick={savePriorities}
+                className="text-xs px-2 py-1 bg-green-100 text-green-700 rounded hover:bg-green-200 flex items-center"
+                title="Save current progress"
+              >
+                <Save className="h-3 w-3 mr-1" />
+                Save
+              </button>
+              <button
+                onClick={clearAllPriorities}
+                className="text-xs px-2 py-1 bg-red-100 text-red-700 rounded hover:bg-red-200 flex items-center"
+                title="Clear all priorities"
+              >
+                <Trash2 className="h-3 w-3 mr-1" />
+                Clear
+              </button>
+              <button
                 onClick={populateDailyTasks}
                 className="text-xs px-2 py-1 bg-blue-100 text-blue-700 rounded hover:bg-blue-200"
               >
@@ -640,7 +690,7 @@ const DailyUpdate = () => {
               </button>
               <button
                 onClick={startEditingTemplate}
-                className="text-xs px-2 py-1 bg-green-100 text-green-700 rounded hover:bg-green-200"
+                className="text-xs px-2 py-1 bg-gray-100 text-gray-700 rounded hover:bg-gray-200"
               >
                 Edit Template
               </button>
@@ -650,7 +700,6 @@ const DailyUpdate = () => {
               >
                 Load Yesterday
               </button>
-
             </div>
           </div>
           

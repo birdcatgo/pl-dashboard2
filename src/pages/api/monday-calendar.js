@@ -21,7 +21,30 @@ export default async function handler(req, res) {
     console.log('Monday.com API token starts with:', MONDAY_API_TOKEN ? MONDAY_API_TOKEN.substring(0, 20) + '...' : 'N/A');
 
     // Get today's date in YYYY-MM-DD format
-    const today = new Date().toISOString().split('T')[0];
+    // For calendar filtering, we need to account for NZ timezone where calendar items are created
+    // A task set for Tuesday 12 Aug on Monday NZ calendar should show on Monday PST time
+    const now = new Date();
+    
+    // Create proper timezone-aware dates using Intl.DateTimeFormat
+    const pstFormatter = new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Los_Angeles' });
+    const nzFormatter = new Intl.DateTimeFormat('en-CA', { timeZone: 'Pacific/Auckland' });
+    
+    const pstTodayStr = pstFormatter.format(now); // YYYY-MM-DD format
+    const nzTodayStr = nzFormatter.format(now);   // YYYY-MM-DD format
+    
+    // Calculate if we need to look ahead one day for calendar items
+    const pstDate = new Date(pstTodayStr + 'T00:00:00Z');
+    const nzDate = new Date(nzTodayStr + 'T00:00:00Z');
+    const dayDifference = Math.floor((nzDate - pstDate) / (1000 * 60 * 60 * 24));
+    
+    console.log('Timezone analysis:', {
+      pstToday: pstTodayStr,
+      nzToday: nzTodayStr,
+      dayDifference: dayDifference,
+      rawNow: now.toISOString()
+    });
+    
+    const today = pstTodayStr;
 
     // GraphQL query to fetch calendar items from the specific board
     // Using a more targeted query to reduce data transfer
@@ -141,16 +164,35 @@ export default async function handler(req, res) {
     console.log('All processed calendar items:', calendarItems);
 
     // Filter for today's items assigned to the user
+    // Include timezone adjustment for NZ calendar items
     const todaysItems = calendarItems.filter(item => {
       // Check if the item is assigned to the user
       const isAssignedToUser = item.assignee && item.assignee.includes('Ange');
       
-      // Check if the item is for today
-      const isToday = item.date && item.date.includes(today);
+      // Check if the item is for today (PST) or tomorrow (PST) if NZ is ahead
+      let isRelevantDate = false;
       
-      console.log(`Item "${item.name}" - date: "${item.date}", assignee: "${item.assignee}", isToday: ${isToday}, isAssigned: ${isAssignedToUser}`);
+      if (item.date) {
+        // Check for today's date
+        const isToday = item.date.includes(today);
+        
+        // If NZ is ahead by a day, also check for tomorrow's PST date
+        // This handles the case where a calendar item is set for Tuesday in NZ
+        // but should appear on Monday in PST
+        let isTomorrowForNZ = false;
+        if (dayDifference > 0) {
+          const tomorrowPst = new Date(pstDate);
+          tomorrowPst.setDate(tomorrowPst.getDate() + 1);
+          const tomorrowPstStr = tomorrowPst.toISOString().split('T')[0];
+          isTomorrowForNZ = item.date.includes(tomorrowPstStr);
+        }
+        
+        isRelevantDate = isToday || isTomorrowForNZ;
+        
+        console.log(`Item "${item.name}" - date: "${item.date}", assignee: "${item.assignee}", isToday: ${isToday}, isTomorrowForNZ: ${isTomorrowForNZ}, isRelevant: ${isRelevantDate}, isAssigned: ${isAssignedToUser}`);
+      }
       
-      return isToday && isAssignedToUser;
+      return isRelevantDate && isAssignedToUser;
     });
 
     console.log('Today\'s items assigned to user:', todaysItems);
@@ -160,7 +202,8 @@ export default async function handler(req, res) {
       items: todaysItems,
       totalItems: calendarItems.length,
       todaysItems: todaysItems.length,
-      today: today
+      today: today,
+
     });
 
   } catch (error) {

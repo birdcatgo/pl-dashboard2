@@ -2,17 +2,13 @@ import React, { useState, useEffect } from 'react';
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Input } from "@/components/ui/input";
 import { toast } from 'sonner';
-import { RefreshCw, Plus, ExternalLink, Calendar, Check, X } from 'lucide-react';
-import { format } from 'date-fns';
+import { RefreshCw, Plus, ExternalLink } from 'lucide-react';
 
 const MondayTasks = ({ onAddToPriorities, addedItems = new Set() }) => {
   const [tasks, setTasks] = useState([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
-  const [editingDueDate, setEditingDueDate] = useState(null);
-  const [newDueDate, setNewDueDate] = useState('');
 
   const fetchMondayTasks = async () => {
     setLoading(true);
@@ -49,74 +45,28 @@ const MondayTasks = ({ onAddToPriorities, addedItems = new Set() }) => {
 
   const handleAddToPriorities = async (task) => {
     if (onAddToPriorities) {
-      // Set today's date as due date when adding to priorities
-      const todayDate = format(new Date(), 'yyyy-MM-dd');
-      await updateDueDate(task.mondayId, todayDate);
       await onAddToPriorities(task.name, null, task.mondayId);
-      toast.success(`Added "${task.name}" to priorities and set due date to today`);
+      toast.success(`Added "${task.name}" to priorities`);
     }
   };
 
-  const startEditingDueDate = (taskId, currentDueDate) => {
-    setEditingDueDate(taskId);
-    // Parse current due date or default to today
-    const dateToEdit = currentDueDate && currentDueDate !== 'No Due Date' 
-      ? currentDueDate.split(' ')[0] // Extract just the date part if it has time
-      : format(new Date(), 'yyyy-MM-dd');
-    setNewDueDate(dateToEdit);
-  };
-
-  const cancelEditingDueDate = () => {
-    setEditingDueDate(null);
-    setNewDueDate('');
-  };
-
-  const updateDueDate = async (mondayId, newDate) => {
-    try {
-      const response = await fetch('/api/monday-update-due-date', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          itemId: mondayId,
-          dueDate: newDate,
-          boardId: '6741994585' // ANGE board
-        }),
-      });
-
-      if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.error || 'Failed to update due date');
-      }
-
-      // Update the local task state
-      setTasks(prevTasks => 
-        prevTasks.map(task => 
-          task.mondayId === mondayId 
-            ? { ...task, dueDate: newDate }
-            : task
-        )
-      );
-
-      toast.success('Due date updated successfully');
-      return true;
-    } catch (error) {
-      console.error('Error updating due date:', error);
-      toast.error(`Failed to update due date: ${error.message}`);
-      return false;
+  const handleAddAllToPriorities = async () => {
+    const tasksToAdd = tasks.filter(task => !addedItems.has(task.mondayId));
+    if (tasksToAdd.length === 0) {
+      toast.info('No tasks to add');
+      return;
     }
-  };
 
-  const saveDueDate = async () => {
-    if (editingDueDate && newDueDate) {
-      const success = await updateDueDate(editingDueDate, newDueDate);
-      if (success) {
-        setEditingDueDate(null);
-        setNewDueDate('');
+    for (const task of tasksToAdd) {
+      if (onAddToPriorities) {
+        await onAddToPriorities(task.name, null, task.mondayId);
       }
     }
+    
+    toast.success(`Added ${tasksToAdd.length} tasks to priorities`);
   };
+
+
 
   const getStatusColor = (status) => {
     switch (status?.toLowerCase()) {
@@ -172,15 +122,29 @@ const MondayTasks = ({ onAddToPriorities, addedItems = new Set() }) => {
       <CardHeader className="pb-3">
         <div className="flex items-center justify-between">
           <CardTitle className="text-sm font-medium">Monday.com Tasks (ANGE)</CardTitle>
-          <Button
-            onClick={fetchMondayTasks}
-            size="sm"
-            variant="outline"
-            disabled={loading}
-          >
-            <RefreshCw className={`h-3 w-3 mr-1 ${loading ? 'animate-spin' : ''}`} />
-            Refresh
-          </Button>
+          <div className="flex items-center space-x-2">
+            {tasks.filter(task => !addedItems.has(task.mondayId)).length > 0 && (
+              <Button
+                onClick={handleAddAllToPriorities}
+                size="sm"
+                variant="default"
+                className="bg-green-600 hover:bg-green-700 text-white"
+                disabled={loading}
+              >
+                <Plus className="h-3 w-3 mr-1" />
+                Add All
+              </Button>
+            )}
+            <Button
+              onClick={fetchMondayTasks}
+              size="sm"
+              variant="outline"
+              disabled={loading}
+            >
+              <RefreshCw className={`h-3 w-3 mr-1 ${loading ? 'animate-spin' : ''}`} />
+              Refresh
+            </Button>
+          </div>
         </div>
       </CardHeader>
       <CardContent className="p-3">
@@ -195,102 +159,39 @@ const MondayTasks = ({ onAddToPriorities, addedItems = new Set() }) => {
           </div>
         ) : (
           <div className="space-y-1">
-            {tasks.filter(task => !addedItems.has(task.id)).map((task) => (
-              <div key={task.id} className="bg-gray-50 rounded text-xs hover:bg-gray-100 transition-colors">
-                {editingDueDate === task.mondayId ? (
-                  // Editing mode - full row for date editing
-                  <div className="px-2 py-1">
-                    <div className="flex items-center justify-between mb-1">
-                      <span className="truncate font-medium">{task.name}</span>
-                      <div className="flex items-center space-x-1">
-                        <a
-                          href={`https://convert2freedom.monday.com/boards/6741994585/pulses/${task.mondayId}`}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="text-blue-500 hover:text-blue-700"
-                        >
-                          <ExternalLink className="h-3 w-3" />
-                        </a>
-                        <Button
-                          onClick={() => handleAddToPriorities(task)}
-                          size="sm"
-                          variant="outline"
-                          className="h-5 px-1"
-                        >
-                          <Plus className="h-3 w-3" />
-                        </Button>
-                      </div>
-                    </div>
-                    <div className="flex items-center space-x-1">
-                      <Input
-                        type="date"
-                        value={newDueDate}
-                        onChange={(e) => setNewDueDate(e.target.value)}
-                        className="h-5 text-xs flex-1"
-                      />
-                      <Button
-                        onClick={saveDueDate}
-                        size="sm"
-                        variant="outline"
-                        className="h-5 px-1"
-                      >
-                        <Check className="h-3 w-3" />
-                      </Button>
-                      <Button
-                        onClick={cancelEditingDueDate}
-                        size="sm"
-                        variant="outline"
-                        className="h-5 px-1"
-                      >
-                        <X className="h-3 w-3" />
-                      </Button>
-                    </div>
-                  </div>
-                ) : (
-                  // Normal mode - single condensed row
-                  <div className="flex items-center justify-between py-1 px-2">
-                    <div className="flex items-center space-x-2 flex-1 min-w-0">
-                      <span className="truncate font-medium">{task.name}</span>
-                      {task.status && (
-                        <Badge className={`text-xs px-1 py-0 ${getStatusColor(task.status)}`}>
-                          {task.status}
-                        </Badge>
-                      )}
-                      <span className="text-xs text-gray-500 whitespace-nowrap">
-                        {task.dueDate || 'No Due'}
-                      </span>
-                    </div>
-                    <div className="flex items-center space-x-1 ml-2">
-                      <Button
-                        onClick={() => startEditingDueDate(task.mondayId, task.dueDate)}
-                        size="sm"
-                        variant="outline"
-                        className="h-5 px-1"
-                        title="Edit due date"
-                      >
-                        <Calendar className="h-3 w-3" />
-                      </Button>
-                      <a
-                        href={`https://convert2freedom.monday.com/boards/6741994585/pulses/${task.mondayId}`}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="text-blue-500 hover:text-blue-700"
-                        title="Open in Monday.com"
-                      >
-                        <ExternalLink className="h-3 w-3" />
-                      </a>
-                      <Button
-                        onClick={() => handleAddToPriorities(task)}
-                        size="sm"
-                        variant="outline"
-                        className="h-5 px-1"
-                        title="Add to priorities"
-                      >
-                        <Plus className="h-3 w-3" />
-                      </Button>
-                    </div>
-                  </div>
-                )}
+            {tasks.filter(task => !addedItems.has(task.mondayId)).map((task) => (
+              <div
+                key={task.id}
+                className="flex items-center justify-between py-2 px-3 bg-blue-50 rounded text-xs hover:bg-blue-100 transition-colors"
+              >
+                <div className="flex items-center space-x-2 flex-1 min-w-0">
+                  <span className="truncate text-sm font-medium">{task.name}</span>
+                  {task.status && (
+                    <Badge className={`text-xs px-2 py-0.5 ${getStatusColor(task.status)}`}>
+                      {task.status}
+                    </Badge>
+                  )}
+                </div>
+                <div className="flex items-center space-x-2 ml-3">
+                  <a
+                    href={`https://convert2freedom.monday.com/boards/6741994585/pulses/${task.mondayId}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-blue-500 hover:text-blue-700"
+                    title="Open in Monday.com"
+                  >
+                    <ExternalLink className="h-4 w-4" />
+                  </a>
+                  <Button
+                    onClick={() => handleAddToPriorities(task)}
+                    size="sm"
+                    variant="outline"
+                    className="h-7 px-2"
+                    title="Add to priorities"
+                  >
+                    <Plus className="h-3 w-3" />
+                  </Button>
+                </div>
               </div>
             ))}
           </div>

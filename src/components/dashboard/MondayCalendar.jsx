@@ -164,7 +164,7 @@ const MondayCalendar = ({ onAddToPriorities, addedItems = new Set() }) => {
           </div>
         ) : (
           <div className="space-y-1">
-            {items.filter(item => !addedItems.has(item.id)).map((item) => (
+            {items.filter(item => !addedItems.has(item.mondayId)).map((item) => (
               <div
                 key={item.id}
                 className="flex items-center justify-between py-1 px-2 bg-blue-50 rounded text-xs hover:bg-blue-100 transition-colors"
