@@ -12,6 +12,8 @@ const ScheduledTasksManager = () => {
   const [scheduledTasks, setScheduledTasks] = useState([]);
   const [loading, setLoading] = useState(false);
   const [showAddForm, setShowAddForm] = useState(false);
+  const [showEditForm, setShowEditForm] = useState(false);
+  const [editingTask, setEditingTask] = useState(null);
   const [newTask, setNewTask] = useState({
     name: '',
     type: 'weekly',
@@ -26,8 +28,8 @@ const ScheduledTasksManager = () => {
       id: 'weekly-invoices',
       name: 'Weekly Invoices',
       type: 'weekly',
-      schedule: 'Every Tuesday',
-      dayOfWeek: 2, // Tuesday
+      schedule: 'Every Monday',
+      dayOfWeek: 1, // Monday
       enabled: true
     },
     {
@@ -95,6 +97,76 @@ const ScheduledTasksManager = () => {
     const updatedTasks = scheduledTasks.filter(task => task.id !== taskId);
     saveScheduledTasks(updatedTasks);
     toast.success('Scheduled task deleted');
+  };
+
+  const startEditTask = (task) => {
+    setEditingTask({
+      ...task,
+      dayOfWeek: task.dayOfWeek || 1,
+      dayOfMonth: task.dayOfMonth || 1
+    });
+    setShowEditForm(true);
+  };
+
+  const updateTask = () => {
+    if (!editingTask.name.trim()) {
+      toast.error('Task name is required');
+      return;
+    }
+
+    // Generate schedule description based on type
+    let schedule = '';
+    
+    // Helper function to get proper ordinal suffix
+    const getOrdinalSuffix = (day) => {
+      if (day >= 11 && day <= 13) return 'th';
+      switch (day % 10) {
+        case 1: return 'st';
+        case 2: return 'nd';
+        case 3: return 'rd';
+        default: return 'th';
+      }
+    };
+    
+    switch (editingTask.type) {
+      case 'daily':
+        schedule = 'Every day';
+        break;
+      case 'weekly':
+        const dayNames = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+        schedule = `Every ${dayNames[editingTask.dayOfWeek]}`;
+        break;
+      case 'bi-monthly':
+        schedule = `${editingTask.dayOfMonth}${getOrdinalSuffix(editingTask.dayOfMonth)} of every month`;
+        break;
+      case 'monthly':
+        schedule = `${editingTask.dayOfMonth}${getOrdinalSuffix(editingTask.dayOfMonth)} of every month`;
+        break;
+      default:
+        schedule = 'Custom schedule';
+    }
+
+    const updatedTask = {
+      ...editingTask,
+      name: editingTask.name.trim(),
+      schedule,
+      dayOfWeek: editingTask.type === 'weekly' ? editingTask.dayOfWeek : undefined,
+      dayOfMonth: ['bi-monthly', 'monthly'].includes(editingTask.type) ? editingTask.dayOfMonth : undefined
+    };
+
+    const updatedTasks = scheduledTasks.map(task => 
+      task.id === editingTask.id ? updatedTask : task
+    );
+    
+    saveScheduledTasks(updatedTasks);
+    setShowEditForm(false);
+    setEditingTask(null);
+    toast.success('Scheduled task updated successfully');
+  };
+
+  const cancelEdit = () => {
+    setShowEditForm(false);
+    setEditingTask(null);
   };
 
   const addNewTask = () => {
@@ -205,13 +277,19 @@ const ScheduledTasksManager = () => {
   const testScheduledTasks = async () => {
     setLoading(true);
     try {
-      const response = await fetch('/api/scheduled-tasks');
+      // Send the current configuration to the API
+      const configParam = encodeURIComponent(JSON.stringify(scheduledTasks));
+      const response = await fetch(`/api/scheduled-tasks?config=${configParam}`);
       if (response.ok) {
         const data = await response.json();
         if (data.success) {
           toast.success(`Generated ${data.scheduledTasks.length} tasks for today (${data.date.dayName})`);
           console.log('Scheduled tasks for today:', data.scheduledTasks);
+        } else {
+          toast.error('Failed to generate scheduled tasks');
         }
+      } else {
+        toast.error('Failed to fetch scheduled tasks');
       }
     } catch (error) {
       console.error('Error testing scheduled tasks:', error);
@@ -280,6 +358,14 @@ const ScheduledTasksManager = () => {
               </div>
               <div className="flex items-center space-x-1">
                 <Button
+                  onClick={() => startEditTask(task)}
+                  size="sm"
+                  variant="outline"
+                  className="h-7 px-2 text-blue-600 hover:text-blue-700"
+                >
+                  <Edit className="h-3 w-3" />
+                </Button>
+                <Button
                   onClick={() => toggleTaskEnabled(task.id)}
                   size="sm"
                   variant={task.enabled ? "outline" : "default"}
@@ -303,10 +389,11 @@ const ScheduledTasksManager = () => {
         <div className="mt-4 p-3 bg-blue-50 rounded-lg">
           <h4 className="text-sm font-medium text-blue-900 mb-2">How it works:</h4>
           <ul className="text-xs text-blue-800 space-y-1">
-            <li>• <strong>Weekly:</strong> Weekly Invoices (every Tuesday)</li>
+            <li>• <strong>Weekly:</strong> Weekly Invoices (every Monday)</li>
             <li>• <strong>Bi-Monthly:</strong> Bi-Monthly Invoices (2nd and 17th of month)</li>
             <li>• <strong>Monthly:</strong> Monthly Invoices, Media Buyer P&L, Company P&L (2nd of month)</li>
             <li>• Tasks are automatically added to "Priorities for Today" when you load the dashboard</li>
+            <li>• Click the <strong>Edit</strong> button to modify any task's schedule</li>
           </ul>
         </div>
       </CardContent>
@@ -423,6 +510,128 @@ const ScheduledTasksManager = () => {
               </Button>
               <Button
                 onClick={resetForm}
+                variant="outline"
+                className="flex-1"
+              >
+                Cancel
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Edit Task Modal */}
+      {showEditForm && editingTask && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-lg p-6 max-w-md w-full mx-4">
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-lg font-medium">Edit Scheduled Task</h3>
+              <Button
+                onClick={cancelEdit}
+                size="sm"
+                variant="ghost"
+                className="h-8 w-8 p-0"
+              >
+                <X className="h-4 w-4" />
+              </Button>
+            </div>
+            
+            <div className="space-y-4">
+              <div>
+                <Label htmlFor="editTaskName">Task Name</Label>
+                <Input
+                  id="editTaskName"
+                  value={editingTask.name}
+                  onChange={(e) => setEditingTask({ ...editingTask, name: e.target.value })}
+                  placeholder="Enter task name..."
+                  className="mt-1"
+                />
+              </div>
+
+              <div>
+                <Label htmlFor="editTaskType">Schedule Type</Label>
+                <Select
+                  value={editingTask.type}
+                  onValueChange={(value) => setEditingTask({ ...editingTask, type: value })}
+                >
+                  <SelectTrigger className="mt-1 bg-white border border-gray-300 text-gray-900">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent className="bg-white border border-gray-200 shadow-lg">
+                    <SelectItem value="daily" className="text-gray-900 hover:bg-gray-100">Daily</SelectItem>
+                    <SelectItem value="weekly" className="text-gray-900 hover:bg-gray-100">Weekly</SelectItem>
+                    <SelectItem value="bi-monthly" className="text-gray-900 hover:bg-gray-100">Bi-Monthly</SelectItem>
+                    <SelectItem value="monthly" className="text-gray-900 hover:bg-gray-100">Monthly</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+
+              {editingTask.type === 'weekly' && (
+                <div>
+                  <Label htmlFor="editDayOfWeek">Day of Week</Label>
+                  <Select
+                    value={editingTask.dayOfWeek.toString()}
+                    onValueChange={(value) => setEditingTask({ ...editingTask, dayOfWeek: parseInt(value) })}
+                  >
+                    <SelectTrigger className="mt-1 bg-white border border-gray-300 text-gray-900">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent className="bg-white border border-gray-200 shadow-lg">
+                      <SelectItem value="0" className="text-gray-900 hover:bg-gray-100">Sunday</SelectItem>
+                      <SelectItem value="1" className="text-gray-900 hover:bg-gray-100">Monday</SelectItem>
+                      <SelectItem value="2" className="text-gray-900 hover:bg-gray-100">Tuesday</SelectItem>
+                      <SelectItem value="3" className="text-gray-900 hover:bg-gray-100">Wednesday</SelectItem>
+                      <SelectItem value="4" className="text-gray-900 hover:bg-gray-100">Thursday</SelectItem>
+                      <SelectItem value="5" className="text-gray-900 hover:bg-gray-100">Friday</SelectItem>
+                      <SelectItem value="6" className="text-gray-900 hover:bg-gray-100">Saturday</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+              )}
+
+              {(editingTask.type === 'bi-monthly' || editingTask.type === 'monthly') && (
+                <div>
+                  <Label htmlFor="editDayOfMonth">Day of Month</Label>
+                  <Select
+                    value={editingTask.dayOfMonth.toString()}
+                    onValueChange={(value) => setEditingTask({ ...editingTask, dayOfMonth: parseInt(value) })}
+                  >
+                    <SelectTrigger className="mt-1 bg-white border border-gray-300 text-gray-900">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent className="bg-white border border-gray-200 shadow-lg max-h-60">
+                      {Array.from({ length: 28 }, (_, i) => i + 1).map(day => (
+                        <SelectItem key={day} value={day.toString()} className="text-gray-900 hover:bg-gray-100">
+                          {day}{day === 1 ? 'st' : day === 2 ? 'nd' : day === 3 ? 'rd' : 'th'}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              )}
+
+              <div className="flex items-center space-x-2">
+                <input
+                  type="checkbox"
+                  id="editEnabled"
+                  checked={editingTask.enabled}
+                  onChange={(e) => setEditingTask({ ...editingTask, enabled: e.target.checked })}
+                  className="rounded"
+                />
+                <Label htmlFor="editEnabled" className="text-sm">Enable task</Label>
+              </div>
+            </div>
+
+            <div className="flex space-x-2 mt-6">
+              <Button
+                onClick={updateTask}
+                className="flex-1"
+                disabled={!editingTask.name.trim()}
+              >
+                Update Task
+              </Button>
+              <Button
+                onClick={cancelEdit}
                 variant="outline"
                 className="flex-1"
               >

@@ -36,21 +36,23 @@ const NetProfit = ({ performanceData, dateRange, cashFlowData }) => {
   });
 
   // Calculate cash in bank and credit card debt
-  const cashInBank = cashFlowData?.financialResources?.reduce((total, resource) => {
-    // Check if the resource type is cash or savings
-    const isCash = resource.type?.toLowerCase().includes('cash') || 
-                  resource.type?.toLowerCase().includes('savings');
-    return isCash ? total + (parseFloat(resource.available) || 0) : total;
-  }, 0) || 0;
+  const cashInBank = (() => {
+    if (!cashFlowData?.financialResources?.cashAccounts) return 0;
+    
+    return cashFlowData.financialResources.cashAccounts.reduce((total, resource) => {
+      return total + (parseFloat(resource.available) || 0);
+    }, 0);
+  })();
 
-  const creditCardDebt = cashFlowData?.financialResources?.reduce((total, resource) => {
-    // Check if the resource type is credit
-    const isCredit = resource.type?.toLowerCase().includes('credit');
-    if (!isCredit) return total;
-    const limit = parseFloat(resource.limit || 0);
-    const available = parseFloat(resource.available || 0);
-    return total + (limit - available);
-  }, 0) || 0;
+  const creditCardDebt = (() => {
+    if (!cashFlowData?.financialResources?.creditCards) return 0;
+    
+    return cashFlowData.financialResources.creditCards.reduce((total, resource) => {
+      const limit = parseFloat(resource.limit || 0);
+      const available = parseFloat(resource.available || 0);
+      return total + (limit - available);
+    }, 0);
+  })();
 
   // Calculate outstanding invoices using the invoices data
   const outstandingInvoices = cashFlowData?.outstandingInvoices || 0;

@@ -14,7 +14,16 @@ const ScheduledTasksToday = ({ onAddToPriorities, addedItems = new Set() }) => {
     setLoading(true);
     setError(null);
     try {
-      const response = await fetch('/api/scheduled-tasks');
+      // Get the current configuration from localStorage
+      const savedConfig = localStorage.getItem('scheduled-tasks-config');
+      let url = '/api/scheduled-tasks';
+      
+      if (savedConfig) {
+        const configParam = encodeURIComponent(savedConfig);
+        url = `/api/scheduled-tasks?config=${configParam}`;
+      }
+      
+      const response = await fetch(url);
       if (response.ok) {
         const data = await response.json();
         if (data.success) {

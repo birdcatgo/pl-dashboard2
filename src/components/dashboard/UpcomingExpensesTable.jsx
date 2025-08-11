@@ -6,16 +6,38 @@ const UpcomingExpensesTable = ({ data = [] }) => {
   console.log('Raw Expenses Data:', data); // Debug log
   const [selectedDate, setSelectedDate] = useState(null);
 
-  // Transform array data into objects with named properties
+  // Transform data into objects with named properties
   const expenses = useMemo(() => {
     if (!Array.isArray(data)) return [];
     
-    return data.map(row => ({
-      Category: row[0],
-      Description: row[1],
-      Amount: parseFloat((row[2] || '0').replace(/[$,]/g, '')),
-      Date: row[3]
-    }));
+    return data.map(row => {
+      // Handle both array format and object format
+      if (row.Category && row.Description && row.Amount !== undefined) {
+        // Already in object format
+        return {
+          Category: row.Category,
+          Description: row.Description,
+          Amount: parseFloat((row.Amount || '0').toString().replace(/[$,]/g, '')),
+          Date: row.Date
+        };
+      } else if (Array.isArray(row)) {
+        // Array format
+        return {
+          Category: row[0],
+          Description: row[1],
+          Amount: parseFloat((row[2] || '0').toString().replace(/[$,]/g, '')),
+          Date: row[3]
+        };
+      } else {
+        // Fallback for other formats
+        return {
+          Category: row[0] || '',
+          Description: row[1] || '',
+          Amount: parseFloat((row[2] || '0').toString().replace(/[$,]/g, '')),
+          Date: row[3] || ''
+        };
+      }
+    });
   }, [data]);
 
   // Calculate metrics

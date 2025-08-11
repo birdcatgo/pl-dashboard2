@@ -29,6 +29,19 @@ const formatDate = (date) => {
 };
 
 const CreditLine = ({ data, loading, error }) => {
+  // Debug logging for incoming data
+  console.log('CreditLine received data:', {
+    hasData: !!data,
+    dataKeys: data ? Object.keys(data) : [],
+    cashFlowData: data?.cashFlowData,
+    financialResources: data?.cashFlowData?.financialResources,
+    cashAccounts: data?.cashFlowData?.financialResources?.cashAccounts,
+    creditCards: data?.cashFlowData?.financialResources?.creditCards,
+    performanceData: data?.performanceData,
+    invoicesData: data?.invoicesData,
+    payrollData: data?.payrollData
+  });
+
   const calculateUtilization = (owing, limit) => {
     if (limit === 0) return '-';
     return formatPercent(owing / limit);
@@ -40,7 +53,8 @@ const CreditLine = ({ data, loading, error }) => {
 
     const performanceData = data.performanceData || [];
     const invoicesData = data.invoicesData || [];
-    const creditCardData = data.cashFlowData?.financialResources || [];
+    const creditCardData = data.cashFlowData?.financialResources?.creditCards || [];
+    const cashAccountData = data.cashFlowData?.financialResources?.cashAccounts || [];
     const payrollData = data.payrollData || [];
 
     // Calculate most recent day's total ad spend
@@ -185,19 +199,51 @@ const CreditLine = ({ data, loading, error }) => {
     // Define cash account names
     const cashAccountNames = ['Cash in Bank', 'Slash Account', 'Business Savings (JP MORGAN)'];
 
-    creditCardData.forEach(account => {
+    // Process cash accounts
+    cashAccountData.forEach(account => {
       const accountName = account.account || '';
+      const available = parseFloat(account.available?.toString().replace(/[$,]/g, '') || '0');
+      
+      // Debug logging for cash accounts
+      console.log('Processing cash account:', {
+        accountName,
+        available,
+        rawAvailable: account.available,
+        accountData: account,
+        hasAvailable: 'available' in account,
+        availableType: typeof account.available
+      });
+      
+      // More flexible matching for cash accounts
+      if (cashAccountNames.includes(accountName) || 
+          accountName.toLowerCase().includes('cash') ||
+          accountName.toLowerCase().includes('bank') ||
+          accountName.toLowerCase().includes('savings') ||
+          accountName.toLowerCase().includes('slash')) {
+        cashInBank += available;
+        console.log('Added to cashInBank:', { accountName, available, runningTotal: cashInBank });
+      }
+    });
+
+    console.log('Cash accounts processing complete:', {
+      totalCashAccounts: cashAccountData.length,
+      cashInBank,
+      allCashAccounts: cashAccountData.map(acc => ({
+        name: acc.account,
+        available: acc.available,
+        parsed: parseFloat(acc.available?.toString().replace(/[$,]/g, '') || '0')
+      }))
+    });
+
+    // Process credit cards
+    creditCardData.forEach(account => {
       const available = parseFloat(account.available?.toString().replace(/[$,]/g, '') || '0');
       const owing = parseFloat(account.owing?.toString().replace(/[$,]/g, '') || '0');
       const limit = parseFloat(account.limit?.toString().replace(/[$,]/g, '') || '0');
 
-      if (cashAccountNames.includes(accountName)) {
-        cashInBank += available;
-      } else {
-        creditCardMetrics.totalAvailable += available;
-        creditCardMetrics.totalOwing += owing;
-        creditCardMetrics.totalLimit += limit;
-      }
+      creditCardMetrics.totalAvailable += available;
+      creditCardMetrics.totalOwing += owing;
+      creditCardMetrics.totalLimit += limit;
     });
 
     // Group upcoming expenses by week
@@ -287,59 +333,90 @@ const CreditLine = ({ data, loading, error }) => {
     );
   }
 
-  const financialResources = data?.cashFlowData?.financialResources || [];
-  const cashAccounts = financialResources.filter(account => 
-    ['Cash in Bank', 'Slash Account', 'Business Savings (JP MORGAN)'].includes(account.account)
+  const financialResources = data?.cashFlowData?.financialResources || {};
+  const allAccounts = [
+    ...(financialResources.cashAccounts || []),
+    ...(financialResources.creditCards || [])
+  ];
+  
+  // Use the actual cash accounts from the API data structure
+  const cashAccounts = financialResources.cashAccounts || [];
+  const amexCards = allAccounts.filter(account => 
+    account.account && account.account.includes('AMEX')
   );
-  const amexCards = financialResources.filter(account => 
-    account.account.includes('AMEX')
+  const chaseCards = allAccounts.filter(account => 
+    account.account && account.account.includes('Chase')
   );
-  const chaseCards = financialResources.filter(account => 
-    account.account.includes('Chase')
+  const capitalOneCards = allAccounts.filter(account => 
+    account.account && account.account.includes('Capital One')
   );
-  const capitalOneCards = financialResources.filter(account => 
-    account.account.includes('Capital One')
-  );
-  const otherCards = financialResources.filter(account => 
+  const otherCards = allAccounts.filter(account => 
+    account.account && 
     !['Cash in Bank', 'Slash Account', 'Business Savings (JP MORGAN)'].includes(account.account) &&
     !account.account.includes('AMEX') &&
     !account.account.includes('Chase') &&
     !account.account.includes('Capital One')
   );
 
-  const totalCashAvailable = cashAccounts.reduce((sum, account) => sum + account.available, 0);
-  const totalAvailable = financialResources.reduce((sum, account) => sum + account.available, 0);
-  const totalOwing = financialResources.reduce((sum, account) => sum + account.owing, 0);
-  const totalCreditLimit = financialResources.reduce((sum, account) => sum + account.limit, 0);
+  // Calculate totals using the correct data structure
+  const totalCashAvailable = cashAccounts.reduce((sum, account) => {
+    const available = parseFloat(account.available?.toString().replace(/[$,]/g, '') || '0');
+    console.log(`Adding to totalCashAvailable: ${account.account} = ${available}`);
+    return sum + available;
+  }, 0);
+  
+  const totalAvailable = allAccounts.reduce((sum, account) => {
+    const available = parseFloat(account.available?.toString().replace(/[$,]/g, '') || '0');
+    return sum + available;
+  }, 0);
+  
+  const totalOwing = allAccounts.reduce((sum, account) => {
+    const owing = parseFloat(account.owing?.toString().replace(/[$,]/g, '') || '0');
+    return sum + owing;
+  }, 0);
+  
+  const totalCreditLimit = allAccounts.reduce((sum, account) => {
+    const limit = parseFloat(account.limit?.toString().replace(/[$,]/g, '') || '0');
+    return sum + limit;
+  }, 0);
+
+  console.log('CreditLine totals calculated:', {
+    totalCashAvailable,
+    totalAvailable,
+    totalOwing,
+    totalCreditLimit,
+    cashAccountsCount: cashAccounts.length,
+    allAccountsCount: allAccounts.length
+  });
 
   // Calculate credit card metrics by issuer
   const creditCardData = useMemo(() => {
     const amexTotal = {
       name: 'Amex',
-      limit: amexCards.reduce((sum, card) => sum + card.limit, 0),
-      owing: amexCards.reduce((sum, card) => sum + card.owing, 0),
-      available: amexCards.reduce((sum, card) => sum + card.available, 0),
+      limit: amexCards.reduce((sum, card) => sum + (parseFloat(card.limit?.toString().replace(/[$,]/g, '') || '0')), 0),
+      owing: amexCards.reduce((sum, card) => sum + (parseFloat(card.owing?.toString().replace(/[$,]/g, '') || '0')), 0),
+      available: amexCards.reduce((sum, card) => sum + (parseFloat(card.available?.toString().replace(/[$,]/g, '') || '0')), 0),
     };
     
     const chaseTotal = {
       name: 'Chase',
-      limit: chaseCards.reduce((sum, card) => sum + card.limit, 0),
-      owing: chaseCards.reduce((sum, card) => sum + card.owing, 0),
-      available: chaseCards.reduce((sum, card) => sum + card.available, 0),
+      limit: chaseCards.reduce((sum, card) => sum + (parseFloat(card.limit?.toString().replace(/[$,]/g, '') || '0')), 0),
+      owing: chaseCards.reduce((sum, card) => sum + (parseFloat(card.owing?.toString().replace(/[$,]/g, '') || '0')), 0),
+      available: chaseCards.reduce((sum, card) => sum + (parseFloat(card.available?.toString().replace(/[$,]/g, '') || '0')), 0),
     };
     
     const capitalOneTotal = {
       name: 'Capital One',
-      limit: capitalOneCards.reduce((sum, card) => sum + card.limit, 0),
-      owing: capitalOneCards.reduce((sum, card) => sum + card.owing, 0),
-      available: capitalOneCards.reduce((sum, card) => sum + card.available, 0),
+      limit: capitalOneCards.reduce((sum, card) => sum + (parseFloat(card.limit?.toString().replace(/[$,]/g, '') || '0')), 0),
+      owing: capitalOneCards.reduce((sum, card) => sum + (parseFloat(card.owing?.toString().replace(/[$,]/g, '') || '0')), 0),
+      available: capitalOneCards.reduce((sum, card) => sum + (parseFloat(card.available?.toString().replace(/[$,]/g, '') || '0')), 0),
     };
     
     const otherTotal = {
       name: 'Other',
-      limit: otherCards.reduce((sum, card) => sum + card.limit, 0),
-      owing: otherCards.reduce((sum, card) => sum + card.owing, 0),
-      available: otherCards.reduce((sum, card) => sum + card.available, 0),
+      limit: otherCards.reduce((sum, card) => sum + (parseFloat(card.limit?.toString().replace(/[$,]/g, '') || '0')), 0),
+      owing: otherCards.reduce((sum, card) => sum + (parseFloat(card.owing?.toString().replace(/[$,]/g, '') || '0')), 0),
+      available: otherCards.reduce((sum, card) => sum + (parseFloat(card.available?.toString().replace(/[$,]/g, '') || '0')), 0),
     };
 
     return [amexTotal, chaseTotal, capitalOneTotal, otherTotal].filter(item => item.limit > 0);

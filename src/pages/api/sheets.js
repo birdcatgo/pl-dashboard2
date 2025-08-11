@@ -179,6 +179,14 @@ async function processEmployeeData(response) {
       return [];
     }
 
+    console.log('Raw employee response:', {
+      hasValues: !!response?.values,
+      valuesLength: response?.values?.length || 0,
+      headers: response?.values?.[0],
+      firstDataRow: response?.values?.[1],
+      sampleRows: response?.values?.slice(1, 4)
+    });
+
     // Skip header row and process data
     const rows = response.values.slice(1).map(row => {
       if (!row || row.length < 4) {
@@ -197,12 +205,13 @@ async function processEmployeeData(response) {
         role: row[1]?.trim() || '',
         department: row[2]?.trim() || '',
         startDate: row[3]?.trim() || '',
-        salary: parseFloat(row[4]?.replace(/[$,]/g, '')) || 0,
-        commissionRate: parseFloat(row[5]) || 0,
-        employeeId: row[6]?.trim() || '',
-        email: row[7]?.trim() || '',
-        status: row[8]?.trim() || 'Active',
-        notes: row[9]?.trim() || ''
+        basePay: row[4]?.trim() || '0',
+        frequency: row[5]?.trim() || 'Monthly',
+        commissionRate: parseFloat(row[6]) || 0,
+        employeeId: row[7]?.trim() || '',
+        email: row[8]?.trim() || '',
+        status: row[9]?.trim() || 'Active',
+        notes: row[10]?.trim() || ''
       };
     }).filter(Boolean); // Remove any null entries
 
@@ -432,36 +441,96 @@ export default async function handler(req, res) {
 
       // Process cash flow data
       if (financialResponse?.values) {
-        const headerRowIndex = financialResponse.values.findIndex(row => 
+        console.log('Financial response values:', {
+          totalRows: financialResponse.values.length,
+          firstFewRows: financialResponse.values.slice(0, 5),
+          headers: financialResponse.values[0]
+        });
+        
+        // Try multiple possible header formats
+        let headerRowIndex = financialResponse.values.findIndex(row => 
           row.includes('Resource') && row.includes('Amount Available')
         );
+        
+        // If not found, try alternative headers
+        if (headerRowIndex === -1) {
+          headerRowIndex = financialResponse.values.findIndex(row => 
+            row.some(cell => cell && typeof cell === 'string' && cell.toLowerCase().includes('resource'))
+          );
+        }
+        
+        // If still not found, try looking for any row with financial data
+        if (headerRowIndex === -1) {
+          headerRowIndex = financialResponse.values.findIndex(row => 
+            row.length >= 4 && 
+            row[0] && 
+            !row[0].toString().toLowerCase().includes('table') &&
+            !row[0].toString().toLowerCase().includes('total') &&
+            !isNaN(parseFloat(row[1]?.toString().replace(/[$,]/g, '')))
+          );
+          if (headerRowIndex !== -1) {
+            console.log('Found data row instead of header, using as starting point');
+          }
+        }
+
+        console.log('Header row search result:', {
+          headerRowIndex,
+          foundHeaders: headerRowIndex !== -1 ? financialResponse.values[headerRowIndex] : 'Not found'
+        });
 
         if (headerRowIndex !== -1) {
           // Process Financial Resources rows and update existing cashFlowData
           financialResponse.values.slice(headerRowIndex + 1).forEach(row => {
-            if (!row[0] || row[0].includes('Table') || row[0].includes('TOTAL')) return;
+            if (!row[0] || row[0].toString().includes('Table') || row[0].toString().includes('TOTAL')) return;
 
             const accountData = {
-              name: row[0],
-              available: parseFloat((row[1] || '0').replace(/[$,]/g, '')) || 0,
-              owing: parseFloat((row[2] || '0').replace(/[$,]/g, '')) || 0,
-              limit: parseFloat((row[3] || '0').replace(/[$,]/g, '')) || 0
+              account: row[0],
+              available: parseFloat((row[1] || '0').toString().replace(/[$,]/g, '')) || 0,
+              owing: parseFloat((row[2] || '0').toString().replace(/[$,]/g, '')) || 0,
+              limit: parseFloat((row[3] || '0').toString().replace(/[$,]/g, '')) || 0
             };
 
             const isCreditCard = ['amex', 'american express', 'visa', 'mastercard', 'discover', 'card'].some(keyword => 
-              accountData.name.toLowerCase().includes(keyword)
+              accountData.account.toString().toLowerCase().includes(keyword)
             );
 
             if (isCreditCard) {
-              processedData.cashFlowData.financialResources.creditCards.push(accountData);
-              processedData.cashFlowData.financialResources.totalCreditAvailable += accountData.available;
-              processedData.cashFlowData.financialResources.totalCreditOwing += accountData.owing;
+              processedData.cashFlowData.financialResources.creditCards.push({ ...accountData, type: 'creditCard' });
             } else {
-              processedData.cashFlowData.financialResources.cashAccounts.push(accountData);
-              processedData.cashFlowData.financialResources.totalCash += accountData.available;
+              processedData.cashFlowData.financialResources.cashAccounts.push({ ...accountData, type: 'cashAccount' });
             }
           });
+          
+          console.log('Processed financial resources:', {
+            cashAccounts: processedData.cashFlowData.financialResources.cashAccounts.length,
+            creditCards: processedData.cashFlowData.financialResources.creditCards.length,
+            sampleCash: processedData.cashFlowData.financialResources.cashAccounts[0],
+            sampleCredit: processedData.cashFlowData.financialResources.creditCards[0]
+          });
+          
+          // Calculate totals
+          processedData.cashFlowData.financialResources.totalCash = processedData.cashFlowData.financialResources.cashAccounts.reduce((total, account) => {
+            return total + (parseFloat(account.available) || 0);
+          }, 0);
+          
+          processedData.cashFlowData.financialResources.totalCreditAvailable = processedData.cashFlowData.financialResources.creditCards.reduce((total, account) => {
+            return total + (parseFloat(account.available) || 0);
+          }, 0);
+          
+          processedData.cashFlowData.financialResources.totalCreditOwing = processedData.cashFlowData.financialResources.creditCards.reduce((total, account) => {
+            return total + (parseFloat(account.owing) || 0);
+          }, 0);
+          
+          console.log('Calculated totals:', {
+            totalCash: processedData.cashFlowData.financialResources.totalCash,
+            totalCreditAvailable: processedData.cashFlowData.financialResources.totalCreditAvailable,
+            totalCreditOwing: processedData.cashFlowData.financialResources.totalCreditOwing
+          });
+        } else {
+          console.log('No financial resources header found. Available columns:', financialResponse.values[0]);
         }
+      } else {
+        console.log('No financial response values found');
       }
 
       // Process network terms
@@ -480,6 +549,22 @@ export default async function handler(req, res) {
         sample: processedData.rawData.invoices.slice(0, 3),
         rawResponse: invoicesResponse?.values?.slice(0, 3)
       });
+
+      // Process payroll data for upcoming expenses
+      if (payrollResponse?.values && payrollResponse.values.length > 1) {
+        processedData.rawData.payroll = payrollResponse.values.slice(1)
+          .filter(row => row && row.length >= 4)
+          .map(row => ({
+            Category: row[0]?.trim() || '',
+            Description: row[1]?.trim() || '',
+            Amount: row[2]?.trim() || '0',
+            Date: row[3]?.trim() || ''
+          }));
+        console.log('Processed payroll data:', {
+          count: processedData.rawData.payroll.length,
+          sample: processedData.rawData.payroll.slice(0, 3)
+        });
+      }
 
       // Calculate outstanding invoices
       const outstandingInvoices = processedData.rawData.invoices.reduce((total, invoice) => {
@@ -521,23 +606,73 @@ export default async function handler(req, res) {
 
       // Process Commission data
       if (commissionsResponse?.values && commissionsResponse.values.length > 1) {
-        processedData.commissions = commissionsResponse.values.slice(1)
+        const headers = commissionsResponse.values[0];
+        const dataRows = commissionsResponse.values.slice(1);
+        
+        console.log('Raw commissions data:', {
+          headers: headers,
+          firstDataRow: dataRows[0],
+          totalRows: dataRows.length,
+          sampleRows: dataRows.slice(0, 3),
+          totalColumns: headers.length
+        });
+        
+        processedData.commissions = dataRows
           .filter(row => row && row.length >= 4)
-          .map(row => ({
-            date: row[0]?.trim() || '',
-            employee: row[1]?.trim() || '',
-            amount: parseFloat(row[2]?.replace(/[$,]/g, '')) || 0,
-            type: row[3]?.trim() || '',
-            notes: row[4]?.trim() || ''
-          }));
-        console.log('Processed commissions:', processedData.commissions.length);
+          .map(row => {
+            const commission = {
+              mediaBuyer: row[0]?.trim() || '',
+              status: row[1]?.trim() || 'ACTIVE',
+              commissionRate: parseFloat(row[2]) || 0.10,
+              Confirmed: row[3]?.trim() || 'NO'
+            };
+            
+            // Process all remaining columns (E onwards) as month data
+            // Each month typically has 2 columns: revenue and commission
+            for (let i = 4; i < headers.length; i++) {
+              const headerText = headers[i]?.trim() || '';
+              const cellValue = row[i] || '';
+              
+              if (headerText && cellValue !== '') {
+                // Store the value with the exact header name
+                commission[headerText] = cellValue;
+              }
+            }
+            
+            return commission;
+          })
+          .filter(commission => commission.mediaBuyer); // Only include rows with media buyer names
+        
+        console.log('Processed commissions:', {
+          count: processedData.commissions.length,
+          sample: processedData.commissions[0],
+          allHeaders: headers,
+          allCommissions: processedData.commissions
+        });
+      } else {
+        processedData.commissions = [];
+        console.log('No commissions data found or insufficient columns');
+        console.log('Commissions response:', {
+          hasValues: !!commissionsResponse?.values,
+          valuesLength: commissionsResponse?.values?.length || 0,
+          firstRow: commissionsResponse?.values?.[0]
+        });
       }
 
       // Process Employee data
+      console.log('Raw employee response:', {
+        hasValues: !!employeeResponse?.values,
+        valuesLength: employeeResponse?.values?.length || 0,
+        headers: employeeResponse?.values?.[0],
+        firstDataRow: employeeResponse?.values?.[1],
+        sampleRows: employeeResponse?.values?.slice(1, 4)
+      });
+      
       processedData.employeeData = await processEmployeeData(employeeResponse);
       console.log('Processed employee data:', {
         count: processedData.employeeData.length,
-        sample: processedData.employeeData[0]
+        sample: processedData.employeeData[0],
+        allEmployees: processedData.employeeData
       });
 
       // Process network exposure data

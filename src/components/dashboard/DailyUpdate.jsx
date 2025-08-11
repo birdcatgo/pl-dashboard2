@@ -14,11 +14,11 @@ const DEFAULT_PL_PRIORITY = "P & L reporting";
 const DEFAULT_SCHEDULE = "No Planned Interruptions";
 
 const DailyUpdate = () => {
-  const [accomplished, setAccomplished] = useState('');
   const [priorities, setPriorities] = useState(DEFAULT_PL_PRIORITY);
   const [challenges, setChallenges] = useState('');
   const [schedule, setSchedule] = useState(DEFAULT_SCHEDULE);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isSubmittingEOD, setIsSubmittingEOD] = useState(false);
   
   // Task management state
   const [tasks, setTasks] = useState([]);
@@ -52,28 +52,12 @@ const DailyUpdate = () => {
     "Clear Slack"
   ];
 
-  // Load previous day's priorities and today's accomplished when component mounts
+  // Load today's data when component mounts
   useEffect(() => {
-    const loadPreviousPriorities = () => {
+    const loadTodaysData = () => {
       const today = new Date();
-      const yesterday = new Date(today);
-      yesterday.setDate(yesterday.getDate() - 1);
-      const yesterdayKey = format(yesterday, 'yyyy-MM-dd');
       const todayKey = format(today, 'yyyy-MM-dd');
       
-      // Get yesterday's priorities from localStorage
-      const previousPriorities = localStorage.getItem(`priorities-${yesterdayKey}`);
-      if (previousPriorities) {
-        // Move yesterday's priorities to accomplished
-        setAccomplished(previousPriorities);
-      }
-
-      // Load today's accomplished from TaskManager
-      const todayAccomplished = localStorage.getItem(`accomplished-${todayKey}`);
-      if (todayAccomplished) {
-        setAccomplished(todayAccomplished);
-      }
-
       // Load today's priorities from TaskManager (uncompleted tasks from yesterday)
       const todayPriorities = localStorage.getItem(`priorities-${todayKey}`);
       if (todayPriorities) {
@@ -90,15 +74,21 @@ const DailyUpdate = () => {
         setTasks(priorityTasks);
       }
 
-      // Load yesterday's challenges
-      const yesterdayChallenges = localStorage.getItem(`challenges-${yesterdayKey}`);
-      if (yesterdayChallenges && !challenges) {
-        setChallenges(yesterdayChallenges);
+      // Load today's challenges
+      const todayChallenges = localStorage.getItem(`challenges-${todayKey}`);
+      if (todayChallenges) {
+        setChallenges(todayChallenges);
+      }
+
+      // Load today's schedule
+      const todaySchedule = localStorage.getItem(`schedule-${todayKey}`);
+      if (todaySchedule) {
+        setSchedule(todaySchedule);
       }
     };
 
     const initializeData = async () => {
-      loadPreviousPriorities();
+      loadTodaysData();
       await loadTasks();
     };
     
@@ -128,7 +118,16 @@ const DailyUpdate = () => {
 
   const loadScheduledTasks = async () => {
     try {
-      const response = await fetch('/api/scheduled-tasks');
+      // Get the current configuration from localStorage
+      const savedConfig = localStorage.getItem('scheduled-tasks-config');
+      let url = '/api/scheduled-tasks';
+      
+      if (savedConfig) {
+        const configParam = encodeURIComponent(savedConfig);
+        url = `/api/scheduled-tasks?config=${configParam}`;
+      }
+      
+      const response = await fetch(url);
       if (response.ok) {
         const data = await response.json();
         if (data.success && data.scheduledTasks.length > 0) {
@@ -446,26 +445,15 @@ const DailyUpdate = () => {
   const completedTasks = tasks.filter(task => task.completed);
   const uncompletedTasks = tasks.filter(task => !task.completed);
 
-  const formatMessage = () => {
-    const formatList = (text) => {
-      return text
-        .split('\n')
-        .filter(line => line.trim())
-        .map(line => `:white_check_mark: ${line.trim()}`)
-        .join('\n');
-    };
-
+  // Format message for daily update (all priorities + challenges/schedule if present)
+  const formatDailyUpdateMessage = () => {
+    const allTasks = tasks.filter(task => task.text.trim()); // All tasks regardless of completion
+    
     const formatPriorities = () => {
-      // Use tasks instead of textarea
-      const taskLines = uncompletedTasks.map(task => task.text);
-      
-      // Ensure P&L reporting is always first
-      if (!taskLines.includes(DEFAULT_PL_PRIORITY)) {
-        taskLines.unshift(DEFAULT_PL_PRIORITY);
-      }
-      return taskLines.map(line => `:pushpin: ${line.trim()}`).join('\n');
+      if (allTasks.length === 0) return ':pushpin: No priorities set';
+      return allTasks.map(task => `:pushpin: ${task.text}`).join('\n');
     };
-
+    
     const formatChallenges = (text) => {
       return text
         .split('\n')
@@ -473,7 +461,7 @@ const DailyUpdate = () => {
         .map(line => `:construction: ${line.trim()}`)
         .join('\n');
     };
-
+    
     const formatSchedule = (text) => {
       return text
         .split('\n')
@@ -481,30 +469,48 @@ const DailyUpdate = () => {
         .map(line => `:calendar: ${line.trim()}`)
         .join('\n');
     };
-
+    
     let message = `*Daily Update from Ange*\n\n` +
-    `:one: Accomplished Yesterday:\n${formatList(accomplished)}\n\n` +
-    `:two: Priorities for Today:\n${formatPriorities()}\n\n`;
+    `:one: Priorities for Today:\n${formatPriorities()}\n\n`;
     
     // Only include challenges if it's not blank
     if (challenges.trim()) {
-      message += `:three: Challenges & Support Needed:\n${formatChallenges(challenges)}\n\n`;
+      message += `:two: Challenges & Support Needed:\n${formatChallenges(challenges)}\n\n`;
     }
     
-    message += `:four: My Schedule This Week:\n${formatSchedule(schedule)}`;
+    // Only include schedule if it's not the default
+    if (schedule.trim() && schedule !== DEFAULT_SCHEDULE) {
+      const sectionNumber = challenges.trim() ? ':three:' : ':two:';
+      message += `${sectionNumber} My Schedule This Week:\n${formatSchedule(schedule)}`;
+    }
     
     return message;
   };
 
-  const handleSubmit = async () => {
-    if (!accomplished.trim() || !priorities.trim() || !schedule.trim()) {
-      toast.error('Please fill in Accomplished Yesterday, Priorities for Today, and My Schedule This Week');
+  // Format message for EOD update (only completed tasks)
+  const formatEODUpdateMessage = () => {
+    const completedTasks = tasks.filter(task => task.completed);
+    
+    const formatCompleted = () => {
+      if (completedTasks.length === 0) return ':white_check_mark: No tasks completed today';
+      return completedTasks.map(task => `:white_check_mark: ${task.text}`).join('\n');
+    };
+    
+    let message = `*EOD Update from Ange*\n\n` +
+    `:star: Completed Today:\n${formatCompleted()}`;
+    
+    return message;
+  };
+
+  const handleDailyUpdate = async () => {
+    if (tasks.length === 0) {
+      toast.error('Please add some priorities for today');
       return;
     }
 
     setIsSubmitting(true);
     try {
-      const message = formatMessage();
+      const message = formatDailyUpdateMessage();
       console.log('Sending message to Slack:', {
         messageLength: message.length,
         channel: 'daily-updates-mgmt'
@@ -527,29 +533,14 @@ const DailyUpdate = () => {
         throw new Error(data.error || data.details || 'Failed to send message to Slack');
       }
 
-      // Move completed tasks to accomplished and save uncompleted tasks for tomorrow
+      // Save current state to localStorage
       const today = new Date();
       const todayKey = format(today, 'yyyy-MM-dd');
       
-      // Get completed tasks to move to accomplished
-      const completedTaskText = completedTasks.map(task => task.text).join('\n');
-      
-      // Combine with existing accomplished items
-      const newAccomplished = accomplished 
-        ? `${accomplished}\n${completedTaskText}`
-        : completedTaskText;
-      
-      // Save uncompleted tasks for tomorrow's priorities
-      const uncompletedTaskText = uncompletedTasks.map(task => task.text).join('\n');
-      localStorage.setItem(`priorities-${todayKey}`, uncompletedTaskText);
       localStorage.setItem(`challenges-${todayKey}`, challenges);
+      localStorage.setItem(`schedule-${todayKey}`, schedule);
 
       toast.success('Daily update sent successfully!');
-      // Clear the form but keep P&L reporting as default priority and default schedule
-      setAccomplished(newAccomplished);
-      setPriorities(DEFAULT_PL_PRIORITY);
-      setChallenges('');
-      setSchedule(DEFAULT_SCHEDULE);
     } catch (error) {
       console.error('Error sending to Slack:', {
         message: error.message,
@@ -558,6 +549,61 @@ const DailyUpdate = () => {
       toast.error(error.message || 'Failed to send daily update');
     } finally {
       setIsSubmitting(false);
+    }
+  };
+
+  const handleEODUpdate = async () => {
+    const completedTasks = tasks.filter(task => task.completed);
+    
+    if (completedTasks.length === 0) {
+      toast.error('No completed tasks to send in EOD update');
+      return;
+    }
+
+    setIsSubmittingEOD(true);
+    try {
+      const message = formatEODUpdateMessage();
+      console.log('Sending EOD update to Slack:', {
+        messageLength: message.length,
+        channel: 'daily-updates-mgmt'
+      });
+
+      const response = await fetch('/api/slack', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          message,
+          channel: 'daily-updates-mgmt'
+        }),
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.error || data.details || 'Failed to send message to Slack');
+      }
+
+      // Save uncompleted tasks for tomorrow's priorities
+      const today = new Date();
+      const todayKey = format(today, 'yyyy-MM-dd');
+      const uncompletedTasks = tasks.filter(task => !task.completed);
+      const uncompletedTaskText = uncompletedTasks.map(task => task.text).join('\n');
+      
+      if (uncompletedTaskText.trim()) {
+        localStorage.setItem(`priorities-${todayKey}`, uncompletedTaskText);
+      }
+
+      toast.success('EOD update sent successfully!');
+    } catch (error) {
+      console.error('Error sending EOD update to Slack:', {
+        message: error.message,
+        stack: error.stack
+      });
+      toast.error(error.message || 'Failed to send EOD update');
+    } finally {
+      setIsSubmittingEOD(false);
     }
   };
 
@@ -571,16 +617,6 @@ const DailyUpdate = () => {
       </div>
 
       <div className="space-y-4">
-        <div className="space-y-2">
-          <label className="text-sm font-medium">Accomplished Yesterday</label>
-          <Textarea
-            value={accomplished}
-            onChange={(e) => setAccomplished(e.target.value)}
-            placeholder="Enter each accomplishment on a new line"
-            className="min-h-[100px]"
-          />
-        </div>
-
         <div className="space-y-2">
           <div className="flex items-center justify-between">
             <label className="text-sm font-medium">Priorities for Today</label>
@@ -754,13 +790,22 @@ const DailyUpdate = () => {
           />
         </div>
 
-        <Button
-          onClick={handleSubmit}
-          disabled={isSubmitting}
-          className="w-full"
-        >
-          {isSubmitting ? 'Sending...' : 'Send Daily Update'}
-        </Button>
+        <div className="grid grid-cols-2 gap-3">
+          <Button
+            onClick={handleDailyUpdate}
+            disabled={isSubmitting}
+            className="bg-blue-600 hover:bg-blue-700"
+          >
+            {isSubmitting ? 'Sending...' : 'Send Daily Update'}
+          </Button>
+          <Button
+            onClick={handleEODUpdate}
+            disabled={isSubmittingEOD}
+            className="bg-green-600 hover:bg-green-700"
+          >
+            {isSubmittingEOD ? 'Sending...' : 'Send EOD Update'}
+          </Button>
+        </div>
       </div>
     </div>
   );

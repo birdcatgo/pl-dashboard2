@@ -55,12 +55,12 @@ const CashPosition = ({ cashFlowData, networkPaymentsData, invoicesData }) => {
 
   // Get cash in bank with improved account detection
   const cashInBank = useMemo(() => {
-    if (!cashFlowData?.financialResources) {
-      console.warn('No financial resources data available');
+    if (!cashFlowData?.financialResources?.cashAccounts) {
+      console.warn('No cash accounts data available');
       return 0;
     }
 
-    return cashFlowData.financialResources.reduce((total, resource) => {
+    return cashFlowData.financialResources.cashAccounts.reduce((total, resource) => {
       if (!resource.account || !resource.available) return total;
       
       const accountName = resource.account.toLowerCase();
@@ -76,16 +76,15 @@ const CashPosition = ({ cashFlowData, networkPaymentsData, invoicesData }) => {
 
   // Calculate total credit card debt with better validation
   const totalCreditCardDebt = useMemo(() => {
-    if (!cashFlowData?.financialResources) return 0;
+    if (!cashFlowData?.financialResources?.creditCards) return 0;
 
-    return cashFlowData.financialResources.reduce((total, resource) => {
+    return cashFlowData.financialResources.creditCards.reduce((total, resource) => {
       if (!resource.account || !resource.limit || !resource.available) return total;
       
       const accountName = resource.account.toLowerCase();
       const isCreditCard = accountName.includes('credit') || 
                           accountName.includes('card') ||
-                          accountName.includes('visa') ||
-                          accountName.includes('mastercard');
+                          resource.type === 'creditCard';
       
       if (!isCreditCard) return total;
 

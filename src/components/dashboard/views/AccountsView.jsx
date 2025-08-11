@@ -21,6 +21,18 @@ const AccountsView = ({
   performanceData,
   employeeData
 }) => {
+  // Debug logging
+  console.log('AccountsView props:', {
+    accountsSubview,
+    invoiceDataLength: invoiceData?.length || 0,
+    expenseDataLength: expenseData?.length || 0,
+    plDataKeys: plData ? Object.keys(plData) : [],
+    cashFlowDataKeys: cashFlowData ? Object.keys(cashFlowData) : [],
+    networkTermsDataLength: networkTermsData?.length || 0,
+    tradeshiftDataLength: tradeshiftData?.length || 0,
+    performanceDataKeys: performanceData ? Object.keys(performanceData) : [],
+    employeeDataLength: employeeData?.length || 0
+  });
   return (
     <div className="space-y-8">
       <PageHeader 

@@ -75,17 +75,33 @@ const ExpenseReview = ({ plData }) => {
 
   // Get the most recent month's data
   const getMostRecentMonth = () => {
-    if (!plData?.summary?.length) return null;
+    if (!plData || Object.keys(plData).length === 0) return null;
     
-    // Sort summary by date to get the most recent month
-    const sortedSummary = [...plData.summary].sort((a, b) => {
-      const monthOrder = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
-      const yearA = ['January', 'February', 'March', 'April'].includes(a.Month) ? 2025 : 2024;
-      const yearB = ['January', 'February', 'March', 'April'].includes(b.Month) ? 2025 : 2024;
-      return (yearB * 12 + monthOrder.indexOf(b.Month)) - (yearA * 12 + monthOrder.indexOf(a.Month));
+    // Get available months and sort them chronologically
+    const availableMonths = Object.keys(plData).filter(month => 
+      month && month !== 'undefined' && month !== 'null' && month !== '' && plData[month]
+    ).sort((a, b) => {
+      const monthOrder = {
+        'July 2025': 2025 * 12 + 7,
+        'June 2025': 2025 * 12 + 6,
+        'May 2025': 2025 * 12 + 5,
+        'April 2025': 2025 * 12 + 4,
+        'March 2025': 2025 * 12 + 3,
+        'February 2025': 2025 * 12 + 2,
+        'January 2025': 2025 * 12 + 1,
+        'December 2024': 2024 * 12 + 12,
+        'November 2024': 2024 * 12 + 11,
+        'October 2024': 2024 * 12 + 10,
+        'September 2024': 2024 * 12 + 9,
+        'August 2024': 2024 * 12 + 8
+      };
+      
+      const aOrder = monthOrder[a] || 0;
+      const bOrder = monthOrder[b] || 0;
+      return bOrder - aOrder; // Most recent first
     });
 
-    return sortedSummary[0];
+    return availableMonths[0] || null;
   };
 
   const mostRecentMonth = getMostRecentMonth();
@@ -107,8 +123,8 @@ const ExpenseReview = ({ plData }) => {
   };
 
   // Get the monthly data for the most recent month
-  const monthlyData = plData?.monthly?.[mostRecentMonth.Month];
-  if (!monthlyData) return <div>No expense data available for {mostRecentMonth.Month}</div>;
+  const monthlyData = plData[mostRecentMonth];
+  if (!monthlyData) return <div>No expense data available for {mostRecentMonth}</div>;
 
   // Convert categories object to array of entries and prepare for sorting
   let categories = Object.entries(monthlyData.categories || {})

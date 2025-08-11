@@ -88,10 +88,9 @@ const SummaryTable = ({ summaryData }) => {
 
 const MonthlyDetails = ({ monthData, month }) => {
   const [expandedCategories, setExpandedCategories] = React.useState({});
-  // Extract year from month name (e.g., "June 2025" -> "2025")
-  const year = month.includes('2025') ? '2025' : '2024';
-
-  // Process income and expenses
+  const [expandedIncome, setExpandedIncome] = React.useState(false);
+  
+  // Process income and expenses using the correct data structure from pl-processor.js
   const incomeData = monthData?.incomeData || [];
   const expenseData = monthData?.expenseData || [];
   const categories = monthData?.categories || {};
@@ -120,6 +119,10 @@ const MonthlyDetails = ({ monthData, month }) => {
     }));
   };
 
+  const toggleIncome = () => {
+    setExpandedIncome(prev => !prev);
+  };
+
   return (
     <div className="space-y-4">
       {/* Income and Expenses Grid */}
@@ -134,22 +137,47 @@ const MonthlyDetails = ({ monthData, month }) => {
           </div>
           <div className="p-3">
             <div className="space-y-2">
-              {incomeData.map((item, index) => (
-                <div key={index} className="flex justify-between items-center py-1">
-                  <span className="text-sm text-gray-600">{item.Description}</span>
-                  <span className="text-sm font-medium text-green-600 tabular-nums">
-                    {formatCurrency(Math.abs(parseFloat(item.Amount) || 0))}
-                  </span>
-                </div>
-              ))}
-              <div className="pt-2 mt-2 border-t border-gray-100 bg-gray-50 -mx-3 px-3 py-2">
-                <div className="flex justify-between items-center">
-                  <span className="text-sm font-semibold text-gray-900">Total Income</span>
-                  <span className="text-sm font-semibold text-green-600 tabular-nums">
-                    {formatCurrency(Math.abs(totalIncome))}
-                  </span>
-                </div>
+              {/* Income Summary - Always Visible */}
+              <div className="flex justify-between items-center py-1">
+                <span className="text-sm text-gray-600">Total Income</span>
+                <span className="text-sm font-medium text-green-600 tabular-nums">
+                  {formatCurrency(Math.abs(totalIncome))}
+                </span>
               </div>
+              
+              {/* Expandable Income Details */}
+              {incomeData.length > 0 && (
+                <div className="border border-gray-100 rounded-md overflow-hidden">
+                  <button
+                    onClick={toggleIncome}
+                    className="w-full flex justify-between items-center p-2 hover:bg-gray-50 transition-colors"
+                  >
+                    <div className="flex items-center gap-2">
+                      <ChevronRight 
+                        className={`w-3 h-3 text-gray-400 transition-transform ${
+                          expandedIncome ? 'transform rotate-90' : ''
+                        }`}
+                      />
+                      <span className="text-sm font-medium text-gray-900">Income Details</span>
+                    </div>
+                    <span className="text-sm text-gray-500">({incomeData.length} items)</span>
+                  </button>
+                  {expandedIncome && (
+                    <div className="border-t border-gray-100 bg-gray-50">
+                      <div className="p-2 space-y-1">
+                        {incomeData.map((item, index) => (
+                          <div key={index} className="flex justify-between items-center py-0.5">
+                            <span className="text-sm text-gray-600">{item.Description}</span>
+                            <span className="text-sm font-medium text-green-600 tabular-nums">
+                              {formatCurrency(Math.abs(parseFloat(item.Amount) || 0))}
+                            </span>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
             </div>
           </div>
         </div>
@@ -164,6 +192,15 @@ const MonthlyDetails = ({ monthData, month }) => {
           </div>
           <div className="p-3">
             <div className="space-y-2">
+              {/* Expenses Summary - Always Visible */}
+              <div className="flex justify-between items-center py-1">
+                <span className="text-sm text-gray-600">Total Expenses</span>
+                <span className="text-sm font-medium text-red-600 tabular-nums">
+                  {formatCurrency(totalExpenses)}
+                </span>
+              </div>
+              
+              {/* Expandable Expense Categories */}
               {sortedCategories.map(({ category, total, items }) => (
                 <div key={category} className="border border-gray-100 rounded-md overflow-hidden">
                   <button
@@ -193,41 +230,25 @@ const MonthlyDetails = ({ monthData, month }) => {
                             </span>
                           </div>
                         ))}
-                        <div className="pt-1 mt-1 border-t border-gray-200">
-                          <div className="flex justify-between items-center">
-                            <span className="text-sm font-medium text-gray-900">Category Total</span>
-                            <span className="text-sm font-medium text-red-600 tabular-nums">
-                              {formatCurrency(total)}
-                            </span>
-                          </div>
-                        </div>
                       </div>
                     </div>
                   )}
                 </div>
               ))}
-              <div className="pt-2 mt-2 border-t border-gray-100 bg-gray-50 -mx-3 px-3 py-2">
-                <div className="flex justify-between items-center">
-                  <span className="text-sm font-semibold text-gray-900">Total Expenses</span>
-                  <span className="text-sm font-semibold text-red-600 tabular-nums">
-                    {formatCurrency(Math.abs(totalExpenses))}
-                  </span>
-                </div>
-              </div>
             </div>
           </div>
         </div>
       </div>
 
       {/* Net Profit Summary */}
-      <div className="bg-white rounded-lg shadow-sm border border-gray-100">
-        <div className="p-3">
-          <div className="flex justify-between items-center">
-            <span className="text-sm font-semibold text-gray-900">Net Profit</span>
-            <span className={`text-sm font-semibold tabular-nums ${netProfit >= 0 ? 'text-green-600' : 'text-red-600'}`}>
-              {formatCurrency(Math.abs(netProfit))}
-            </span>
-          </div>
+      <div className="bg-white rounded-lg shadow-sm border border-gray-100 p-4">
+        <div className="flex justify-between items-center">
+          <span className="text-lg font-semibold text-gray-900">Net Profit</span>
+          <span className={`text-lg font-bold tabular-nums ${
+            netProfit >= 0 ? 'text-green-600' : 'text-red-600'
+          }`}>
+            {formatCurrency(netProfit)}
+          </span>
         </div>
       </div>
     </div>
@@ -398,28 +419,47 @@ const PLWrapper = ({ plData, monthlyData, selectedMonth, onMonthChange, selected
   const availableMonths = Object.keys(plData?.monthly || {})
     .sort((a, b) => getMonthWeight(b) - getMonthWeight(a));
 
+  // If no month is selected and we have available months, select the first one
+  React.useEffect(() => {
+    if (!selectedMonth && availableMonths.length > 0) {
+      onMonthChange(availableMonths[0]);
+    }
+  }, [selectedMonth, availableMonths, onMonthChange]);
+
   return (
     <div className="space-y-6">
       {/* Header and Month Selector */}
       <div className="flex justify-between items-center">
         <h2 className="text-2xl font-bold text-gray-900">Cash View (Money In/Out)</h2>
         <div className="flex items-center gap-4">
-          <select
-            value={selectedMonth}
-            onChange={(e) => onMonthChange(e.target.value)}
-            className="form-select rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
-          >
-            {availableMonths.map(month => (
-              <option key={month} value={month}>
-                {month}
-              </option>
-            ))}
-          </select>
+          <Select value={selectedMonth || ''} onValueChange={onMonthChange}>
+            <SelectTrigger className="w-[200px] bg-white border-gray-300 hover:border-gray-400 focus:border-blue-500 focus:ring-2 focus:ring-blue-200">
+              <SelectValue placeholder="Select a month" />
+            </SelectTrigger>
+            <SelectContent className="bg-white border border-gray-200 shadow-lg">
+              {availableMonths.map(month => (
+                <SelectItem 
+                  key={month} 
+                  value={month}
+                  className="hover:bg-blue-50 focus:bg-blue-50 cursor-pointer"
+                >
+                  {month}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
         </div>
       </div>
 
+      {/* Show message if no month is selected */}
+      {!selectedMonth && (
+        <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+          <p className="text-blue-800">Please select a month to view the Cash View (Money In/Out) details.</p>
+        </div>
+      )}
+
       {/* Monthly Details */}
-      {selectedMonthData && (
+      {selectedMonthData && selectedMonth && (
         <MonthlyDetails 
           monthData={selectedMonthData}
           month={selectedMonth}
@@ -427,12 +467,14 @@ const PLWrapper = ({ plData, monthlyData, selectedMonth, onMonthChange, selected
       )}
 
       {/* Summary Table */}
-      {plData?.summary && (
+      {plData?.summary && plData.summary.length > 0 && (
         <SummaryTable summaryData={plData.summary} />
       )}
 
       {/* Expense Categories Trend */}
-      <ExpenseCategoriesTrend monthlyData={plData?.monthly || {}} />
+      {plData?.monthly && Object.keys(plData.monthly).length > 0 && (
+        <ExpenseCategoriesTrend monthlyData={plData.monthly} />
+      )}
     </div>
   );
 };

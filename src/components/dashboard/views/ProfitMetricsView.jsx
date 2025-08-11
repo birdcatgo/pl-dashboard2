@@ -1,6 +1,9 @@
-import React from 'react';
-import { Calculator } from 'lucide-react';
-import { Button } from "@/components/ui/button";
+import React, { useState } from 'react';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
+import { Calendar, TrendingUp, DollarSign, Users, BarChart3, CreditCard, FileText, Calculator } from 'lucide-react';
 import PageHeader from '../../ui/PageHeader';
 import NetProfit from '../NetProfit';
 import ImprovedPLDashboard from '../ImprovedPLDashboard';
@@ -20,6 +23,12 @@ const ProfitMetricsView = ({
   isRefreshing,
   error
 }) => {
+  const [selectedMonth, setSelectedMonth] = useState('');
+
+  const handleMonthChange = (month) => {
+    setSelectedMonth(month);
+  };
+
   return (
     <div className="space-y-8">
       <PageHeader 
@@ -157,7 +166,8 @@ const ProfitMetricsView = ({
         {accountingSubview === 'pl' && (
           <ImprovedPLDashboard 
             plData={plData}
-            summaryData={plData?.summary || []}
+            selectedMonth={selectedMonth}
+            onMonthChange={handleMonthChange}
           />
         )}
         {accountingSubview === 'media-buyer-pl' && (

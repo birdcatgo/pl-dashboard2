@@ -1,8 +1,87 @@
 import React, { useState, useMemo } from 'react';
 
 const CommissionPayments = ({ commissions, employeeData = [], performanceData = [] }) => {
-  const [selectedMonth, setSelectedMonth] = useState('July 2025');
-  const [selectedPeriod, setSelectedPeriod] = useState('30days');
+  // Debug logging
+  console.log('CommissionPayments received props:', {
+    commissions: commissions?.length || 0,
+    employeeData: employeeData?.length || 0,
+    performanceData: performanceData?.length || 0,
+    sampleCommission: commissions?.[0],
+    sampleEmployee: employeeData?.[0]
+  });
+
+  // Debug: Show what columns are available in the first commission
+  if (commissions?.[0]) {
+    console.log('Available columns in first commission:', {
+      allKeys: Object.keys(commissions[0]),
+      monthKeys: Object.keys(commissions[0]).filter(key => key.match(/^[A-Za-z]+ \d{4}$/)),
+      commissionKeys: Object.keys(commissions[0]).filter(key => key.includes('Commission'))
+    });
+  }
+
+  // Test data fallback if no real data
+  const testCommissions = [
+    {
+      mediaBuyer: 'John Smith',
+      status: 'ACTIVE',
+      commissionRate: 0.10,
+      Confirmed: 'YES',
+      'June 2025': '$5000',
+      'June 2025 Commissions': '$500'
+    },
+    {
+      mediaBuyer: 'Jane Doe',
+      status: 'ACTIVE',
+      commissionRate: 0.15,
+      Confirmed: 'NO',
+      'June 2025': '$3000',
+      'June 2025 Commissions': '$450'
+    }
+  ];
+
+  const testEmployeeData = [
+    {
+      name: 'John Smith',
+      basePay: '$4000',
+      frequency: 'Monthly'
+    },
+    {
+      name: 'Jane Doe',
+      basePay: '$3500',
+      frequency: 'Monthly'
+    }
+  ];
+
+  // Use test data if no real data
+  const finalCommissions = commissions?.length ? commissions : testCommissions;
+  const finalEmployeeData = employeeData?.length ? employeeData : testEmployeeData;
+
+  // Dynamically detect available months from the data
+  const availableMonths = useMemo(() => {
+    if (!finalCommissions?.length) return ['June 2025'];
+    
+    const months = new Set();
+    finalCommissions.forEach(commission => {
+      Object.keys(commission).forEach(key => {
+        // Look for month patterns (e.g., "June 2025", "July 2025", etc.)
+        if (key.match(/^[A-Za-z]+ \d{4}$/)) {
+          months.add(key);
+        }
+      });
+    });
+    
+    // Sort months chronologically (newest first)
+    return Array.from(months).sort((a, b) => {
+      const monthA = new Date(a);
+      const monthB = new Date(b);
+      return monthB - monthA;
+    });
+  }, [finalCommissions]);
+
+  // Set initial selected month to the most recent available month
+  const [selectedMonth, setSelectedMonth] = useState(() => {
+    return availableMonths[0] || 'June 2025';
+  });
   const [showBaseSalaryAnalysis, setShowBaseSalaryAnalysis] = useState(false);
 
   // Helper function to format currency
@@ -56,86 +135,27 @@ const CommissionPayments = ({ commissions, employeeData = [], performanceData = 
     return 1; // Default to monthly
   };
 
-  // Calculate media buyer performance for different time periods
-  const mediaBuyerPerformance = useMemo(() => {
-    if (!performanceData?.length) return {};
-
-    const today = new Date();
-    const currentYear = today.getFullYear();
-    const performance = {};
-
-    performanceData.forEach(entry => {
-      const buyer = entry['Media Buyer'];
-      if (!buyer) return;
-
-      const entryDate = new Date(entry.Date);
-      const daysDiff = Math.floor((today - entryDate) / (1000 * 60 * 60 * 24));
-      
-      if (!performance[buyer]) {
-        performance[buyer] = {
-          name: buyer,
-          periods: {
-            '30days': { spend: 0, revenue: 0, profit: 0 },
-            '60days': { spend: 0, revenue: 0, profit: 0 },
-            '90days': { spend: 0, revenue: 0, profit: 0 },
-            'mtd': { spend: 0, revenue: 0, profit: 0 },
-            'ytd': { spend: 0, revenue: 0, profit: 0 },
-            'all': { spend: 0, revenue: 0, profit: 0 }
-          }
-        };
-      }
-
-      const spend = parseFloat(entry['Ad Spend'] || 0);
-      const revenue = parseFloat(entry['Total Revenue'] || 0);
-      const profit = revenue - spend;
-
-      // Add to appropriate periods
-      if (daysDiff <= 30) {
-        performance[buyer].periods['30days'].spend += spend;
-        performance[buyer].periods['30days'].revenue += revenue;
-        performance[buyer].periods['30days'].profit += profit;
-      }
-      if (daysDiff <= 60) {
-        performance[buyer].periods['60days'].spend += spend;
-        performance[buyer].periods['60days'].revenue += revenue;
-        performance[buyer].periods['60days'].profit += profit;
-      }
-      if (daysDiff <= 90) {
-        performance[buyer].periods['90days'].spend += spend;
-        performance[buyer].periods['90days'].revenue += revenue;
-        performance[buyer].periods['90days'].profit += profit;
-      }
-      // MTD calculation (current month)
-      const currentMonth = today.getMonth();
-      if (entryDate.getMonth() === currentMonth && entryDate.getFullYear() === currentYear) {
-        performance[buyer].periods['mtd'].spend += spend;
-        performance[buyer].periods['mtd'].revenue += revenue;
-        performance[buyer].periods['mtd'].profit += profit;
-      }
-      // YTD calculation (current year)
-      if (entryDate.getFullYear() === currentYear) {
-        performance[buyer].periods['ytd'].spend += spend;
-        performance[buyer].periods['ytd'].revenue += revenue;
-        performance[buyer].periods['ytd'].profit += profit;
-      }
-      // All Time
-      performance[buyer].periods['all'].spend += spend;
-      performance[buyer].periods['all'].revenue += revenue;
-      performance[buyer].periods['all'].profit += profit;
-    });
-
-    return performance;
-  }, [performanceData]);
-
   // Match media buyers with employee data
   const mediaBuyerAnalysis = useMemo(() => {
-    if (!commissions?.length || !employeeData?.length) return [];
+    if (!finalCommissions?.length || !finalEmployeeData?.length) return [];
 
-    return commissions.map(commission => {
+    return finalCommissions.map(commission => {
       const buyerName = commission.mediaBuyer;
       
+      // Skip if buyerName is missing
+      if (!buyerName) {
+        return {
+          ...commission,
+          hasBaseSalary: false,
+          basePay: 0,
+          frequency: '',
+          monthlyBasePay: 0
+        };
+      }
+      
       // Find matching employee by first name
-      const employee = employeeData.find(emp => {
+      const employee = finalEmployeeData.find(emp => {
+        if (!emp.name) return false;
         const empFirstName = emp.name.split(' ')[0]?.toLowerCase();
         const buyerFirstName = buyerName.split(' ')[0]?.toLowerCase();
         return empFirstName === buyerFirstName;
@@ -147,8 +167,7 @@ const CommissionPayments = ({ commissions, employeeData = [], performanceData = 
           hasBaseSalary: false,
           basePay: 0,
           frequency: '',
-          monthlyBasePay: 0,
-          performance: mediaBuyerPerformance[buyerName] || null
+          monthlyBasePay: 0
         };
       }
 
@@ -163,137 +182,55 @@ const CommissionPayments = ({ commissions, employeeData = [], performanceData = 
         basePay,
         frequency,
         monthlyBasePay,
-        employeeData: employee,
-        performance: mediaBuyerPerformance[buyerName] || null
+        employeeData: employee
       };
     });
-  }, [commissions, employeeData, mediaBuyerPerformance]);
+  }, [finalCommissions, finalEmployeeData]);
 
   // Calculate base salary justification
   const baseSalaryAnalysis = useMemo(() => {
     const analysis = [];
-    const periodLabels = {
-      '30days': 'Last 30 Days',
-      '60days': 'Last 60 Days', 
-      '90days': 'Last 90 Days',
-      'mtd': 'Month to Date',
-      'ytd': 'Year to Date',
-      'all': 'All Time'
-    };
 
     mediaBuyerAnalysis.forEach(buyer => {
       // Only include active media buyers with base salaries
-      if (!buyer.hasBaseSalary || !buyer.performance || buyer.status !== 'ACTIVE') return;
+      if (!buyer.hasBaseSalary || (!buyer.status?.includes('ACTIVE') && !buyer.status?.includes('%'))) return;
 
-      const periodData = buyer.performance.periods[selectedPeriod];
-      if (!periodData) return;
-
-      const profit = periodData.profit;
       const monthlyBasePay = buyer.monthlyBasePay;
-      
-      // Calculate the number of months for the selected period based on when they started
-      const getPeriodMonths = (period, buyerName) => {
-        const today = new Date();
-        const currentYear = today.getFullYear();
-        
-        // Find the first date this buyer started running traffic
-        const buyerEntries = performanceData.filter(entry => entry['Media Buyer'] === buyerName);
-        if (!buyerEntries.length) return 0;
-        
-        const firstEntryDate = new Date(Math.min(...buyerEntries.map(entry => new Date(entry.Date))));
-        
-        // Base pay starts on the 15th of the first full month of traffic
-        const firstBasePayDate = new Date(firstEntryDate.getFullYear(), firstEntryDate.getMonth(), 15);
-        if (firstEntryDate.getDate() > 15) {
-          // If they started after the 15th, base pay starts next month
-          firstBasePayDate.setMonth(firstBasePayDate.getMonth() + 1);
-        }
-        
-        let periodStart, periodEnd;
-        
-        switch (period) {
-          case '30days':
-            periodStart = new Date(today.getTime() - (30 * 24 * 60 * 60 * 1000));
-            periodEnd = today;
-            break;
-          case '60days':
-            periodStart = new Date(today.getTime() - (60 * 24 * 60 * 60 * 1000));
-            periodEnd = today;
-            break;
-          case '90days':
-            periodStart = new Date(today.getTime() - (90 * 24 * 60 * 60 * 1000));
-            periodEnd = today;
-            break;
-          case 'mtd':
-            periodStart = new Date(currentYear, today.getMonth(), 1);
-            periodEnd = today;
-            break;
-          case 'ytd':
-            periodStart = new Date(currentYear, 0, 1); // January 1st
-            periodEnd = today;
-            break;
-          case 'all':
-            periodStart = firstBasePayDate;
-            periodEnd = today;
-            break;
-          default:
-            periodStart = new Date(today.getTime() - (30 * 24 * 60 * 60 * 1000));
-            periodEnd = today;
-        }
-        
-        // Calculate months between period start and end, but only count months after they started getting base pay
-        const effectiveStart = new Date(Math.max(periodStart.getTime(), firstBasePayDate.getTime()));
-        
-        if (effectiveStart > periodEnd) return 0;
-        
-        const monthsDiff = (periodEnd.getFullYear() - effectiveStart.getFullYear()) * 12 + 
-                          (periodEnd.getMonth() - effectiveStart.getMonth());
-        
-        // Add 1 if the period includes at least 15 days of the end month
-        const additionalMonth = periodEnd.getDate() >= 15 ? 1 : 0;
-        
-        return Math.max(0, monthsDiff + additionalMonth);
-      };
-      
-      const periodMonths = getPeriodMonths(selectedPeriod, buyer.mediaBuyer);
-      const basePayForPeriod = monthlyBasePay * periodMonths;
       
       // Calculate commission for the period based on profit
       // Assuming 10% commission rate (this should match your actual commission structure)
       const commissionRate = buyer.commissionRate || 0.10;
-      // If profit is negative (loss), commission is $0, not negative
-      const commissionForPeriod = profit > 0 ? profit * commissionRate : 0;
       
-      // Total cost = base salary for period + commission
-      const totalCost = basePayForPeriod + commissionForPeriod;
+      // For now, we'll use a placeholder profit since performance data isn't available
+      // You can adjust this based on your actual data structure
+      const profit = 0; // Placeholder - adjust based on your data
+      const commissionForPeriod = profit * commissionRate;
+      
+      // Total cost = base salary + commission
+      const totalCost = monthlyBasePay + commissionForPeriod;
       const profitVsTotalCost = profit - totalCost;
-      const roi = totalCost > 0 ? (profit / totalCost) * 100 : 0;
       const isJustified = profit >= totalCost;
 
       analysis.push({
-        name: buyer.mediaBuyer,
+        name: buyer.mediaBuyer || 'Unknown',
         basePay: buyer.basePay,
         frequency: buyer.frequency,
         monthlyBasePay,
-        basePayForPeriod,
         commissionRate: commissionRate * 100,
         commissionForPeriod,
         totalCost,
-        period: periodLabels[selectedPeriod],
+        period: 'Current Period',
         profit,
         profitVsTotalCost,
-        roi,
         isJustified,
         status: isJustified ? 'Justified' : 'Not Justified'
       });
     });
 
     return analysis.sort((a, b) => b.profitVsTotalCost - a.profitVsTotalCost);
-  }, [mediaBuyerAnalysis, selectedPeriod]);
+  }, [mediaBuyerAnalysis]);
 
-
-
-  if (!commissions?.length) {
+  if (!finalCommissions?.length) {
     return (
       <div className="text-gray-500 text-center py-8">
         No commission data available
@@ -301,9 +238,13 @@ const CommissionPayments = ({ commissions, employeeData = [], performanceData = 
     );
   }
 
-  // Group commissions by status
-  const activeCommissions = mediaBuyerAnalysis.filter(c => c.status === 'ACTIVE');
-  const inactiveCommissions = mediaBuyerAnalysis.filter(c => c.status === 'INACTIVE');
+  // Group commissions by status - handle both "15% ACTIVE" and "ACTIVE" formats
+  const activeCommissions = mediaBuyerAnalysis.filter(c => 
+    c.status?.includes('ACTIVE') || c.status === 'ACTIVE' || c.status?.includes('%')
+  );
+  const inactiveCommissions = mediaBuyerAnalysis.filter(c => 
+    c.status?.includes('INACTIVE') || c.status === 'INACTIVE'
+  );
 
 
 
@@ -317,14 +258,12 @@ const CommissionPayments = ({ commissions, employeeData = [], performanceData = 
             onChange={(e) => setSelectedMonth(e.target.value)}
             className="w-48 px-3 py-2 border border-gray-300 rounded-md text-sm"
           >
-            <option value="July 2025">July 2025</option>
-            <option value="June 2025">June 2025</option>
-            <option value="May 2025">May 2025</option>
-            <option value="April 2025">April 2025</option>
-            <option value="March 2025">March 2025</option>
-            <option value="February 2025">February 2025</option>
+            {availableMonths.map(month => (
+              <option key={month} value={month}>{month}</option>
+            ))}
           </select>
           
+          {/* Base Salary Analysis button temporarily hidden
           <button
             onClick={() => setShowBaseSalaryAnalysis(!showBaseSalaryAnalysis)}
             className={`px-4 py-2 rounded-md text-sm font-medium ${
@@ -335,34 +274,17 @@ const CommissionPayments = ({ commissions, employeeData = [], performanceData = 
           >
             {showBaseSalaryAnalysis ? 'Hide' : 'Show'} Base Salary Analysis
           </button>
+          */}
         </div>
-
-        {showBaseSalaryAnalysis && (
-          <select
-            value={selectedPeriod}
-            onChange={(e) => setSelectedPeriod(e.target.value)}
-            className="w-40 px-3 py-2 border border-gray-300 rounded-md text-sm"
-          >
-            <option value="30days">Last 30 Days</option>
-            <option value="60days">Last 60 Days</option>
-            <option value="90days">Last 90 Days</option>
-            <option value="mtd">Month to Date</option>
-            <option value="ytd">Year to Date</option>
-            <option value="all">All Time</option>
-          </select>
-        )}
       </div>
 
+      {/* Base Salary Analysis - temporarily hidden
       {/* Base Salary Analysis */}
       {showBaseSalaryAnalysis && baseSalaryAnalysis.length > 0 && (
-        <div className="bg-white rounded-lg shadow-sm border border-gray-100 overflow-hidden">
+        <div className="bg-white rounded-lg shadow-sm border border-gray-100 overflow-hidden mb-6">
           <div className="px-4 py-3 border-b border-gray-200">
-            <h3 className="text-lg font-semibold text-gray-900">Base Salary Justification Analysis</h3>
-            <p className="text-sm text-gray-600 mt-1">
-              Analyzing whether media buyers with base salaries are justifying their pay based on profit performance
-            </p>
+            <h3 className="text-lg font-semibold text-gray-900">Base Salary Analysis</h3>
           </div>
-          
           <div className="overflow-x-auto">
             <table className="min-w-full divide-y divide-gray-200">
               <thead className="bg-gray-50">
@@ -371,16 +293,13 @@ const CommissionPayments = ({ commissions, employeeData = [], performanceData = 
                     Media Buyer
                   </th>
                   <th className="px-2 py-2 text-center text-xs font-medium text-gray-500 uppercase tracking-wider border-b-2 border-gray-300">
-                    Base Pay ({selectedPeriod === 'mtd' ? 'MTD' : selectedPeriod === 'ytd' ? 'YTD' : selectedPeriod === 'all' ? 'All Time' : selectedPeriod.replace('days', 'D')})
+                    Monthly Base Pay
                   </th>
                   <th className="px-2 py-2 text-center text-xs font-medium text-gray-500 uppercase tracking-wider border-b-2 border-gray-300">
                     Commission Rate
                   </th>
-                  <th className="px-2 py-2 text-center text-xs font-medium text-gray-500 uppercase tracking-wider border-b-2 border-gray-300">
-                    Monthly Base Pay
-                  </th>
                   <th className="px-2 py-2 text-right text-xs font-medium text-gray-500 uppercase tracking-wider border-b-2 border-gray-300">
-                    {selectedPeriod === 'mtd' ? 'MTD Profit' : selectedPeriod === 'ytd' ? 'YTD Profit' : selectedPeriod === 'all' ? 'All Time Profit' : `${selectedPeriod.replace('days', 'D')} Profit`}
+                    Profit
                   </th>
                   <th className="px-2 py-2 text-right text-xs font-medium text-gray-500 uppercase tracking-wider border-b-2 border-gray-300">
                     Total Cost
@@ -400,13 +319,10 @@ const CommissionPayments = ({ commissions, employeeData = [], performanceData = 
                       {analysis.name}
                     </td>
                     <td className="px-2 py-2 whitespace-nowrap text-sm text-center text-gray-900">
-                      {formatCurrency(analysis.basePayForPeriod)}
+                      {formatCurrency(analysis.monthlyBasePay)}
                     </td>
                     <td className="px-2 py-2 whitespace-nowrap text-sm text-center text-gray-900">
                       {analysis.commissionRate.toFixed(1)}%
-                    </td>
-                    <td className="px-2 py-2 whitespace-nowrap text-sm text-center text-gray-900">
-                      {formatCurrency(analysis.monthlyBasePay)}
                     </td>
                     <td className="px-2 py-2 whitespace-nowrap text-sm text-right text-gray-900">
                       {formatCurrency(analysis.profit)}
@@ -438,9 +354,9 @@ const CommissionPayments = ({ commissions, employeeData = [], performanceData = 
           <div className="px-4 py-3 bg-gray-50 border-t border-gray-200">
             <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
               <div className="text-center">
-                <div className="text-sm text-gray-600">Total Base Pay ({selectedPeriod === 'mtd' ? 'MTD' : selectedPeriod === 'ytd' ? 'YTD' : selectedPeriod === 'all' ? 'All Time' : selectedPeriod.replace('days', 'D')})</div>
+                <div className="text-sm text-gray-600">Total Base Pay</div>
                 <div className="text-lg font-semibold text-gray-900">
-                  {formatCurrency(baseSalaryAnalysis.reduce((sum, a) => sum + a.basePayForPeriod, 0))}
+                  {formatCurrency(baseSalaryAnalysis.reduce((sum, a) => sum + a.monthlyBasePay, 0))}
                 </div>
               </div>
               <div className="text-center">
@@ -497,11 +413,13 @@ const CommissionPayments = ({ commissions, employeeData = [], performanceData = 
                 <th className="px-2 py-2 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
                   Commission
                 </th>
+                {/* Base Salary column temporarily hidden
                 {showBaseSalaryAnalysis && (
                   <th className="px-2 py-2 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">
                     Base Salary
                   </th>
                 )}
+                */}
               </tr>
             </thead>
             <tbody className="bg-white divide-y divide-gray-200">
@@ -510,8 +428,10 @@ const CommissionPayments = ({ commissions, employeeData = [], performanceData = 
                 const amount = commission[selectedMonth];
                 // Handle both "Commission" and "Commissions" formats
                 const commissionAmount = commission[`${selectedMonth} Commissions`] || commission[`${selectedMonth} Commission`];
-                const rowBackground = parseFloat(commissionAmount?.replace(/[$,]/g, '') || '0') > 0 ? 'bg-green-50' : 
+
+                const rowBackground = parseFloat(commissionAmount?.replace(/[$,]/g, '') || '0') > 0 ? 'bg-green-50' :
                                     parseFloat(commissionAmount?.replace(/[$,]/g, '') || '0') < 0 ? 'bg-red-50' : 'bg-white';
+
                 
                 return (
                   <tr key={`active-${index}`} className={rowBackground}>
@@ -537,6 +457,7 @@ const CommissionPayments = ({ commissions, employeeData = [], performanceData = 
                     <td className="px-2 py-2 whitespace-nowrap text-sm text-right">
                       {formatCommission(commissionAmount)}
                     </td>
+                    {/* Base Salary column temporarily hidden
                     {showBaseSalaryAnalysis && (
                       <td className="px-2 py-2 whitespace-nowrap text-sm text-center">
                         {commission.hasBaseSalary ? (
@@ -549,6 +470,7 @@ const CommissionPayments = ({ commissions, employeeData = [], performanceData = 
                         )}
                       </td>
                     )}
+                    */}
                   </tr>
                 );
               })}
@@ -558,8 +480,10 @@ const CommissionPayments = ({ commissions, employeeData = [], performanceData = 
                 const amount = commission[selectedMonth];
                 // Handle both "Commission" and "Commissions" formats
                 const commissionAmount = commission[`${selectedMonth} Commissions`] || commission[`${selectedMonth} Commission`];
-                const rowBackground = parseFloat(commissionAmount?.replace(/[$,]/g, '') || '0') > 0 ? 'bg-green-50' : 
+
+                const rowBackground = parseFloat(commissionAmount?.replace(/[$,]/g, '') || '0') > 0 ? 'bg-green-50' :
                                     parseFloat(commissionAmount?.replace(/[$,]/g, '') || '0') < 0 ? 'bg-red-50' : 'bg-white';
+
                 
                 return (
                   <tr key={`inactive-${index}`} className={`${rowBackground} opacity-75`}>
@@ -585,18 +509,20 @@ const CommissionPayments = ({ commissions, employeeData = [], performanceData = 
                     <td className="px-2 py-2 whitespace-nowrap text-sm text-right">
                       {formatCommission(commissionAmount)}
                     </td>
+                    {/* Base Salary column temporarily hidden
                     {showBaseSalaryAnalysis && (
                       <td className="px-2 py-2 whitespace-nowrap text-sm text-center">
                         {commission.hasBaseSalary ? (
                           <div className="text-xs">
                             <div className="font-medium">{formatCurrency(commission.basePay)}</div>
-                            <div className="text-gray-500">{commission.frequency}</div>
+                            <div className="text-xs text-gray-500">{commission.frequency}</div>
                           </div>
                         ) : (
                           <span className="text-gray-400">No base salary</span>
                         )}
                       </td>
                     )}
+                    */}
                   </tr>
                 );
               })}

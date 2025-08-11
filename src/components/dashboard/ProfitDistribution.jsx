@@ -379,8 +379,8 @@ const ProfitDistribution = ({
 
   // Calculate credit limits from cashFlowData
   useEffect(() => {
-    if (cashFlowData?.financialResources) {
-      const limits = cashFlowData.financialResources.reduce((acc, card) => {
+    if (cashFlowData?.financialResources?.creditCards) {
+      const limits = cashFlowData.financialResources.creditCards.reduce((acc, card) => {
         const name = card.account || '';
         const limit = parseFloat(card.limit?.toString().replace(/[$,]/g, '') || '0');
         const available = parseFloat(card.available?.toString().replace(/[$,]/g, '') || '0');
@@ -421,7 +421,11 @@ const ProfitDistribution = ({
 
   // Get account balances
   const getAccountBalance = (accountName) => {
-    const account = cashFlowData?.financialResources?.find(
+    const allAccounts = [
+      ...(cashFlowData?.financialResources?.cashAccounts || []),
+      ...(cashFlowData?.financialResources?.creditCards || [])
+    ];
+    const account = allAccounts.find(
       resource => resource?.account === accountName
     );
     return account ? parseFloat(account.available.toString().replace(/[$,]/g, '')) : 0;
