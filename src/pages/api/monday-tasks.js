@@ -8,6 +8,10 @@ export default async function handler(req, res) {
     const MONDAY_API_TOKEN = process.env.MONDAY_API_TOKEN;
     const BOARD_ID = '6741994585';
     const GROUP_NAME = 'ANGE';
+    
+    // Check for debug mode
+    const showAll = req.query.showAll === 'true';
+    console.log('Monday Tasks API called with showAll:', showAll);
 
     if (!MONDAY_API_TOKEN) {
       return res.status(500).json({ error: 'Monday.com API token not configured' });
@@ -130,32 +134,79 @@ export default async function handler(req, res) {
     // Debug: Log all processed tasks
     console.log('All processed tasks:', tasks);
     
-    // Filter to show only "Working On It" and no status tasks
-    const activeTasks = tasks.filter(task => {
-      const status = task.status.toLowerCase();
+    // Filter to show everything except DONE status (unless debug mode)
+    let finalTasks = tasks;
+    if (!showAll) {
+      console.log('=== FILTERING TASKS ===');
+      console.log('Raw statuses before filtering:', tasks.map(t => ({ name: t.name, status: t.status, rawStatus: t.status })));
       
-      // Show tasks with "Working On It" status
-      const isWorkingOnIt = status.includes('working on it');
+      finalTasks = tasks.filter(task => {
+        const status = task.status || '';
+        const statusLower = status.toLowerCase();
+        
+        // Check for completed statuses
+        const hasCheckmark = status.includes('✅');
+        const hasDone = statusLower.includes('done');
+        const hasComplete = statusLower.includes('complete');
+        const hasFinished = statusLower.includes('finished');
+        
+        const isCompleted = hasCheckmark || hasDone || hasComplete || hasFinished;
+        
+        const shouldShow = !isCompleted;
+        
+        // Debug: Log each task's filtering decision
+        console.log(`Task "${task.name}"`);
+        console.log(`  Status: "${task.status}"`);
+        console.log(`  Has checkmark: ${hasCheckmark}`);
+        console.log(`  Has done: ${hasDone}`);
+        console.log(`  Has complete: ${hasComplete}`);
+        console.log(`  Has finished: ${hasFinished}`);
+        console.log(`  Is completed: ${isCompleted}`);
+        console.log(`  Should show: ${shouldShow}`);
+        console.log('---');
+        
+        return shouldShow;
+      });
       
-      // Also show tasks with no status or "SET STATUS"
-      const hasNoStatus = !task.status || task.status === 'No Status' || task.status === 'SET STATUS';
-      
-      const shouldShow = isWorkingOnIt || hasNoStatus;
-      
-      // Debug: Log each task's filtering decision
-      console.log(`Task "${task.name}" (status: "${task.status}") - shouldShow: ${shouldShow}`);
-      
-      return shouldShow;
-    });
+      console.log('=== FILTERING COMPLETE ===');
+      console.log('Tasks after filtering:', finalTasks.map(t => ({ name: t.name, status: t.status })));
+    }
     
-    // Debug: Log final active tasks
-    console.log('Final active tasks:', activeTasks);
+    // Debug: Log final tasks
+    console.log('Final tasks to show:', finalTasks);
+    
+    // Log status summary for debugging
+    const statusCounts = {};
+    tasks.forEach(task => {
+      const status = task.status || 'No Status';
+      statusCounts[status] = (statusCounts[status] || 0) + 1;
+    });
+    console.log('Task status summary:', statusCounts);
+    
+    // If no tasks found, show all tasks for debugging
+    if (finalTasks.length === 0 && tasks.length > 0) {
+      console.log('No tasks found with current filter. Showing all tasks for debugging.');
+      console.log('All task statuses:', tasks.map(t => ({ name: t.name, status: t.status })));
+      finalTasks = tasks;
+    }
+    
+    // TEMPORARY: Force show only non-done tasks for debugging
+    if (!showAll && finalTasks.length === tasks.length) {
+      console.log('WARNING: Filter not working - showing all tasks. Forcing manual filter...');
+      finalTasks = tasks.filter(task => {
+        const status = task.status || '';
+        return !status.includes('✅') && !status.toLowerCase().includes('done');
+      });
+      console.log('Manual filter result:', finalTasks.map(t => ({ name: t.name, status: t.status })));
+    }
 
     res.status(200).json({
       success: true,
-      tasks: activeTasks,
+      tasks: finalTasks,
       totalTasks: tasks.length,
-      activeTasks: activeTasks.length
+      activeTasks: finalTasks.length,
+      allTasksShown: finalTasks.length === 0 && tasks.length > 0,
+      debugMode: showAll
     });
 
   } catch (error) {

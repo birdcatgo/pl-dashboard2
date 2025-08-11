@@ -5,24 +5,51 @@ import { Badge } from "@/components/ui/badge";
 import { toast } from 'sonner';
 import { RefreshCw, Plus, ExternalLink } from 'lucide-react';
 
-const MondayTasks = ({ onAddToPriorities, addedItems = new Set() }) => {
+const MondayTasks = ({ onAddToPriorities, onAddMultiple, addedItems = new Set(), onClearAddedItems }) => {
   const [tasks, setTasks] = useState([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
+  const [debugInfo, setDebugInfo] = useState(null);
 
-  const fetchMondayTasks = async () => {
+  const fetchMondayTasks = async (debug = false) => {
     setLoading(true);
     setError(null);
     
     try {
-      const response = await fetch('/api/monday-tasks');
-      const data = await response.json();
+      console.log('Fetching Monday tasks...', debug ? '(debug mode)' : '');
+      const url = debug ? '/api/monday-tasks?showAll=true' : '/api/monday-tasks';
+      const response = await fetch(url);
+      console.log('Response status:', response.status);
+      
+      const responseText = await response.text();
+      console.log('Raw response:', responseText);
+      
+      let data;
+      try {
+        data = JSON.parse(responseText);
+      } catch (parseError) {
+        console.error('Failed to parse response as JSON:', parseError);
+        throw new Error('Invalid response format from server');
+      }
+      
+      console.log('Parsed data:', data);
       
       if (!response.ok) {
         throw new Error(data.error || 'Failed to fetch tasks');
       }
       
-      setTasks(data.tasks || []);
+      if (data.success) {
+        console.log(`Successfully loaded ${data.tasks?.length || 0} tasks`);
+        setTasks(data.tasks || []);
+        setDebugInfo({
+          totalTasks: data.totalTasks,
+          activeTasks: data.activeTasks,
+          allTasksShown: data.allTasksShown,
+          debugMode: data.debugMode
+        });
+      } else {
+        throw new Error(data.error || 'API returned success: false');
+      }
     } catch (err) {
       console.error('Error fetching Monday tasks:', err);
       setError(err.message);
@@ -57,13 +84,28 @@ const MondayTasks = ({ onAddToPriorities, addedItems = new Set() }) => {
       return;
     }
 
-    for (const task of tasksToAdd) {
-      if (onAddToPriorities) {
-        await onAddToPriorities(task.name, null, task.mondayId);
+    console.log('Adding all tasks:', tasksToAdd.map(t => ({ name: t.name, mondayId: t.mondayId })));
+    console.log('Current addedItems:', [...addedItems]);
+
+    if (onAddMultiple) {
+      const taskList = tasksToAdd.map(task => ({
+        taskName: task.name,
+        date: null,
+        mondayId: task.mondayId,
+        isScheduled: false
+      }));
+      
+      const addedCount = await onAddMultiple(taskList);
+      toast.success(`Added ${addedCount} tasks to priorities`);
+    } else {
+      // Fall back to individual adds
+      for (const task of tasksToAdd) {
+        if (onAddToPriorities) {
+          await onAddToPriorities(task.name, null, task.mondayId);
+        }
       }
+      toast.success(`Added ${tasksToAdd.length} tasks to priorities`);
     }
-    
-    toast.success(`Added ${tasksToAdd.length} tasks to priorities`);
   };
 
 
@@ -108,8 +150,15 @@ const MondayTasks = ({ onAddToPriorities, addedItems = new Set() }) => {
                   <li>• API token not configured in production</li>
                   <li>• Network connectivity issues</li>
                   <li>• Monday.com API rate limiting</li>
+                  <li>• No tasks match the current filter criteria</li>
                 </ul>
               </div>
+              <details className="text-left mt-2">
+                <summary className="cursor-pointer text-xs text-gray-600">Click to see technical details</summary>
+                <div className="mt-1 p-2 bg-gray-100 rounded text-xs font-mono">
+                  {error}
+                </div>
+              </details>
             </div>
           </div>
         </CardContent>
@@ -121,7 +170,16 @@ const MondayTasks = ({ onAddToPriorities, addedItems = new Set() }) => {
     <Card>
       <CardHeader className="pb-3">
         <div className="flex items-center justify-between">
-          <CardTitle className="text-sm font-medium">Monday.com Tasks (ANGE)</CardTitle>
+          <div>
+            <CardTitle className="text-sm font-medium">Monday.com Tasks (ANGE)</CardTitle>
+            {debugInfo && (
+              <div className="text-xs text-gray-500 mt-1">
+                {debugInfo.debugMode && <span className="text-orange-600 font-medium">Debug Mode</span>}
+                {debugInfo.allTasksShown && <span className="text-blue-600 font-medium">Showing All Tasks</span>}
+                <span className="ml-2">Active: {debugInfo.activeTasks} / Total: {debugInfo.totalTasks}</span>
+              </div>
+            )}
+          </div>
           <div className="flex items-center space-x-2">
             {tasks.filter(task => !addedItems.has(task.mondayId)).length > 0 && (
               <Button
@@ -144,6 +202,30 @@ const MondayTasks = ({ onAddToPriorities, addedItems = new Set() }) => {
               <RefreshCw className={`h-3 w-3 mr-1 ${loading ? 'animate-spin' : ''}`} />
               Refresh
             </Button>
+            <Button
+              onClick={() => fetchMondayTasks(true)}
+              size="sm"
+              variant="outline"
+              className="text-orange-600 border-orange-300 hover:bg-orange-50"
+              disabled={loading}
+              title="Show all tasks (debug mode)"
+            >
+              Debug
+            </Button>
+            <Button
+              onClick={() => {
+                if (onClearAddedItems) {
+                  onClearAddedItems();
+                  console.log('Requested to clear addedItems set');
+                }
+              }}
+              size="sm"
+              variant="outline"
+              className="text-red-600 border-red-300 hover:bg-red-50"
+              title="Clear added items tracking"
+            >
+              Clear Added
+            </Button>
           </div>
         </div>
       </CardHeader>
@@ -159,6 +241,25 @@ const MondayTasks = ({ onAddToPriorities, addedItems = new Set() }) => {
           </div>
         ) : (
           <div className="space-y-1">
+            {/* Debug info */}
+            <div className="text-xs text-gray-500 mb-2 p-2 bg-gray-100 rounded">
+              <div>Total tasks: {tasks.length}</div>
+              <div>Added items count: {addedItems.size}</div>
+              <div>Filtered tasks count: {tasks.filter(task => !addedItems.has(task.mondayId)).length}</div>
+              <div>Added items: {[...addedItems].join(', ')}</div>
+              <div className="mt-2">
+                <button 
+                  onClick={() => {
+                    console.log('Current addedItems:', [...addedItems]);
+                    console.log('All task IDs:', tasks.map(t => t.mondayId));
+                  }}
+                  className="text-blue-600 underline text-xs"
+                >
+                  Log to console
+                </button>
+              </div>
+            </div>
+            
             {tasks.filter(task => !addedItems.has(task.mondayId)).map((task) => (
               <div
                 key={task.id}

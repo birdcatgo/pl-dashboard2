@@ -64,7 +64,7 @@ const DailyUpdate = () => {
         // Convert the text back to task objects
         const priorityLines = todayPriorities.split('\n').filter(line => line.trim());
         const priorityTasks = priorityLines.map((text, index) => ({
-          id: Date.now() + index,
+          id: `${Date.now()}-${index}-${Math.random().toString(36).substr(2, 9)}`,
           text: text.trim(),
           completed: false,
           createdAt: new Date().toISOString(),
@@ -174,7 +174,7 @@ const DailyUpdate = () => {
     const today = format(new Date(), 'yyyy-MM-dd');
     const currentTemplate = loadDailyTemplate();
     const templateTasks = currentTemplate.map((taskText, index) => ({
-      id: Date.now() + index,
+      id: `${Date.now()}-${index}-${Math.random().toString(36).substr(2, 9)}`,
       text: taskText,
       completed: false,
       createdAt: new Date().toISOString(),
@@ -226,6 +226,13 @@ const DailyUpdate = () => {
     }
   };
 
+  const clearAddedMondayItems = () => {
+    setAddedMondayItems(new Set());
+    const today = format(new Date(), 'yyyy-MM-dd');
+    localStorage.removeItem(`addedMondayItems-${today}`);
+    toast.success('Added items tracking cleared');
+  };
+
   const addTask = async () => {
     if (!newTask.trim()) {
       toast.error('Please enter a task');
@@ -234,7 +241,7 @@ const DailyUpdate = () => {
 
     const taskText = newTask.trim();
     const task = {
-      id: Date.now(),
+      id: `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
       text: taskText,
       completed: false,
       createdAt: new Date().toISOString(),
@@ -280,6 +287,60 @@ const DailyUpdate = () => {
     }
   };
 
+  const addMultipleMondayTasksToPriorities = async (taskList) => {
+    // Batch add multiple tasks at once
+    const tasksToAdd = [];
+    const mondayIdsToTrack = [];
+    
+    for (const { taskName, date, mondayId, isScheduled } of taskList) {
+      const taskText = date ? `${taskName} (${date})` : taskName;
+      
+      // Check if task already exists in priorities to avoid duplicates
+      const existingTask = tasks.find(task => 
+        task.mondayId === mondayId || 
+        task.text.toLowerCase() === taskText.toLowerCase()
+      );
+      
+      if (!existingTask) {
+        const task = {
+          id: isScheduled ? `scheduled-${Date.now()}-${Math.random().toString(36).substr(2, 9)}` : `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+          text: taskText,
+          completed: false,
+          createdAt: new Date().toISOString(),
+          completedAt: null,
+          fromMonday: !isScheduled,
+          fromScheduled: isScheduled,
+          mondayId: mondayId
+        };
+        
+        tasksToAdd.push(task);
+        if (mondayId) {
+          mondayIdsToTrack.push(mondayId);
+        }
+      }
+    }
+    
+    if (tasksToAdd.length > 0) {
+      const updatedTasks = [...tasks, ...tasksToAdd];
+      setTasks(updatedTasks);
+      saveTasks(updatedTasks);
+      
+      // Batch update the tracking set
+      if (mondayIdsToTrack.length > 0) {
+        setAddedMondayItems(prev => {
+          const newSet = new Set([...prev, ...mondayIdsToTrack]);
+          // Save to localStorage
+          const today = format(new Date(), 'yyyy-MM-dd');
+          localStorage.setItem(`addedMondayItems-${today}`, JSON.stringify([...newSet]));
+          console.log(`Added ${mondayIdsToTrack.length} items to tracking set. New set:`, [...newSet]);
+          return newSet;
+        });
+      }
+    }
+    
+    return tasksToAdd.length;
+  };
+
   const addMondayTaskToPriorities = async (taskName, date = null, mondayId = null, isScheduled = false) => {
     // If date is provided, include it in the task text
     const taskText = date ? `${taskName} (${date})` : taskName;
@@ -296,7 +357,7 @@ const DailyUpdate = () => {
     }
     
     const task = {
-      id: isScheduled ? `scheduled-${Date.now()}` : Date.now(),
+      id: isScheduled ? `scheduled-${Date.now()}-${Math.random().toString(36).substr(2, 9)}` : `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
       text: taskText,
       completed: false,
       createdAt: new Date().toISOString(),
@@ -306,6 +367,10 @@ const DailyUpdate = () => {
       mondayId: mondayId
     };
     
+    const updatedTasks = [...tasks, task];
+    setTasks(updatedTasks);
+    saveTasks(updatedTasks);
+    
     // Add to the tracking set so it gets removed from source components
     if (mondayId) {
       setAddedMondayItems(prev => {
@@ -313,17 +378,9 @@ const DailyUpdate = () => {
         // Save to localStorage
         const today = format(new Date(), 'yyyy-MM-dd');
         localStorage.setItem(`addedMondayItems-${today}`, JSON.stringify([...newSet]));
+        console.log(`Added ${mondayId} to tracking set. New set:`, [...newSet]);
         return newSet;
       });
-    }
-
-    const updatedTasks = [...tasks, task];
-    setTasks(updatedTasks);
-    saveTasks(updatedTasks);
-    
-    // Track that this Monday.com item has been added to remove it from other sections
-    if (mondayId) {
-      setAddedMondayItems(prev => new Set([...prev, mondayId]));
     }
 
     // If this is a Monday.com task (not scheduled), update the status to "Working on It"
@@ -807,7 +864,7 @@ const DailyUpdate = () => {
         {/* Monday.com Tasks Integration */}
         <div className="space-y-2">
           <label className="text-sm font-medium">Monday.com Tasks</label>
-          <MondayTasks onAddToPriorities={addMondayTaskToPriorities} addedItems={addedMondayItems} />
+          <MondayTasks onAddToPriorities={addMondayTaskToPriorities} onAddMultiple={addMultipleMondayTasksToPriorities} addedItems={addedMondayItems} onClearAddedItems={clearAddedMondayItems} />
         </div>
 
         {/* Monday.com Calendar Integration */}
