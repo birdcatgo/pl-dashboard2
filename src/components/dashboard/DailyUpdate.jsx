@@ -814,7 +814,7 @@ const DailyUpdate = () => {
                     value={task.notes || ''}
                     onChange={(e) => updateTaskNotes(task.id, e.target.value)}
                     placeholder="Notes..."
-                    maxLength={25}
+                    maxLength={75}
                     className="w-96 h-6 text-xs px-1 mx-1 border border-gray-200 rounded focus:outline-none focus:border-blue-300"
                   />
                   
