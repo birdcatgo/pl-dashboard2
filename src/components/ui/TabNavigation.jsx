@@ -1,9 +1,10 @@
 import React from 'react';
-import { Brain, Calculator, FileText, LineChart, UserCheck, Wrench } from 'lucide-react';
+import { Brain, Calculator, FileText, LineChart, UserCheck, Wrench, MessageCircle } from 'lucide-react';
 
 const TabNavigation = ({ activeTab, onTabChange }) => {
   const mainTabs = [
     { id: 'dashboard-index', label: 'Dashboard Index', icon: Brain },
+    { id: 'daily-update', label: 'Daily Updates', icon: MessageCircle },
     { id: 'accounting', label: 'Profit Metrics', icon: Calculator },
     { id: 'accounts', label: 'Accounts Receivable & Payable', icon: FileText },
     { id: 'reporting', label: 'Reporting', icon: LineChart },
