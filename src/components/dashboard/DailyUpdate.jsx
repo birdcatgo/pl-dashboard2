@@ -67,6 +67,7 @@ const DailyUpdate = () => {
         const priorityTasks = priorityLines.map((text, index) => ({
           id: `${Date.now()}-${index}-${Math.random().toString(36).substr(2, 9)}`,
           text: text.trim(),
+          notes: '',
           completed: false,
           createdAt: new Date().toISOString(),
           completedAt: null,
@@ -177,6 +178,7 @@ const DailyUpdate = () => {
     const templateTasks = currentTemplate.map((taskText, index) => ({
       id: `${Date.now()}-${index}-${Math.random().toString(36).substr(2, 9)}`,
       text: taskText,
+      notes: '',
       completed: false,
       createdAt: new Date().toISOString(),
       completedAt: null,
@@ -234,6 +236,17 @@ const DailyUpdate = () => {
     toast.success('Added items tracking cleared');
   };
 
+  const updateTaskNotes = (taskId, notes) => {
+    const updatedTasks = tasks.map(task => {
+      if (task.id === taskId) {
+        return { ...task, notes };
+      }
+      return task;
+    });
+    setTasks(updatedTasks);
+    saveTasks(updatedTasks);
+  };
+
 
 
   const addTask = async () => {
@@ -246,6 +259,7 @@ const DailyUpdate = () => {
     const task = {
       id: `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
       text: taskText,
+      notes: '',
       completed: false,
       createdAt: new Date().toISOString(),
       completedAt: null
@@ -308,6 +322,7 @@ const DailyUpdate = () => {
         const task = {
           id: isScheduled ? `scheduled-${Date.now()}-${Math.random().toString(36).substr(2, 9)}` : `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
           text: taskText,
+          notes: '',
           completed: false,
           createdAt: new Date().toISOString(),
           completedAt: null,
@@ -362,6 +377,7 @@ const DailyUpdate = () => {
     const task = {
       id: isScheduled ? `scheduled-${Date.now()}-${Math.random().toString(36).substr(2, 9)}` : `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
       text: taskText,
+      notes: '',
       completed: false,
       createdAt: new Date().toISOString(),
       completedAt: null,
@@ -598,7 +614,12 @@ const DailyUpdate = () => {
     
     const formatCompleted = () => {
       if (completedTasks.length === 0) return ':white_check_mark: No tasks completed today';
-      return completedTasks.map(task => `:white_check_mark: ${task.text}`).join('\n');
+      return completedTasks.map(task => {
+        if (task.notes && task.notes.trim()) {
+          return `:white_check_mark: ${task.text} (${task.notes})`;
+        }
+        return `:white_check_mark: ${task.text}`;
+      }).join('\n');
     };
     
     let message = `*EOD Update from Ange*\n\n` +
@@ -786,6 +807,16 @@ const DailyUpdate = () => {
                     className="h-4 w-4 mr-2"
                   />
                   <span className={`flex-1 text-sm ${task.completed ? 'line-through text-gray-500' : ''}`}>{task.text}</span>
+                  
+                  {/* Short Notes Input - 25 characters max */}
+                  <input
+                    type="text"
+                    value={task.notes || ''}
+                    onChange={(e) => updateTaskNotes(task.id, e.target.value)}
+                    placeholder="Notes..."
+                    maxLength={25}
+                    className="w-96 h-6 text-xs px-1 mx-1 border border-gray-200 rounded focus:outline-none focus:border-blue-300"
+                  />
                   
                   {task.isTemplateTask && (
                     <span className="text-xs text-blue-600 mr-2">•</span>
