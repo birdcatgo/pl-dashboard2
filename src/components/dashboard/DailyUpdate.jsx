@@ -261,6 +261,17 @@ const DailyUpdate = () => {
     // If date is provided, include it in the task text
     const taskText = date ? `${taskName} (${date})` : taskName;
     
+    // Check if task already exists in priorities to avoid duplicates
+    const existingTask = tasks.find(task => 
+      task.mondayId === mondayId || 
+      task.text.toLowerCase() === taskText.toLowerCase()
+    );
+    
+    if (existingTask) {
+      toast.warning('Task already exists in priorities');
+      return;
+    }
+    
     const task = {
       id: isScheduled ? `scheduled-${Date.now()}` : Date.now(),
       text: taskText,
@@ -276,7 +287,7 @@ const DailyUpdate = () => {
     setTasks(updatedTasks);
     saveTasks(updatedTasks);
     
-    // Track that this Monday.com item has been added
+    // Track that this Monday.com item has been added to remove it from other sections
     if (mondayId) {
       setAddedMondayItems(prev => new Set([...prev, mondayId]));
     }
