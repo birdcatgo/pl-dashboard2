@@ -35,36 +35,23 @@ const NetProfit = ({ performanceData, dateRange, cashFlowData }) => {
     sampleData: performanceData?.[0]
   });
 
-  // Calculate cash in bank and credit card debt
-  const cashInBank = (() => {
-    if (!cashFlowData?.financialResources?.cashAccounts) return 0;
-    
-    return cashFlowData.financialResources.cashAccounts.reduce((total, resource) => {
-      return total + (parseFloat(resource.available) || 0);
-    }, 0);
-  })();
-
-  const creditCardDebt = (() => {
-    if (!cashFlowData?.financialResources?.creditCards) return 0;
-    
-    return cashFlowData.financialResources.creditCards.reduce((total, resource) => {
-      const limit = parseFloat(resource.limit || 0);
-      const available = parseFloat(resource.available || 0);
-      return total + (limit - available);
-    }, 0);
-  })();
+  // Calculate cash in bank and credit card debt using direct cell values from Financial Resources sheet
+  const cashInBank = cashFlowData?.directCells?.cashInBank || 0;
+  const creditCardDebt = cashFlowData?.directCells?.creditCardDebt || 0;
 
   // Calculate outstanding invoices using the invoices data
   const outstandingInvoices = cashFlowData?.outstandingInvoices || 0;
 
-  // Add debug logs for financial calculations
-  console.log('Financial calculations:', {
+  // Add detailed debug logs for financial calculations
+  console.log('=== NETPROFIT USING DIRECT CELL VALUES ===');
+  console.log('Direct cell values from Financial Resources sheet (B4 and C7:C24):', {
     cashInBank,
     creditCardDebt,
     outstandingInvoices,
     totalAvailableCapital: cashInBank + outstandingInvoices - creditCardDebt,
-    networkTerms: cashFlowData?.networkTerms
+    directCellsRaw: cashFlowData?.directCells
   });
+  console.log('=== END NETPROFIT DIRECT CELLS DEBUG ===');
 
   // Calculate final total
   const totalAvailableCapital = cashInBank + outstandingInvoices - creditCardDebt;

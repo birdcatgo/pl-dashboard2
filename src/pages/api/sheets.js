@@ -283,24 +283,28 @@ export default async function handler(req, res) {
     const sheets = google.sheets({ version: 'v4', auth });
 
     // First, get all sheet names
+    let availableSheets = [];
     try {
       const spreadsheet = await sheets.spreadsheets.get({
         spreadsheetId: SHEET_ID,
       });
       
+      availableSheets = spreadsheet.data.sheets.map(sheet => sheet.properties.title);
+      
       console.log('Available sheets:', {
-        sheets: spreadsheet.data.sheets.map(sheet => sheet.properties.title),
+        sheets: availableSheets,
         totalSheets: spreadsheet.data.sheets.length
       });
       
-
+      // We'll use the Financial Resources sheet for specific cell data
+      console.log('Will fetch specific cells from Financial Resources sheet');
       
     } catch (error) {
       console.error('Error getting sheet names:', error);
     }
 
-    // Define ranges to fetch
-    const ranges = [
+    // Define base ranges to fetch
+    const baseRanges = [
       "'Main Sheet'!A:L",
       "'Financial Resources'!A:D",
       "'Payroll'!A:D",
@@ -330,6 +334,17 @@ export default async function handler(req, res) {
       "'Employees'!A:J",
       "'DigitSolution Accounts'!A:Z"
     ];
+
+    // Add Financial Resources specific cell ranges for CreditLine calculations
+    const ranges = [...baseRanges];
+        ranges.push("'Financial Resources'!B4:B4");   // Cash Available part 1
+    ranges.push("'Financial Resources'!B6:B6");   // Cash Available part 2
+    ranges.push("'Financial Resources'!B7:B24");  // Credit Available
+    ranges.push("'Financial Resources'!C7:C24");  // Total Owing (Credit Card Debt)
+    ranges.push("'Financial Resources'!D7:D24");  // Total Credit Limit
+    ranges.push("'Financial Resources'!A4:D6");   // Cash Accounts (rows 4:6)
+    
+    console.log('Added Financial Resources cell ranges for CreditLine calculations (B4, B6, B7:B24, C7:C24)');
 
     console.log('Fetching sheets data with ranges:', ranges);
     
@@ -479,9 +494,32 @@ export default async function handler(req, res) {
         });
 
         if (headerRowIndex !== -1) {
+          console.log('=== FINANCIAL RESOURCES ROW PROCESSING DEBUG ===');
+          console.log('Header found at row:', headerRowIndex);
+          console.log('Total rows in sheet:', financialResponse.values.length);
+          console.log('Processing rows from', headerRowIndex + 1, 'to', financialResponse.values.length - 1);
+          
           // Process Financial Resources rows and update existing cashFlowData
-          financialResponse.values.slice(headerRowIndex + 1).forEach(row => {
-            if (!row[0] || row[0].toString().includes('Table') || row[0].toString().includes('TOTAL')) return;
+          financialResponse.values.slice(headerRowIndex + 1).forEach((row, index) => {
+            const actualRowNumber = headerRowIndex + 1 + index;
+            console.log(`Processing row ${actualRowNumber}:`, row);
+            
+            // Check if this is row 7 (or close to it)
+            if (actualRowNumber >= 6 && actualRowNumber <= 8) {
+              console.log(`*** ROW ${actualRowNumber} (near row 7) ***:`, {
+                rowData: row,
+                hasFirstColumn: !!row[0],
+                firstColumnValue: row[0],
+                includesTable: row[0] ? row[0].toString().includes('Table') : false,
+                includesTotal: row[0] ? row[0].toString().includes('TOTAL') : false,
+                willBeSkipped: !row[0] || row[0].toString().includes('Table') || row[0].toString().includes('TOTAL')
+              });
+            }
+            
+            if (!row[0] || row[0].toString().includes('Table') || row[0].toString().includes('TOTAL')) {
+              console.log(`Skipping row ${actualRowNumber}:`, row[0]);
+              return;
+            }
 
             const accountData = {
               account: row[0],
@@ -490,23 +528,65 @@ export default async function handler(req, res) {
               limit: parseFloat((row[3] || '0').toString().replace(/[$,]/g, '')) || 0
             };
 
-            const isCreditCard = ['amex', 'american express', 'visa', 'mastercard', 'discover', 'card'].some(keyword => 
-              accountData.account.toString().toLowerCase().includes(keyword)
+            const accountName = accountData.account.toString().toLowerCase();
+            
+            // First check if it's explicitly a cash account
+            const isCashAccount = [
+              'cash in bank', 'slash account', 'business savings', 'savings', 'checking'
+            ].some(keyword => accountName.includes(keyword));
+            
+            // If it's not a cash account, check if it's a credit card
+            const isCreditCard = !isCashAccount && (
+              [
+                'amex', 'american express', 'visa', 'mastercard', 'discover', 'card',
+                'chase c/c', 'capital one', 'bank of america', 'us bank', 'citi', 'wells fargo'
+              ].some(keyword => accountName.includes(keyword)) ||
+              // Also check if it has a limit (credit cards typically have limits)
+              accountData.limit > 0
             );
 
-            if (isCreditCard) {
+            let classification;
+            if (isCashAccount) {
+              classification = 'CASH_ACCOUNT';
+              processedData.cashFlowData.financialResources.cashAccounts.push({ ...accountData, type: 'cashAccount' });
+            } else if (isCreditCard) {
+              classification = 'CREDIT_CARD';
               processedData.cashFlowData.financialResources.creditCards.push({ ...accountData, type: 'creditCard' });
             } else {
+              classification = 'UNKNOWN';
+              // Default to cash account for unknown types
               processedData.cashFlowData.financialResources.cashAccounts.push({ ...accountData, type: 'cashAccount' });
+            }
+
+            console.log('Processing account:', {
+              account: accountData.account,
+              available: accountData.available,
+              owing: accountData.owing,
+              limit: accountData.limit,
+              isCashAccount,
+              isCreditCard,
+              classified_as: classification
+            });
+            
+            // Special logging for AMEX 1276
+            if (accountData.account && accountData.account.toString().includes('1276')) {
+              console.log('*** FOUND AMEX 1276 ***', {
+                fullAccount: accountData.account,
+                classification: classification,
+                data: accountData
+              });
             }
           });
           
           console.log('Processed financial resources:', {
             cashAccounts: processedData.cashFlowData.financialResources.cashAccounts.length,
             creditCards: processedData.cashFlowData.financialResources.creditCards.length,
+            totalProcessed: processedData.cashFlowData.financialResources.cashAccounts.length + processedData.cashFlowData.financialResources.creditCards.length,
+            allCreditCardNames: processedData.cashFlowData.financialResources.creditCards.map(card => card.account),
             sampleCash: processedData.cashFlowData.financialResources.cashAccounts[0],
             sampleCredit: processedData.cashFlowData.financialResources.creditCards[0]
           });
+          console.log('=== END FINANCIAL RESOURCES ROW PROCESSING DEBUG ===');
           
           // Calculate totals
           processedData.cashFlowData.financialResources.totalCash = processedData.cashFlowData.financialResources.cashAccounts.reduce((total, account) => {
@@ -692,6 +772,138 @@ export default async function handler(req, res) {
       throw new Error(`Data processing failed: ${processingError.message}`);
     }
 
+    // Process Financial Resources specific cells for CreditLine calculations
+    try {
+      // Get the Financial Resources cell ranges (last six ranges)
+      const b4Range = batchResponse.data.valueRanges[batchResponse.data.valueRanges.length - 6]; // B4
+      const b6Range = batchResponse.data.valueRanges[batchResponse.data.valueRanges.length - 5]; // B6
+      const b7b24Range = batchResponse.data.valueRanges[batchResponse.data.valueRanges.length - 4]; // B7:B24
+      const c7c24Range = batchResponse.data.valueRanges[batchResponse.data.valueRanges.length - 3]; // C7:C24
+      const d7d24Range = batchResponse.data.valueRanges[batchResponse.data.valueRanges.length - 2]; // D7:D24
+      const cashAccountsRange = batchResponse.data.valueRanges[batchResponse.data.valueRanges.length - 1]; // A4:D6
+      
+      console.log('Processing Financial Resources specific cells:', {
+        b4Range: b4Range?.range,
+        b4Values: b4Range?.values,
+        b6Range: b6Range?.range,
+        b6Values: b6Range?.values,
+        b7b24Range: b7b24Range?.range,
+        b7b24Values: b7b24Range?.values,
+        c7c24Range: c7c24Range?.range,
+        c7c24Values: c7c24Range?.values,
+        d7d24Range: d7d24Range?.range,
+        d7d24Values: d7d24Range?.values,
+        cashAccountsRange: cashAccountsRange?.range,
+        cashAccountsValues: cashAccountsRange?.values
+      });
+      
+      // Extract Cash Available from B4 + B6
+      let b4Value = 0;
+      if (b4Range?.values?.[0]?.[0]) {
+        b4Value = parseFloat(String(b4Range.values[0][0]).replace(/[$,]/g, '')) || 0;
+      }
+      
+      let b6Value = 0;
+      if (b6Range?.values?.[0]?.[0]) {
+        b6Value = parseFloat(String(b6Range.values[0][0]).replace(/[$,]/g, '')) || 0;
+      }
+      
+      const cashAvailable = b4Value + b6Value;
+      
+      // Extract Credit Available from B7:B24 (sum of all values)
+      let creditAvailable = 0;
+      if (b7b24Range?.values) {
+        creditAvailable = b7b24Range.values.reduce((total, row) => {
+          if (row[0]) {
+            const amount = parseFloat(String(row[0]).replace(/[$,]/g, '')) || 0;
+            return total + amount;
+          }
+          return total;
+        }, 0);
+      }
+      
+      // Extract Total Owing from C7:C24 (sum of all values)
+      let totalOwing = 0;
+      if (c7c24Range?.values) {
+        totalOwing = c7c24Range.values.reduce((total, row) => {
+          if (row[0]) {
+            const amount = parseFloat(String(row[0]).replace(/[$,]/g, '')) || 0;
+            return total + amount;
+          }
+          return total;
+        }, 0);
+      }
+      
+      // Extract Total Credit Limit from D7:D24 (sum of all values)
+      let totalCreditLimit = 0;
+      if (d7d24Range?.values) {
+        totalCreditLimit = d7d24Range.values.reduce((total, row) => {
+          if (row[0]) {
+            const amount = parseFloat(String(row[0]).replace(/[$,]/g, '')) || 0;
+            return total + amount;
+          }
+          return total;
+        }, 0);
+      }
+      
+      // Process Cash Accounts from A4:D6
+      let cashAccounts = [];
+      if (cashAccountsRange?.values) {
+        cashAccounts = cashAccountsRange.values.map((row, index) => {
+          const account = row[0] || '';
+          const available = parseFloat(String(row[1] || '0').replace(/[$,]/g, '')) || 0;
+          const owing = parseFloat(String(row[2] || '0').replace(/[$,]/g, '')) || 0;
+          const limit = parseFloat(String(row[3] || '0').replace(/[$,]/g, '')) || 0;
+          
+          return {
+            account: account.trim(),
+            available: available,
+            owing: owing,
+            limit: limit,
+            type: 'cashAccount',
+            rowNumber: index + 4 // Rows 4, 5, 6
+          };
+        }).filter(account => account.account); // Filter out empty rows
+      }
+      
+      // Add these direct values to the cash flow data
+      processedData.cashFlowData.directCells = {
+        cashInBank: b4Value,           // Legacy for NetProfit (Forecasting View)
+        creditCardDebt: totalOwing,    // Legacy for NetProfit (Forecasting View)
+        cashAvailable: cashAvailable,  // B4 + B6
+        creditAvailable: creditAvailable, // Sum of B7:B24
+        totalOwing: totalOwing,        // Sum of C7:C24
+        totalCreditLimit: totalCreditLimit, // Sum of D7:D24
+        cashAccounts: cashAccounts     // Individual cash accounts from A4:D6
+      };
+      
+                console.log('Direct cell values from Financial Resources sheet:', {
+            b4Value,
+            b6Value,
+            cashAvailable,
+            creditAvailable,
+            totalOwing,
+            totalCreditLimit,
+            cashAccountsCount: cashAccounts.length,
+            cashAccountsData: cashAccounts,
+            legacy_cashInBank: b4Value,
+            legacy_creditCardDebt: totalOwing
+          });
+      
+    } catch (error) {
+      console.error('Error processing Financial Resources specific cells:', error);
+      // Set defaults if there's an error
+      processedData.cashFlowData.directCells = {
+        cashInBank: 0,
+        creditCardDebt: 0,
+        cashAvailable: 0,
+        creditAvailable: 0,
+        totalOwing: 0,
+        totalCreditLimit: 0,
+        cashAccounts: []
+      };
+    }
+
     console.log('Final processed data summary:', {
       performanceDataCount: processedData.performanceData.length,
       invoicesCount: processedData.rawData.invoices.length,
@@ -700,7 +912,13 @@ export default async function handler(req, res) {
       plDataMonths: Object.keys(processedData.plData || {}).length,
       commissionsCount: processedData.commissions?.length || 0,
       employeeDataCount: processedData.employeeData?.length || 0,
-      networkExposureCount: processedData.networkExposure?.length || 0
+      networkExposureCount: processedData.networkExposure?.length || 0,
+                directCashInBank: processedData.cashFlowData.directCells?.cashInBank || 0,
+          directCreditCardDebt: processedData.cashFlowData.directCells?.creditCardDebt || 0,
+          directCashAvailable: processedData.cashFlowData.directCells?.cashAvailable || 0,
+          directCreditAvailable: processedData.cashFlowData.directCells?.creditAvailable || 0,
+          directTotalOwing: processedData.cashFlowData.directCells?.totalOwing || 0,
+          directTotalCreditLimit: processedData.cashFlowData.directCells?.totalCreditLimit || 0
     });
 
     // Return the processed data

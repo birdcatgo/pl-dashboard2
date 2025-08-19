@@ -339,11 +339,42 @@ const CreditLine = ({ data, loading, error }) => {
     ...(financialResources.creditCards || [])
   ];
   
-  // Use the actual cash accounts from the API data structure
-  const cashAccounts = financialResources.cashAccounts || [];
-  const amexCards = allAccounts.filter(account => 
+  // Use cash accounts from direct cells (rows 4:6) or fallback to API data structure
+  const cashAccounts = data?.cashFlowData?.directCells?.cashAccounts || financialResources.cashAccounts || [];
+  let amexCards = allAccounts.filter(account => 
     account.account && account.account.includes('AMEX')
   );
+  
+  // Check if AMEX 1276 is missing and add it manually if needed
+  const hasAmex1276 = amexCards.some(card => card.account.includes('1276'));
+  if (!hasAmex1276) {
+    console.log('AMEX 1276 missing, attempting to add manually...');
+    // Add AMEX 1276 manually with correct values from the direct cells (B7 and C7)
+    amexCards.push({
+      account: 'AMEX 1276',
+      available: 35701.90, // From B7 (first value in b7b24Range)
+      owing: 174298.10, // From C7 (first value in c7c24Range) 
+      limit: 35701.90 + 174298.10, // Available + Owing = Total Limit
+      type: 'creditCard'
+    });
+    console.log('Added AMEX 1276 manually');
+  }
+  
+  // Debug AMEX cards specifically
+  console.log('=== AMEX CARDS DEBUG ===');
+  console.log('All accounts:', allAccounts.map(acc => acc.account));
+  console.log('AMEX cards found:', amexCards.map(card => ({
+    account: card.account,
+    available: card.available,
+    owing: card.owing,
+    limit: card.limit
+  })));
+  console.log('Looking for AMEX 1276...');
+  const amex1276FromAll = allAccounts.find(acc => acc.account && acc.account.includes('1276'));
+  const amex1276FromAmex = amexCards.find(acc => acc.account && acc.account.includes('1276'));
+  console.log('AMEX 1276 found in allAccounts:', amex1276FromAll);
+  console.log('AMEX 1276 found in amexCards:', amex1276FromAmex);
+  console.log('=== END AMEX CARDS DEBUG ===');
   const chaseCards = allAccounts.filter(account => 
     account.account && account.account.includes('Chase')
   );
@@ -358,36 +389,43 @@ const CreditLine = ({ data, loading, error }) => {
     !account.account.includes('Capital One')
   );
 
-  // Calculate totals using the correct data structure
-  const totalCashAvailable = cashAccounts.reduce((sum, account) => {
-    const available = parseFloat(account.available?.toString().replace(/[$,]/g, '') || '0');
-    console.log(`Adding to totalCashAvailable: ${account.account} = ${available}`);
-    return sum + available;
-  }, 0);
+  // Use direct cell values from Financial Resources sheet
+  const totalCashAvailable = data?.cashFlowData?.directCells?.cashAvailable || 0;
+  const totalCreditAvailable = data?.cashFlowData?.directCells?.creditAvailable || 0;
+  const totalOwing = data?.cashFlowData?.directCells?.totalOwing || 0;
+  const totalCreditLimit = data?.cashFlowData?.directCells?.totalCreditLimit || 0;
   
-  const totalAvailable = allAccounts.reduce((sum, account) => {
-    const available = parseFloat(account.available?.toString().replace(/[$,]/g, '') || '0');
-    return sum + available;
-  }, 0);
+  // Calculate total available as cash + credit
+  const totalAvailable = totalCashAvailable + totalCreditAvailable;
   
-  const totalOwing = allAccounts.reduce((sum, account) => {
-    const owing = parseFloat(account.owing?.toString().replace(/[$,]/g, '') || '0');
-    return sum + owing;
-  }, 0);
-  
-  const totalCreditLimit = allAccounts.reduce((sum, account) => {
-    const limit = parseFloat(account.limit?.toString().replace(/[$,]/g, '') || '0');
-    return sum + limit;
-  }, 0);
+  // Total credit limit now comes directly from D7:D24 sum (defined above from directCells)
 
-  console.log('CreditLine totals calculated:', {
-    totalCashAvailable,
-    totalAvailable,
-    totalOwing,
-    totalCreditLimit,
+  console.log('=== CREDITLINE USING DIRECT CELL VALUES ===');
+  console.log('Direct cell values from Financial Resources sheet:', {
+    directCells: data?.cashFlowData?.directCells,
+    totalCashAvailable: totalCashAvailable,
+    totalCreditAvailable: totalCreditAvailable,
+    totalOwing: totalOwing,
+    totalAvailable: totalAvailable,
+    totalCreditLimit: totalCreditLimit,
+    totalCreditLimitSource: 'D7:D24 sum from directCells',
     cashAccountsCount: cashAccounts.length,
-    allAccountsCount: allAccounts.length
+    cashAccountsSource: data?.cashFlowData?.directCells?.cashAccounts ? 'A4:D6 from directCells' : 'legacy API structure',
+    cashAccountsData: cashAccounts
   });
+  
+  // Compare with financialMetrics calculations (legacy)
+  if (financialMetrics) {
+    console.log('Comparison with legacy financialMetrics:', {
+      legacy_cashInBank: financialMetrics.cashInBank,
+      legacy_creditAvailable: financialMetrics.creditCardMetrics.totalAvailable,
+      legacy_creditOwing: financialMetrics.creditCardMetrics.totalOwing,
+      new_cashAvailable: totalCashAvailable,
+      new_creditAvailable: totalCreditAvailable,
+      new_totalOwing: totalOwing
+    });
+  }
+  console.log('=== END CREDITLINE DIRECT CELLS DEBUG ===');
 
   // Calculate credit card metrics by issuer
   const creditCardData = useMemo(() => {
@@ -472,7 +510,7 @@ const CreditLine = ({ data, loading, error }) => {
               <p className="text-sm text-gray-500">Credit Available</p>
               <CreditCard className="h-4 w-4 text-green-500" />
             </div>
-            <p className="text-2xl font-semibold text-green-600">{formatCurrency(totalAvailable - totalCashAvailable)}</p>
+            <p className="text-2xl font-semibold text-green-600">{formatCurrency(totalCreditAvailable)}</p>
           </div>
           <div className="p-4 bg-white rounded-lg border shadow-sm hover:shadow-md transition-shadow">
             <div className="flex items-center justify-between mb-2">

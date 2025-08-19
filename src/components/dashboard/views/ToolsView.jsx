@@ -133,7 +133,6 @@ const ToolsView = ({
         {toolsSubview === 'scheduled-tasks' && <ScheduledTasksManager />}
         {toolsSubview === 'media-buyer-eod' && <MediaBuyerEODManager />}
         {toolsSubview === 'active-fanpages' && <ActiveFanpagesManager />}
-
       </div>
     </div>
   );

@@ -18,6 +18,78 @@ export default async function handler(req, res) {
       });
     }
 
+    // First, get the latest EOD report date to ensure data consistency
+    const EOD_BOARD_ID = '9498909231'; // August 2025 Daily P&L Board
+    let latestEODDate = null;
+    
+    try {
+      console.log('Fetching latest EOD report date...');
+      const eodQuery = `
+        query {
+          boards(ids: ${EOD_BOARD_ID}) {
+            items_page(limit: 10) {
+              items {
+                id
+                name
+                column_values {
+                  id
+                  type
+                  value
+                  text
+                }
+              }
+            }
+          }
+        }
+      `;
+
+      const eodResponse = await fetch('https://api.monday.com/v2', {
+        method: 'POST',
+        headers: {
+          'Authorization': MONDAY_API_TOKEN,
+          'Content-Type': 'application/json',
+          'API-Version': '2023-10'
+        },
+        body: JSON.stringify({ query: eodQuery })
+      });
+
+      if (eodResponse.ok) {
+        const eodData = await eodResponse.json();
+        const eodItems = eodData.data?.boards?.[0]?.items_page?.items || [];
+        
+        // Sort EOD items by date to find the most recent
+        const sortedEODItems = eodItems
+          .map(item => {
+            const dateColumn = item.column_values.find(col => 
+              col.type === 'date' || 
+              col.type === 'timeline' ||
+              col.id === 'date' ||
+              col.id === 'timeline__1' ||
+              col.id === 'date4'
+            );
+            return {
+              ...item,
+              date: dateColumn?.text || 'No date',
+              rawDateValue: dateColumn?.value || null
+            };
+          })
+          .filter(item => item.date && item.date !== 'No date')
+          .sort((a, b) => {
+            const dateA = a.rawDateValue ? new Date(JSON.parse(a.rawDateValue).date) : new Date(0);
+            const dateB = b.rawDateValue ? new Date(JSON.parse(b.rawDateValue).date) : new Date(0);
+            return dateB - dateA; // Most recent first
+          });
+
+        if (sortedEODItems.length > 0) {
+          latestEODDate = sortedEODItems[0].date;
+          console.log('Latest EOD report date found:', latestEODDate);
+        }
+      }
+    } catch (eodError) {
+      console.error('Error fetching EOD report date:', eodError);
+      // Continue without EOD date validation if it fails
+    }
+
     // Media buyer board configurations
     const mediaBuyerBoards = [
       { name: 'Mike', boardId: '6246187884' },
@@ -116,9 +188,27 @@ export default async function handler(req, res) {
           return new Date(b.date) - new Date(a.date);
         });
 
-        const latestItem = sortedItems[0];
+        let targetItem = null;
         
-        if (!latestItem || !latestItem.date || latestItem.date === 'No date') {
+        // First, try to find an item that matches the latest EOD date
+        if (latestEODDate) {
+          const eodDateFormatted = latestEODDate.split(' ')[0]; // Get just the date part
+          targetItem = sortedItems.find(item => 
+            item.date && item.date.includes(eodDateFormatted)
+          );
+          
+          if (targetItem) {
+            console.log(`Found EOD date match for ${buyer.name}: ${targetItem.date}, Item: ${targetItem.name}`);
+          } else {
+            console.log(`No EOD date match found for ${buyer.name} (EOD: ${latestEODDate}), using latest available`);
+            targetItem = sortedItems[0];
+          }
+        } else {
+          // Fallback to latest item if no EOD date available
+          targetItem = sortedItems[0];
+        }
+        
+        if (!targetItem || !targetItem.date || targetItem.date === 'No date') {
           console.log(`No items with valid dates found for ${buyer.name}`);
           return {
             name: buyer.name,
@@ -127,7 +217,7 @@ export default async function handler(req, res) {
           };
         }
 
-        console.log(`Latest date for ${buyer.name}: ${latestItem.date}, Item: ${latestItem.name}`);
+        console.log(`Using date for ${buyer.name}: ${targetItem.date}, Item: ${targetItem.name}${latestEODDate && !targetItem.date.includes(latestEODDate.split(' ')[0]) ? ' (NOT MATCHED TO EOD)' : ''}`);
 
         return {
           name: buyer.name,
@@ -135,7 +225,7 @@ export default async function handler(req, res) {
           data: {
             boards: [{
               items_page: {
-                items: [latestItem]
+                items: [targetItem]
               }
             }]
           }
@@ -166,13 +256,13 @@ export default async function handler(req, res) {
       const items = response.data?.boards?.[0]?.items_page?.items || [];
       console.log(`Found ${items.length} items for ${response.name}`);
       
-      // Process the latest item
-      const latestItem = items[0];
-      if (!latestItem) continue;
+      // Process the target item (either EOD-matched or latest)
+      const targetItem = items[0];
+      if (!targetItem) continue;
 
-      console.log(`Processing latest item for ${response.name}: ${latestItem.name}`);
-      const subitems = latestItem.subitems || [];
-      console.log(`Found ${subitems.length} subitems for latest item`);
+      console.log(`Processing target item for ${response.name}: ${targetItem.name}`);
+      const subitems = targetItem.subitems || [];
+      console.log(`Found ${subitems.length} subitems for target item`);
       
       for (const subitem of subitems) {
         console.log(`Processing subitem: ${subitem.name}`);
@@ -240,7 +330,7 @@ export default async function handler(req, res) {
           revenue: parseFloat(adRevColumn?.text) || 0,
           spend: parseFloat(adSpendColumn?.text) || 0,
           boardId: response.boardId,
-          itemId: latestItem.id
+          itemId: targetItem.id
         };
 
         console.log(`Processed fanpage: ${JSON.stringify(fanpage, null, 2)}`);
@@ -261,7 +351,10 @@ export default async function handler(req, res) {
       success: true,
       fanpages,
       errors: errors.length > 0 ? errors : undefined,
-      total: fanpages.length
+      total: fanpages.length,
+      latestEODDate: latestEODDate,
+      dataSource: latestEODDate ? 'EOD-synchronized' : 'latest-available',
+      timestamp: new Date().toISOString()
     });
 
   } catch (error) {

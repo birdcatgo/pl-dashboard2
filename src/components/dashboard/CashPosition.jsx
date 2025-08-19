@@ -179,6 +179,16 @@ const CashPosition = ({ cashFlowData, networkPaymentsData, invoicesData }) => {
     { name: 'Miscellaneous', amount: 5000 }
   ];
 
+  // Format currency helper function
+  const formatCurrency = (value) => {
+    return new Intl.NumberFormat('en-US', {
+      style: 'currency',
+      currency: 'USD',
+      minimumFractionDigits: 0,
+      maximumFractionDigits: 0,
+    }).format(value);
+  };
+
   return (
     <div className="space-y-6">
       {/* Net Position Card */}
