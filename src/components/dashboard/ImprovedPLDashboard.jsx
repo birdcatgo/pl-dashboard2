@@ -35,26 +35,27 @@ const ImprovedPLDashboard = ({ plData, summaryData }) => {
       );
       
       if (months.length > 0 && !selectedMonth) {
-        // Define month order weights with July 2025 being the most recent
-        const monthOrder = {
-          'July 2025': 2025 * 12 + 7,      // July 2025
-          'June 2025': 2025 * 12 + 6,      // June 2025
-          'May 2025': 2025 * 12 + 5,      // May 2025
-          'April 2025': 2025 * 12 + 4,    // April 2025
-          'March 2025': 2025 * 12 + 3,    // March 2025
-          'February 2025': 2025 * 12 + 2, // February 2025
-          'January 2025': 2025 * 12 + 1,  // January 2025
-          'December 2024': 2024 * 12 + 12, // December 2024
-          'November 2024': 2024 * 12 + 11, // November 2024
-          'October 2024': 2024 * 12 + 10,  // October 2024
-          'September 2024': 2024 * 12 + 9, // September 2024
-          'August 2024': 2024 * 12 + 8,    // August 2024
-          'July 2024': 2024 * 12 + 7,      // July 2024
-          'June 2024': 2024 * 12 + 6       // June 2024
+        // Dynamic month order calculation
+        const getMonthWeight = (monthStr) => {
+          const monthNames = {
+            'January': 1, 'February': 2, 'March': 3, 'April': 4,
+            'May': 5, 'June': 6, 'July': 7, 'August': 8,
+            'September': 9, 'October': 10, 'November': 11, 'December': 12
+          };
+          
+          const parts = monthStr.split(' ');
+          if (parts.length !== 2) return 0;
+          
+          const month = monthNames[parts[0]];
+          const year = parseInt(parts[1]);
+          
+          if (!month || !year) return 0;
+          
+          return year * 12 + month;
         };
         
         // Sort months chronologically and pick the most recent one
-        const sortedMonths = months.sort((a, b) => monthOrder[b] - monthOrder[a]);
+        const sortedMonths = months.sort((a, b) => getMonthWeight(b) - getMonthWeight(a));
         setSelectedMonth(sortedMonths[0]); // First in sorted array is most recent
         console.log('ImprovedPLDashboard: Set initial month to:', sortedMonths[0]);
       }

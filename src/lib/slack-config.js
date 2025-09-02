@@ -28,6 +28,36 @@ export const DEFAULT_EOD_REMINDER_MESSAGE = `Hey team — quick reminder!
 Please submit your EOD reports ASAP. These need to be in by 2pm PST each day.
 Let me know if you're running into any issues.`;
 
+// Main webhook URLs
+export const MAIN_WEBHOOKS = {
+  MAIN: process.env.NEXT_PUBLIC_SLACK_WEBHOOK_URL,
+  DAILY_UPDATES: process.env.NEXT_PUBLIC_DAILY_UPDATES_WEBHOOK
+};
+
+// Helper function to get webhook URL by type
+export function getWebhookUrl(type = 'MAIN') {
+  const url = MAIN_WEBHOOKS[type.toUpperCase()];
+  if (!url) {
+    throw new Error(`Slack webhook URL not configured for type: ${type}`);
+  }
+  return url;
+}
+
+// Format message for Slack
+export function formatSlackMessage(message, type = 'info') {
+  let formattedMessage = message;
+  
+  if (type === 'error') {
+    formattedMessage = `❌ Error: ${message}`;
+  } else if (type === 'success') {
+    formattedMessage = `✅ Success: ${message}`;
+  } else if (type === 'warning') {
+    formattedMessage = `⚠️ Warning: ${message}`;
+  }
+  
+  return formattedMessage;
+}
+
 // Default detailed message template for EOD reminders
 export function getDefaultEODMessage(mediaBuyer, data) {
   // Simplified: send only the default text message, no numbers or extra details

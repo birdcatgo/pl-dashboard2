@@ -1,14 +1,13 @@
-import { NextResponse } from 'next/server';
+export default async function handler(req, res) {
+  if (req.method !== 'POST') {
+    return res.status(405).json({ error: 'Method not allowed' });
+  }
 
-export async function POST(request) {
   try {
-    const { message, channel } = await request.json();
+    const { message, channel } = req.body;
 
     if (!message || !channel) {
-      return NextResponse.json(
-        { error: 'Message and channel are required' },
-        { status: 400 }
-      );
+      return res.status(400).json({ error: 'Message and channel are required' });
     }
 
     // Debug logging for environment variables
@@ -29,10 +28,7 @@ export async function POST(request) {
         dailyUpdatesWebhook: process.env.NEXT_PUBLIC_DAILY_UPDATES_WEBHOOK,
         slackWebhook: process.env.NEXT_PUBLIC_SLACK_WEBHOOK_URL
       });
-      return NextResponse.json(
-        { error: 'Slack webhook URL is not configured' },
-        { status: 500 }
-      );
+      return res.status(500).json({ error: 'Slack webhook URL is not configured' });
     }
 
     console.log('Attempting to send message to Slack:', {
@@ -65,16 +61,16 @@ export async function POST(request) {
       throw new Error(`Slack API responded with status: ${response.status} - ${responseText}`);
     }
 
-    return NextResponse.json({ success: true });
+    return res.status(200).json({ success: true });
   } catch (error) {
     console.error('Error sending to Slack:', {
       message: error.message,
       stack: error.stack,
       name: error.name
     });
-    return NextResponse.json(
-      { error: 'Failed to send message to Slack', details: error.message },
-      { status: 500 }
-    );
+    return res.status(500).json({
+      error: 'Failed to send message to Slack', 
+      details: error.message
+    });
   }
 } 

@@ -6,9 +6,12 @@ async function processPLData(batchResponse) {
   try {
     const monthlyData = {};
     
-    // Extract month sheets from the batch response - starting from index 6
-    const monthSheets = batchResponse.data.valueRanges.slice(6, 18).filter(range => 
-      range && range.range && /'\w+ \d{4}'!/.test(range.range)
+    // Extract month sheets from the batch response dynamically
+    // Base ranges: 0-5 are Main Sheet, Financial Resources, Payroll, Media Buyer Spend, Summary, Network Payment Schedule
+    // Starting from index 6 until we hit non-month sheets
+    const monthPattern = /^'(January|February|March|April|May|June|July|August|September|October|November|December)\s+\d{4}'!/;
+    const monthSheets = batchResponse.data.valueRanges.filter(range => 
+      range && range.range && monthPattern.test(range.range)
     );
 
     // Process all months in parallel
@@ -159,7 +162,8 @@ async function processInvoiceData(response) {
         PeriodStart: row[1]?.trim() || '',
         PeriodEnd: row[2]?.trim() || '',
         DueDate: row[3]?.trim() || '',
-        AmountDue: row[4]?.trim() || '0',
+        Amount: row[4]?.trim() || '0',  // Changed from AmountDue to Amount for consistency
+        AmountDue: row[4]?.trim() || '0',  // Keep both for backward compatibility
         InvoiceNumber: row[5]?.trim() || ''
       };
     }).filter(Boolean); // Remove any null entries
@@ -200,18 +204,22 @@ async function processEmployeeData(response) {
         return null;
       }
 
+      // Correct field mapping based on actual data structure (9 columns)
+      const commissionRateStr = row[3]?.trim() || '0%';
+      const commissionRate = parseFloat(commissionRateStr.replace('%', '')) / 100 || 0;
+      
       return {
-        name,
-        role: row[1]?.trim() || '',
-        department: row[2]?.trim() || '',
-        startDate: row[3]?.trim() || '',
-        basePay: row[4]?.trim() || '0',
-        frequency: row[5]?.trim() || 'Monthly',
-        commissionRate: parseFloat(row[6]) || 0,
-        employeeId: row[7]?.trim() || '',
-        email: row[8]?.trim() || '',
-        status: row[9]?.trim() || 'Active',
-        notes: row[10]?.trim() || ''
+        name,                                    // Column A: Name
+        basePay: row[1]?.trim() || '0',         // Column B: Salary/Base Pay
+        frequency: row[2]?.trim() || 'Monthly', // Column C: Payment Frequency  
+        commissionRate: commissionRate,         // Column D: Commission Rate (convert % to decimal)
+        role: row[4]?.trim() || '',             // Column E: Employment Type (Employee/Contractor)
+        email: row[5]?.trim() || '',            // Column F: Email
+        employeeId: row[6]?.trim() || '',       // Column G: Additional Field 1
+        department: row[7]?.trim() || '',       // Column H: Additional Field 2  
+        status: row[8]?.trim() || 'ACTIVE',     // Column I: Status (ACTIVE/INACTIVE)
+        startDate: '',                          // Not in current data structure
+        notes: ''                               // Not in current data structure
       };
     }).filter(Boolean); // Remove any null entries
 
@@ -303,6 +311,18 @@ export default async function handler(req, res) {
       console.error('Error getting sheet names:', error);
     }
 
+    // Dynamic month detection - get all month sheets from the spreadsheet
+    let monthSheets = [];
+    if (availableSheets && availableSheets.length > 0) {
+      // Match month patterns: "Month Year" (e.g., "August 2025", "July 2024")
+      const monthPattern = /^(January|February|March|April|May|June|July|August|September|October|November|December)\s+\d{4}$/;
+      monthSheets = availableSheets
+        .filter(name => monthPattern.test(name))
+        .map(name => `'${name}'!A:E`);
+      
+      console.log('Detected month sheets:', monthSheets);
+    }
+
     // Define base ranges to fetch
     const baseRanges = [
       "'Main Sheet'!A:L",
@@ -311,26 +331,14 @@ export default async function handler(req, res) {
       "'Media Buyer Spend'!A:B",
       "'Summary'!A:V",
       "'Network Payment Schedule'!A:H",
-      "'July 2025'!A:E",
-      "'June 2025'!A:E",
-      "'May 2025'!A:E",
-      "'April 2025'!A:E",
-      "'March 2025'!A:E",
-      "'February 2025'!A:E",
-      "'January 2025'!A:E",
-      "'December 2024'!A:E",
-      "'November 2024'!A:E",
-      "'October 2024'!A:E",
-      "'September 2024'!A:E",
-      "'August 2024'!A:E",
-      "'July 2024'!A:E",
-      "'June 2024'!A:E",
+      // Dynamic month sheets will be added below
+      ...monthSheets,
       "'Network Terms'!A:J",
       "'Network Exposure'!A:H",
       "'Invoices'!A:F",
       "'Tradeshift Check'!A:I",
       "'Monthly Expenses'!A:D",
-      "'Commissions'!A:Z",
+      "'Commissions'!A:ZZ",
       "'Employees'!A:J",
       "'DigitSolution Accounts'!A:Z"
     ];
@@ -413,37 +421,43 @@ export default async function handler(req, res) {
 
 
 
-    // Extract array positions for debugging - FIXED ORDER
-    const [
-      mainResponse,              // 0
-      financialResponse,         // 1
-      payrollResponse,           // 2
-      mediaBuyerResponse,        // 3
-      summaryResponse,           // 4
-      networkPaymentsResponse,   // 5
-      july2025Response,          // 6 - FIXED: was missing
-      june2025Response,          // 7
-      may2025Response,           // 8
-      april2025Response,         // 9
-      march2025Response,         // 10
-      february2025Response,      // 11
-      january2025Response,       // 12
-      december2024Response,      // 13
-      november2024Response,      // 14
-      october2024Response,       // 15
-      september2024Response,     // 16
-      august2024Response,        // 17
-      july2024Response,          // 18
-      june2024Response,          // 19
-      networkTermsResponse,      // 20
-      networkExposureResponse,   // 21
-      invoicesResponse,          // 22 - FIXED: now correctly positioned
-      tradeshiftResponse,        // 23
-      monthlyExpensesResponse,   // 24
-      commissionsResponse,       // 25
-      employeeResponse,          // 26
-      digitSolutionResponse      // 27
-    ] = batchResponse.data.valueRanges;
+    // Dynamic destructuring based on actual ranges order
+    const responses = batchResponse.data.valueRanges;
+    
+    // Base responses (indices 0-5)
+    const mainResponse = responses[0];
+    const financialResponse = responses[1];
+    const payrollResponse = responses[2];
+    const mediaBuyerResponse = responses[3];
+    const summaryResponse = responses[4];
+    const networkPaymentsResponse = responses[5];
+    
+    // Dynamic month responses (indices 6 to 6+monthSheets.length-1)
+    const monthResponses = responses.slice(6, 6 + monthSheets.length);
+    
+    // Calculate starting index for remaining responses
+    const remainingStartIndex = 6 + monthSheets.length;
+    
+    // Remaining responses
+    const networkTermsResponse = responses[remainingStartIndex];
+    const networkExposureResponse = responses[remainingStartIndex + 1];
+    const invoicesResponse = responses[remainingStartIndex + 2];
+    const tradeshiftResponse = responses[remainingStartIndex + 3];
+    const monthlyExpensesResponse = responses[remainingStartIndex + 4];
+    const commissionsResponse = responses[remainingStartIndex + 5];
+    const employeeResponse = responses[remainingStartIndex + 6];
+    const digitSolutionResponse = responses[remainingStartIndex + 7];
+    
+    console.log('Dynamic response mapping:', {
+      totalResponses: responses.length,
+      monthSheetsCount: monthSheets.length,
+      remainingStartIndex,
+      commissionsIndex: remainingStartIndex + 5,
+      commissionsResponseExists: !!commissionsResponse,
+      commissionsRange: `'Commissions'!A:ZZ`,
+      commissionsHasValues: !!commissionsResponse?.values,
+      commissionsValuesLength: commissionsResponse?.values?.length
+    });
 
 
 
@@ -679,8 +693,8 @@ export default async function handler(req, res) {
         allData: processedData.tradeshiftData
       });
 
-      // Process P&L data
-      const plData = await processPLData(batchResponse);
+      // Process P&L data using dynamic month responses
+      const plData = await processPLData({ data: { valueRanges: monthResponses } });
       processedData.plData = plData;
       console.log('Processed P&L data:', Object.keys(plData));
 
@@ -694,17 +708,23 @@ export default async function handler(req, res) {
           firstDataRow: dataRows[0],
           totalRows: dataRows.length,
           sampleRows: dataRows.slice(0, 3),
-          totalColumns: headers.length
+          totalColumns: headers.length,
+          monthColumns: headers.slice(4).filter(h => h && h.includes('202')), // Show month-related columns
+          allHeadersFromE: headers.slice(4) // Show all columns from E onwards
         });
         
         processedData.commissions = dataRows
           .filter(row => row && row.length >= 4)
           .map(row => {
+            const mediaBuyerName = row[0]?.trim() || '';
+            const commissionRateStr = row[1]?.trim() || '10%';
+            const commissionRate = parseFloat(commissionRateStr.replace('%', '')) / 100 || 0.10;
+            
             const commission = {
-              mediaBuyer: row[0]?.trim() || '',
-              status: row[1]?.trim() || 'ACTIVE',
-              commissionRate: parseFloat(row[2]) || 0.10,
-              Confirmed: row[3]?.trim() || 'NO'
+              mediaBuyer: mediaBuyerName,
+              commissionRate: commissionRate,           // Column B: Commission Rate (convert % to decimal)
+              status: row[2]?.trim() || 'ACTIVE',       // Column C: Status
+              Confirmed: row[3]?.trim() || 'NO'         // Column D: Confirmed
             };
             
             // Process all remaining columns (E onwards) as month data
@@ -713,8 +733,9 @@ export default async function handler(req, res) {
               const headerText = headers[i]?.trim() || '';
               const cellValue = row[i] || '';
               
-              if (headerText && cellValue !== '') {
-                // Store the value with the exact header name
+              if (headerText) {
+                // Store the value with the exact header name, even if empty
+                // This ensures we capture all month columns structure
                 commission[headerText] = cellValue;
               }
             }
@@ -726,8 +747,12 @@ export default async function handler(req, res) {
         console.log('Processed commissions:', {
           count: processedData.commissions.length,
           sample: processedData.commissions[0],
-          allHeaders: headers,
-          allCommissions: processedData.commissions
+          sampleKeys: processedData.commissions[0] ? Object.keys(processedData.commissions[0]) : [],
+          monthColumns: headers.slice(4),
+          detectedMonthData: processedData.commissions[0] ? 
+            Object.keys(processedData.commissions[0]).filter(key => 
+              key.includes('202') // Filter for year-containing columns
+            ) : []
         });
       } else {
         processedData.commissions = [];

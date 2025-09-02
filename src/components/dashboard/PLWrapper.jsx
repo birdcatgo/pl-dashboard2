@@ -39,11 +39,14 @@ const SummaryTable = ({ summaryData }) => {
   // Helper function to extract year from month name (e.g., "June 2025" -> "2025")
   const getYearForMonth = (month) => {
     // If month already includes year, extract it
-    if (month.includes('2025')) return '2025';
-    if (month.includes('2024')) return '2024';
+    const parts = month.split(' ');
+    if (parts.length === 2 && /^\d{4}$/.test(parts[1])) {
+      return parts[1];
+    }
     
-    // Fallback for old format without years
-    return ['January', 'February', 'March', 'April', 'May', 'June'].includes(month) ? '2025' : '2024';
+    // Fallback for old format without years - assume current year
+    const currentYear = new Date().getFullYear();
+    return currentYear.toString();
   };
 
   return (
@@ -262,28 +265,40 @@ const MonthlyDetails = ({ monthData, month }) => {
 
 const ExpenseCategoriesTrend = ({ monthlyData }) => {
   const getLastSixMonths = () => {
-    // Get all available months from the data
+    // Get all available months from the data with dynamic month/year parsing
     const availableMonths = Object.keys(monthlyData).sort((a, b) => {
-      // Sort by year and month
-      const aYear = a.includes('2025') ? 2025 : 2024;
-      const bYear = b.includes('2025') ? 2025 : 2024;
-      if (aYear !== bYear) return bYear - aYear;
-      
-      const monthOrder = {
-        'January': 1, 'February': 2, 'March': 3, 'April': 4, 'May': 5, 'June': 6,
-        'July': 7, 'August': 8, 'September': 9, 'October': 10, 'November': 11, 'December': 12
+      // Parse month and year dynamically
+      const parseMonthYear = (monthStr) => {
+        const monthNames = {
+          'January': 1, 'February': 2, 'March': 3, 'April': 4,
+          'May': 5, 'June': 6, 'July': 7, 'August': 8,
+          'September': 9, 'October': 10, 'November': 11, 'December': 12
+        };
+        
+        const parts = monthStr.split(' ');
+        if (parts.length !== 2) return 0;
+        
+        const month = monthNames[parts[0]];
+        const year = parseInt(parts[1]);
+        
+        if (!month || !year) return 0;
+        
+        return year * 12 + month;
       };
       
-      const aMonth = a.split(' ')[0];
-      const bMonth = b.split(' ')[0];
-      return monthOrder[bMonth] - monthOrder[aMonth];
+      const aOrder = parseMonthYear(a);
+      const bOrder = parseMonthYear(b);
+      return bOrder - aOrder; // Most recent first
     });
     
     // Return the last 6 months
-    return availableMonths.slice(0, 6).map(month => ({
-      month: month,
-      year: month.includes('2025') ? '2025' : '2024'
-    }));
+    return availableMonths.slice(0, 6).map(month => {
+      const parts = month.split(' ');
+      return {
+        month: month,
+        year: parts.length === 2 ? parts[1] : '2024'
+      };
+    });
   };
 
   const monthOrder = getLastSixMonths();
@@ -401,23 +416,22 @@ const ExpenseCategoriesTrend = ({ monthlyData }) => {
 
 const PLWrapper = ({ plData, monthlyData, selectedMonth, onMonthChange, selectedMonthData }) => {
   const getMonthWeight = (month) => {
-    const weights = {
-      'July 2025': 2025 * 12 + 7,      // July 2025
-      'June 2025': 2025 * 12 + 6,      // June 2025
-      'May 2025': 2025 * 12 + 5,      // May 2025
-      'April 2025': 2025 * 12 + 4,    // April 2025
-      'March 2025': 2025 * 12 + 3,    // March 2025
-      'February 2025': 2025 * 12 + 2, // February 2025
-      'January 2025': 2025 * 12 + 1,  // January 2025
-      'December 2024': 2024 * 12 + 12, // December 2024
-      'November 2024': 2024 * 12 + 11, // November 2024
-      'October 2024': 2024 * 12 + 10,  // October 2024
-      'September 2024': 2024 * 12 + 9, // September 2024
-      'August 2024': 2024 * 12 + 8,    // August 2024
-      'July 2024': 2024 * 12 + 7,      // July 2024
-      'June 2024': 2024 * 12 + 6        // June 2024
+    // Parse month and year dynamically
+    const monthNames = {
+      'January': 1, 'February': 2, 'March': 3, 'April': 4,
+      'May': 5, 'June': 6, 'July': 7, 'August': 8,
+      'September': 9, 'October': 10, 'November': 11, 'December': 12
     };
-    return weights[month] || 0;
+    
+    const parts = month.split(' ');
+    if (parts.length !== 2) return 0;
+    
+    const monthNum = monthNames[parts[0]];
+    const year = parseInt(parts[1]);
+    
+    if (!monthNum || !year) return 0;
+    
+    return year * 12 + monthNum;
   };
 
   // Get all available months and sort them

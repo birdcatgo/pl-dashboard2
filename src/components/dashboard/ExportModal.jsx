@@ -11,8 +11,37 @@ const formatCurrency = (amount) => {
 
 const ExportModal = ({ onClose, monthlyData, plData }) => {
   const exportToCSV = () => {
+    // Get available months dynamically
+    const getAvailableMonths = () => {
+      if (!monthlyData) return [];
+      
+      const parseMonthYear = (monthStr) => {
+        const monthNames = {
+          'January': 1, 'February': 2, 'March': 3, 'April': 4,
+          'May': 5, 'June': 6, 'July': 7, 'August': 8,
+          'September': 9, 'October': 10, 'November': 11, 'December': 12
+        };
+        
+        const parts = monthStr.split(' ');
+        if (parts.length !== 2) return 0;
+        
+        const month = monthNames[parts[0]];
+        const year = parseInt(parts[1]);
+        
+        if (!month || !year) return 0;
+        
+        return year * 12 + month;
+      };
+      
+      return Object.keys(monthlyData)
+        .sort((a, b) => parseMonthYear(a) - parseMonthYear(b))
+        .slice(-3); // Get last 3 months
+    };
+    
+    const availableMonths = getAvailableMonths();
+    
     // Prepare the data
-    const headers = ['Category', 'Description', 'November 2024', 'December 2024', 'January 2025'];
+    const headers = ['Category', 'Description', ...availableMonths];
     const rows = [];
 
     // Helper function to get month's amount

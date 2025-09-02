@@ -19,10 +19,25 @@ const ExpenseCategory = ({ title, monthlyData, plData }) => {
   const totalAmount = monthlyData.reduce((sum, month) => sum + (month.amount || 0), 0);
   const averageAmount = totalAmount / monthlyData.length;
 
-  // Get the most recent two months for trend calculation
+  // Get the most recent two months for trend calculation with dynamic month parsing
   const sortedMonths = [...monthlyData].sort((a, b) => {
-    const monthOrder = { 'May': 5, 'April': 4, 'March': 3, 'February': 2, 'January': 1 };
-    return monthOrder[b.month] - monthOrder[a.month];
+    // Parse month and year dynamically
+    const parseMonthYear = (month, year) => {
+      const monthNames = {
+        'January': 1, 'February': 2, 'March': 3, 'April': 4,
+        'May': 5, 'June': 6, 'July': 7, 'August': 8,
+        'September': 9, 'October': 10, 'November': 11, 'December': 12
+      };
+      
+      const monthNum = monthNames[month];
+      if (!monthNum || !year) return 0;
+      
+      return year * 12 + monthNum;
+    };
+    
+    const aOrder = parseMonthYear(a.month, a.year);
+    const bOrder = parseMonthYear(b.month, b.year);
+    return bOrder - aOrder; // Most recent first
   });
 
   console.log(`ExpenseCategory "${title}" sorted months:`, {

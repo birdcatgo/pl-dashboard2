@@ -73,7 +73,7 @@ const ExpenseReview = ({ plData }) => {
     }
   };
 
-  // Get the most recent month's data
+  // Get the most recent month's data with dynamic month parsing
   const getMostRecentMonth = () => {
     if (!plData || Object.keys(plData).length === 0) return null;
     
@@ -81,23 +81,27 @@ const ExpenseReview = ({ plData }) => {
     const availableMonths = Object.keys(plData).filter(month => 
       month && month !== 'undefined' && month !== 'null' && month !== '' && plData[month]
     ).sort((a, b) => {
-      const monthOrder = {
-        'July 2025': 2025 * 12 + 7,
-        'June 2025': 2025 * 12 + 6,
-        'May 2025': 2025 * 12 + 5,
-        'April 2025': 2025 * 12 + 4,
-        'March 2025': 2025 * 12 + 3,
-        'February 2025': 2025 * 12 + 2,
-        'January 2025': 2025 * 12 + 1,
-        'December 2024': 2024 * 12 + 12,
-        'November 2024': 2024 * 12 + 11,
-        'October 2024': 2024 * 12 + 10,
-        'September 2024': 2024 * 12 + 9,
-        'August 2024': 2024 * 12 + 8
+      // Parse month and year dynamically
+      const parseMonthYear = (monthStr) => {
+        const monthNames = {
+          'January': 1, 'February': 2, 'March': 3, 'April': 4,
+          'May': 5, 'June': 6, 'July': 7, 'August': 8,
+          'September': 9, 'October': 10, 'November': 11, 'December': 12
+        };
+        
+        const parts = monthStr.split(' ');
+        if (parts.length !== 2) return 0;
+        
+        const month = monthNames[parts[0]];
+        const year = parseInt(parts[1]);
+        
+        if (!month || !year) return 0;
+        
+        return year * 12 + month;
       };
       
-      const aOrder = monthOrder[a] || 0;
-      const bOrder = monthOrder[b] || 0;
+      const aOrder = parseMonthYear(a);
+      const bOrder = parseMonthYear(b);
       return bOrder - aOrder; // Most recent first
     });
 

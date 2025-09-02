@@ -1,15 +1,15 @@
-import { NextResponse } from 'next/server';
 import { IncomingWebhook } from '@slack/webhook';
 
-export async function POST(request) {
+export default async function handler(req, res) {
+  if (req.method !== 'POST') {
+    return res.status(405).json({ error: 'Method not allowed' });
+  }
+
   try {
-    const { message, type = 'info' } = await request.json();
+    const { message, type = 'info' } = req.body;
 
     if (!message) {
-      return NextResponse.json(
-        { error: 'Message is required' },
-        { status: 400 }
-      );
+      return res.status(400).json({ error: 'Message is required' });
     }
 
     // Initialize webhook only when needed
@@ -34,12 +34,11 @@ export async function POST(request) {
       text: formattedMessage,
     });
 
-    return NextResponse.json({ success: true });
+    return res.status(200).json({ success: true });
   } catch (error) {
     console.error('Error sending notification:', error);
-    return NextResponse.json(
-      { error: error.message || 'Failed to send notification' },
-      { status: 500 }
-    );
+    return res.status(500).json({
+      error: error.message || 'Failed to send notification'
+    });
   }
 } 

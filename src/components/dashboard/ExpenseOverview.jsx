@@ -1986,8 +1986,35 @@ const ProfitTrendChart = ({ plData }) => {
 const processMonthlyData = (monthlyData) => {
   if (!monthlyData) return [];
 
-  // Define the months we want to show in correct order (July, June, May)
-  const targetMonths = ['July 2025', 'June 2025', 'May 2025'];
+  // Get the most recent 3 months dynamically from available data
+  const getRecentMonths = (monthlyData, count = 3) => {
+    if (!monthlyData) return [];
+    
+    // Parse month and year dynamically
+    const parseMonthYear = (monthStr) => {
+      const monthNames = {
+        'January': 1, 'February': 2, 'March': 3, 'April': 4,
+        'May': 5, 'June': 6, 'July': 7, 'August': 8,
+        'September': 9, 'October': 10, 'November': 11, 'December': 12
+      };
+      
+      const parts = monthStr.split(' ');
+      if (parts.length !== 2) return 0;
+      
+      const month = monthNames[parts[0]];
+      const year = parseInt(parts[1]);
+      
+      if (!month || !year) return 0;
+      
+      return year * 12 + month;
+    };
+    
+    return Object.keys(monthlyData)
+      .sort((a, b) => parseMonthYear(b) - parseMonthYear(a))
+      .slice(0, count);
+  };
+  
+  const targetMonths = getRecentMonths(monthlyData);
 
   console.log('processMonthlyData debug:', {
     inputMonthlyData: monthlyData,
@@ -2249,30 +2276,25 @@ const ExpenseOverview = ({ plData, cashFlowData, invoicesData, networkTerms }) =
   const lastThreeMonths = useMemo(() => {
     if (!plData || Object.keys(plData).length === 0) return [];
     
-    // Create a mapping of months to their numerical order
-    const monthOrder = {
-      'July 2025': 2025 * 12 + 7,
-      'June 2025': 2025 * 12 + 6,
-      'May 2025': 2025 * 12 + 5,
-      'April 2025': 2025 * 12 + 4,
-      'March 2025': 2025 * 12 + 3,
-      'February 2025': 2025 * 12 + 2,
-      'January 2025': 2025 * 12 + 1,
-      'December 2024': 2024 * 12 + 12,
-      'November 2024': 2024 * 12 + 11,
-      'October 2024': 2024 * 12 + 10,
-      'September 2024': 2024 * 12 + 9,
-      'August 2024': 2024 * 12 + 8
+    // Helper function to parse month and year
+    const parseMonthYear = (monthStr) => {
+      const [monthName, yearStr] = monthStr.split(' ');
+      const year = parseInt(yearStr, 10);
+      const monthIndex = new Date(`${monthName} 1, ${year}`).getMonth();
+      return { month: monthIndex, year, sortValue: year * 12 + monthIndex };
     };
     
     // Get all available months from the plData (plData contains monthly data directly)
     const availableMonths = Object.keys(plData).filter(month => 
       month && month !== 'undefined' && month !== 'null' && month !== '' && plData[month]
-    ).map(monthName => ({
-      name: monthName,
-      date: new Date(monthName.split(' ')[0] + ' 1, ' + monthName.split(' ')[1]),
-      order: monthOrder[monthName] || 0
-    }));
+    ).map(monthName => {
+      const parsed = parseMonthYear(monthName);
+      return {
+        name: monthName,
+        date: new Date(parsed.year, parsed.month, 1),
+        order: parsed.sortValue
+      };
+    });
 
     // Sort by date (newest first)
     availableMonths.sort((a, b) => b.order - a.order);
@@ -2285,23 +2307,19 @@ const ExpenseOverview = ({ plData, cashFlowData, invoicesData, networkTerms }) =
     // Check if we have the new data structure (months as direct keys) or the old structure (monthly property)
     const monthlyData = plData?.monthly || plData;
     
-    if (!monthlyData) {
+    if (!monthlyData || lastThreeMonths.length === 0) {
       console.log('No monthly data available');
       return null;
     }
 
-    // Define the months we want to show in order - ONLY 3 months
-    const targetMonths = ['July 2025', 'June 2025', 'May 2025'];
+    // Use the dynamically determined last three months
+    const targetMonths = lastThreeMonths.map(month => month.name);
 
     // Add debug logging
     console.log('Processing monthly data:', {
       availableMonths: Object.keys(monthlyData),
-      hasJulyData: !!monthlyData['July 2025'],
-      hasJuneData: !!monthlyData['June 2025'],
-      hasMayData: !!monthlyData['May 2025'],
-      julyData: monthlyData['July 2025'],
-      juneData: monthlyData['June 2025'],
-      mayData: monthlyData['May 2025']
+      dynamicTargetMonths: targetMonths,
+      lastThreeMonths: lastThreeMonths.map(m => m.name)
     });
 
     return targetMonths.map(monthStr => {
@@ -2462,7 +2480,7 @@ const ExpenseOverview = ({ plData, cashFlowData, invoicesData, networkTerms }) =
         profitMargin
       };
     });
-  }, [plData]);
+  }, [plData, lastThreeMonths]);
 
   const monthlyData = processMonthlyData(plData);
 
