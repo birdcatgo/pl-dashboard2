@@ -1225,14 +1225,31 @@ const ExpenseComparisonTable = ({ monthlyData, plData }) => {
   const lastThreeMonths = useMemo(() => {
     if (!plData) return [];
     
+    // Dynamic month parsing and sorting
+    const parseMonthYear = (monthStr) => {
+      const monthNames = {
+        'January': 1, 'February': 2, 'March': 3, 'April': 4,
+        'May': 5, 'June': 6, 'July': 7, 'August': 8,
+        'September': 9, 'October': 10, 'November': 11, 'December': 12
+      };
+      
+      const parts = monthStr.split(' ');
+      if (parts.length !== 2) return 0;
+      
+      const month = monthNames[parts[0]];
+      const year = parseInt(parts[1]);
+      
+      if (!month || !year) return 0;
+      
+      return year * 12 + month;
+    };
+    
     const months = Object.keys(plData)
-      .filter(month => ['July 2025', 'June 2025', 'May 2025'].includes(month))
-      .sort((a, b) => {
-        const monthOrder = { 'July 2025': 7, 'June 2025': 6, 'May 2025': 5 };
-        return monthOrder[b] - monthOrder[a]; // Most recent first (July 2025, June 2025, May 2025)
-      });
+      .filter(month => /^(January|February|March|April|May|June|July|August|September|October|November|December)\s+\d{4}$/.test(month))
+      .sort((a, b) => parseMonthYear(b) - parseMonthYear(a)) // Most recent first
+      .slice(0, 3); // Take only the 3 most recent
 
-    console.log('ExpenseComparisonTable: Last three months:', months);
+    console.log('ExpenseComparisonTable: Last three months (dynamic):', months);
     return months;
   }, [plData]);
 
@@ -1766,12 +1783,29 @@ const ProfitTrendChart = ({ plData }) => {
   const profitTrendData = useMemo(() => {
     if (!plData) return [];
 
-    // Define the correct month order with years
-    const monthOrder = [
-      'July 2024', 'August 2024', 'September 2024', 'October 2024', 
-      'November 2024', 'December 2024', 'January 2025', 'February 2025', 
-      'March 2025', 'April 2025', 'May 2025', 'June 2025', 'July 2025'
-    ];
+    // Dynamic month detection and sorting
+    const parseMonthYear = (monthStr) => {
+      const monthNames = {
+        'January': 1, 'February': 2, 'March': 3, 'April': 4,
+        'May': 5, 'June': 6, 'July': 7, 'August': 8,
+        'September': 9, 'October': 10, 'November': 11, 'December': 12
+      };
+      
+      const parts = monthStr.split(' ');
+      if (parts.length !== 2) return 0;
+      
+      const month = monthNames[parts[0]];
+      const year = parseInt(parts[1]);
+      
+      if (!month || !year) return 0;
+      
+      return year * 12 + month;
+    };
+    
+    // Get all available months and sort them chronologically
+    const monthOrder = Object.keys(plData)
+      .filter(month => /^(January|February|March|April|May|June|July|August|September|October|November|December)\s+\d{4}$/.test(month))
+      .sort((a, b) => parseMonthYear(a) - parseMonthYear(b)); // Oldest to newest for chart display
     
     return monthOrder.map(monthYear => {
       const data = plData[monthYear];

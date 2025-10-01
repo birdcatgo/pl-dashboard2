@@ -1,6 +1,6 @@
 export async function loadPLFiles() {
   try {
-    const months = ['June', 'July', 'August', 'September', 'October', 'November 1'];
+    const months = ['June', 'July', 'August', 'September', 'October', 'November 1', 'September 2025'];
     const results = [];
     
     for (const month of months) {

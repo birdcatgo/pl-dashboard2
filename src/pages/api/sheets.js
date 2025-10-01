@@ -792,6 +792,57 @@ export default async function handler(req, res) {
         console.log('Processed network exposure:', processedData.networkExposure.length);
       }
 
+      // Process Summary sheet data
+      if (summaryResponse?.values && summaryResponse.values.length > 1) {
+        const headers = summaryResponse.values[0];
+        const dataRows = summaryResponse.values.slice(1);
+        
+        console.log('Raw summary data:', {
+          headers: headers,
+          totalRows: dataRows.length,
+          sampleRows: dataRows.slice(0, 3),
+          totalColumns: headers.length
+        });
+        
+        processedData.summaryData = dataRows
+          .filter(row => row && row.length >= 2 && row[0]?.trim()) // Filter out empty rows
+          .map((row, index) => {
+            const summaryRow = {
+              Month: row[0]?.trim() || '',
+              rowIndex: index + 2 // +2 because we skip header (row 1) and array is 0-indexed
+            };
+            
+            // Process all remaining columns dynamically
+            for (let i = 1; i < headers.length && i < row.length; i++) {
+              const headerText = headers[i]?.trim() || '';
+              const cellValue = row[i] || '';
+              
+              if (headerText) {
+                // Parse numeric values, keep text as-is
+                let processedValue = cellValue;
+                if (typeof cellValue === 'string' && cellValue.match(/^[\d,.$%-]+$/)) {
+                  processedValue = parseFloat(cellValue.replace(/[$,%]/g, '')) || 0;
+                }
+                summaryRow[headerText] = processedValue;
+              }
+            }
+            
+            return summaryRow;
+          });
+        
+        console.log('Processed summary data:', {
+          count: processedData.summaryData.length,
+          sample: processedData.summaryData[0],
+          sampleKeys: processedData.summaryData[0] ? Object.keys(processedData.summaryData[0]) : [],
+          september2025Row: processedData.summaryData.find(row => 
+            row.Month && row.Month.toLowerCase().includes('september') && row.Month.includes('2025')
+          )
+        });
+      } else {
+        processedData.summaryData = [];
+        console.log('No summary data found or insufficient columns');
+      }
+
     } catch (processingError) {
       console.error('Error processing data:', processingError);
       throw new Error(`Data processing failed: ${processingError.message}`);
@@ -938,12 +989,13 @@ export default async function handler(req, res) {
       commissionsCount: processedData.commissions?.length || 0,
       employeeDataCount: processedData.employeeData?.length || 0,
       networkExposureCount: processedData.networkExposure?.length || 0,
-                directCashInBank: processedData.cashFlowData.directCells?.cashInBank || 0,
-          directCreditCardDebt: processedData.cashFlowData.directCells?.creditCardDebt || 0,
-          directCashAvailable: processedData.cashFlowData.directCells?.cashAvailable || 0,
-          directCreditAvailable: processedData.cashFlowData.directCells?.creditAvailable || 0,
-          directTotalOwing: processedData.cashFlowData.directCells?.totalOwing || 0,
-          directTotalCreditLimit: processedData.cashFlowData.directCells?.totalCreditLimit || 0
+      summaryDataCount: processedData.summaryData?.length || 0,
+      directCashInBank: processedData.cashFlowData.directCells?.cashInBank || 0,
+      directCreditCardDebt: processedData.cashFlowData.directCells?.creditCardDebt || 0,
+      directCashAvailable: processedData.cashFlowData.directCells?.cashAvailable || 0,
+      directCreditAvailable: processedData.cashFlowData.directCells?.creditAvailable || 0,
+      directTotalOwing: processedData.cashFlowData.directCells?.totalOwing || 0,
+      directTotalCreditLimit: processedData.cashFlowData.directCells?.totalCreditLimit || 0
     });
 
     // Return the processed data
