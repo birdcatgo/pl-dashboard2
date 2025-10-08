@@ -36,12 +36,32 @@ const CashFlowPlanner = ({ performanceData, creditCardData, upcomingExpenses, in
     const thirtyDaysFromNow = addDays(new Date(), 30);
     
     return upcomingExpenses.reduce((acc, expense) => {
-      if (!expense || !expense.dueDate) return acc;
+      if (!expense) return acc;
       
-      const dueDate = new Date(expense.dueDate);
+      // Handle both object format and array format
+      let category, amount, dueDate;
+      
+      if (Array.isArray(expense)) {
+        // Array format: [Category, Description, Amount, Date]
+        category = expense[0] || 'Uncategorized';
+        amount = parseFloat((expense[2] || '0').toString().replace(/[$,]/g, ''));
+        dueDate = new Date(expense[3]);
+      } else if (expense && typeof expense === 'object') {
+        // Object format
+        category = expense.status || expense.Category || 'Uncategorized';
+        const amountValue = expense.amount || expense.Amount || 0;
+        amount = parseFloat(amountValue.toString().replace(/[$,]/g, ''));
+        dueDate = new Date(expense.dueDate || expense.Date);
+      } else {
+        return acc;
+      }
+      
+      // Skip if invalid date or amount
+      if (!dueDate || isNaN(dueDate.getTime()) || isNaN(amount)) {
+        return acc;
+      }
+      
       if (dueDate <= thirtyDaysFromNow) {
-        const amount = parseFloat(expense.amount || 0);
-        const category = expense.status || 'Uncategorized';
         
         acc.total += amount;
         acc.byCategory[category] = (acc.byCategory[category] || 0) + amount;

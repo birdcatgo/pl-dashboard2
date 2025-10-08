@@ -6,8 +6,9 @@ import { Button } from '@/components/ui/button';
 import { AlertTriangle, TrendingUp, TrendingDown, DollarSign, CreditCard, Calendar, Calculator, Users, Target, ChevronUp, ChevronDown } from 'lucide-react';
 import { format, addDays, isSameDay, isToday, startOfMonth, endOfMonth, eachDayOfInterval, isSameMonth, subDays } from 'date-fns';
 import { parseCampaignName } from '@/lib/campaign-utils';
+import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, ReferenceLine } from 'recharts';
 
-const CashFlowPlanner = ({ performanceData, creditCardData, upcomingExpenses, invoicesData, networkExposureData }) => {
+const CashFlowPlanner = ({ performanceData, creditCardData, upcomingExpenses, invoicesData, networkExposureData, cashFlowData }) => {
   const [dailySpend, setDailySpend] = useState(0);
   const [networkData, setNetworkData] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -155,7 +156,8 @@ const CashFlowPlanner = ({ performanceData, creditCardData, upcomingExpenses, in
       } else if (expense && typeof expense === 'object') {
         // Object format
         category = expense.status || expense.Category || 'Uncategorized';
-        amount = parseFloat(expense.amount || expense.Amount || 0);
+        const amountValue = expense.amount || expense.Amount || 0;
+        amount = parseFloat(amountValue.toString().replace(/[$,]/g, ''));
         dueDate = new Date(expense.dueDate || expense.Date);
       } else {
         return acc;
@@ -177,28 +179,42 @@ const CashFlowPlanner = ({ performanceData, creditCardData, upcomingExpenses, in
     }, { total: 0, byCategory: {} });
   }, [upcomingExpenses]);
 
-  // Calculate incoming money from invoices
+  // Calculate incoming money from invoices (20 days overdue to all future)
   const incomingMoney = useMemo(() => {
     if (!Array.isArray(invoicesData)) {
       console.log('Invalid invoice data format');
-      return { total: 0, byWeek: {} };
+      return { total: 0, totalWithBelowThreshold: 0, byWeek: {}, belowThresholdCount: 0 };
     }
 
-    const thirtyDaysFromNow = addDays(new Date(), 30);
+    const today = new Date();
+    const twentyDaysAgo = subDays(today, 20);
     
     return invoicesData.reduce((acc, invoice) => {
       if (!invoice || !invoice.DueDate) return acc;
       
       const dueDate = new Date(invoice.DueDate);
-      if (dueDate <= thirtyDaysFromNow) {
+      
+      // Only include invoices that are:
+      // 1. Not more than 20 days overdue (>= twentyDaysAgo), AND
+      // 2. Any future date (no upper limit)
+      // This shows: 20 days past + today + all future invoices
+      if (dueDate >= twentyDaysAgo) {
         const amount = parseFloat(invoice.AmountDue?.replace(/[^0-9.-]+/g, '') || 0);
-        const weekNumber = Math.floor((dueDate - new Date()) / (7 * 24 * 60 * 60 * 1000));
+        const weekNumber = Math.floor((dueDate - today) / (7 * 24 * 60 * 60 * 1000));
         
-        acc.total += amount;
-        acc.byWeek[weekNumber] = (acc.byWeek[weekNumber] || 0) + amount;
+        // Track total including below threshold
+        acc.totalWithBelowThreshold += amount;
+        
+        // Only add to main total if above $200 threshold
+        if (amount >= 200) {
+          acc.total += amount;
+          acc.byWeek[weekNumber] = (acc.byWeek[weekNumber] || 0) + amount;
+        } else {
+          acc.belowThresholdCount++;
+        }
       }
       return acc;
-    }, { total: 0, byWeek: {} });
+    }, { total: 0, totalWithBelowThreshold: 0, byWeek: {}, belowThresholdCount: 0 });
   }, [invoicesData]);
 
   // Calculate spending distribution based on net terms
@@ -1183,13 +1199,13 @@ const CashFlowPlanner = ({ performanceData, creditCardData, upcomingExpenses, in
                   <CardContent className="pt-6">
                     <div className="flex items-center space-x-2">
                       <DollarSign className="h-5 w-5 text-green-600" />
-                      <div className="text-sm text-green-600 font-medium">Incoming Money (30 days)</div>
+                      <div className="text-sm text-green-600 font-medium">Incoming Money (All Future)</div>
                     </div>
                     <div className="text-2xl font-bold text-green-700">
                       {formatCurrency(incomingMoney.total)}
                     </div>
                     <div className="text-sm text-green-600 mt-1">
-                      Across {Object.keys(incomingMoney.byWeek).length} weeks
+                      ≥$200 threshold • {incomingMoney.belowThresholdCount > 0 && `${incomingMoney.belowThresholdCount} below threshold • `}Max 20 days overdue
                     </div>
                   </CardContent>
                 </Card>
@@ -1210,690 +1226,591 @@ const CashFlowPlanner = ({ performanceData, creditCardData, upcomingExpenses, in
                 </Card>
               </div>
 
-              {/* Daily Spend Calculator */}
-              <div className="space-y-6">
-                <div className="flex items-center space-x-2">
-                  <Calculator className="h-6 w-6 text-blue-600" />
-                  <h3 className="text-xl font-semibold">Daily Spend Calculator</h3>
-                </div>
-
-                {/* Team Performance Overview */}
-                <Card className="border-2 border-purple-200">
-                  <CardHeader className="pb-2">
-                    <CardTitle className="text-lg flex items-center space-x-2">
-                      <TrendingUp className="h-5 w-5 text-purple-600" />
-                      <span>Team Performance Overview</span>
-                    </CardTitle>
-                    <div className="text-xs text-gray-600 mt-1">
-                      Network-offer performance across time periods
-                    </div>
-                  </CardHeader>
-                  <CardContent className="pt-0 pb-3">
-                    <div className="overflow-x-auto">
-                      <table className="w-full text-xs">
-                        <thead>
-                          <tr className="border-b">
-                            <th className="text-left py-1 font-medium w-48">Network • Offer</th>
-                            <th className="text-center py-1 font-medium w-16">Terms</th>
-                            <th className="text-center py-1 font-medium w-20">Yesterday ROI</th>
-                            <th className="text-center py-1 font-medium w-20">7-Day ROI</th>
-                            <th className="text-center py-1 font-medium w-20">MTD ROI</th>
-                            <th className="text-center py-1 font-medium w-20">Yesterday Spend</th>
-                          </tr>
-                        </thead>
-                        <tbody>
-                          {teamNetworkOffers.map((offer, index) => {
-                            const getROIColor = (roi) => {
-                              if (roi >= 20) return 'text-green-600 font-bold';
-                              if (roi >= 0) return 'text-yellow-600 font-medium';
-                              return 'text-red-600 font-bold';
-                            };
-                            
-                            const getPaymentTermColor = (paymentTerms) => {
-                              switch (paymentTerms) {
-                                case 'Weekly': return 'bg-green-100 text-green-800 border-green-300 font-bold';
-                                case 'Monthly': return 'bg-yellow-100 text-yellow-700 border-yellow-300';
-                                case 'Bi-Monthly': return 'bg-red-100 text-red-700 border-red-300';
-                                default: return 'bg-gray-100 text-gray-700 border-gray-300';
-                              }
-                            };
-
-                            const getRowHighlight = (paymentTerms) => {
-                              return paymentTerms === 'Weekly' ? 'bg-green-25' : '';
-                            };
-                            
-                            return (
-                              <tr key={offer.networkOfferKey} 
-                                  className={`border-b border-gray-100 hover:bg-blue-50 ${getRowHighlight(offer.paymentTerms)}`}>
-                                {/* Network • Offer */}
-                                <td className="py-1">
-                                  <div className="flex items-center space-x-1">
-                                    <span className="font-medium text-blue-700 text-xs">{offer.network}</span>
-                                    <span className="text-gray-400">•</span>
-                                    <span className="font-medium text-orange-700 text-xs">{offer.offer}</span>
-                                    {offer.paymentTerms === 'Weekly' && (
-                                      <span className="text-green-600 text-xs">⭐</span>
-                                    )}
-                                  </div>
-                                </td>
-                                
-                                {/* Payment Terms */}
-                                <td className="py-1 text-center">
-                                  <span className={`px-1 py-0.5 rounded border text-xs font-medium ${getPaymentTermColor(offer.paymentTerms)}`}>
-                                    {formatPaymentTermsDisplay(offer.paymentTerms)}
-                                  </span>
-                                </td>
-                                
-                                {/* Yesterday ROI */}
-                                <td className="py-1 text-center">
-                                  <span className={`${getROIColor(offer.yesterday.roi)} text-xs`}>
-                                    {offer.yesterday.spend > 0 ? `${offer.yesterday.roi.toFixed(1)}%` : 'N/A'}
-                                  </span>
-                                </td>
-                                
-                                {/* 7-Day ROI */}
-                                <td className="py-1 text-center">
-                                  <span className={`${getROIColor(offer.last7Days.roi)} text-xs`}>
-                                    {offer.last7Days.spend > 0 ? `${offer.last7Days.roi.toFixed(1)}%` : 'N/A'}
-                                  </span>
-                                </td>
-                                
-                                {/* MTD ROI */}
-                                <td className="py-1 text-center">
-                                  <span className={`${getROIColor(offer.mtd.roi)} text-xs`}>
-                                    {offer.mtd.spend > 0 ? `${offer.mtd.roi.toFixed(1)}%` : 'N/A'}
-                                  </span>
-                                </td>
-                                
-                                {/* Yesterday Spend */}
-                                <td className="py-1 text-center">
-                                  <span className="text-blue-600 font-medium text-xs">
-                                    {formatCurrency(offer.yesterday.spend)}
-                                  </span>
-                                </td>
-                              </tr>
-                            );
-                          })}
-                        </tbody>
-                      </table>
-                    </div>
-                  </CardContent>
-                </Card>
-
-                {/* Total Available Funds Summary */}
-                <Card className="bg-gradient-to-r from-blue-50 to-indigo-50 border-blue-200">
-                  <CardContent className="pt-4 pb-4">
-                    <div 
-                      className="cursor-pointer select-none"
-                      onClick={() => setShowFinancialDetails(!showFinancialDetails)}
-                    >
-                      <div className="text-center">
-                        <div className="text-sm text-blue-600 font-medium flex items-center justify-center space-x-2">
-                          <span>Total Available Funds</span>
-                          {showFinancialDetails ? (
-                            <ChevronUp className="h-4 w-4" />
-                          ) : (
-                            <ChevronDown className="h-4 w-4" />
-                          )}
+              {/* Incoming Money & Upcoming Expenses Details */}
+              <div className="space-y-4">
+                <h3 className="text-lg font-semibold">Cash Flow Details</h3>
+                <p className="text-sm text-gray-600">Showing from 20 days overdue through all future invoices</p>
+                
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                  {/* Incoming Money Detail */}
+                  <Card className="border-2 border-green-200">
+                    <CardHeader className="pb-3">
+                      <CardTitle className="text-lg flex items-center space-x-2">
+                        <DollarSign className="h-5 w-5 text-green-600" />
+                        <span>Incoming Money</span>
+                      </CardTitle>
+                      <div className="text-sm text-gray-600">From 20 days overdue to all future invoices (≥$200 threshold)</div>
+                    </CardHeader>
+                    <CardContent>
+                      <div className="space-y-3">
+                        <div className="flex justify-between items-center pb-2 border-b-2 border-green-200">
+                          <span className="font-semibold text-gray-700">Total Expected</span>
+                          <span className="text-xl font-bold text-green-700">
+                            {formatCurrency(incomingMoney.total)}
+                          </span>
                         </div>
-                        <div className="text-2xl font-bold text-blue-800">
-                          {formatCurrency(totalAvailableFunds)}
-                        </div>
-                        <div className="text-xs text-blue-600 mt-1">Cash + Available Credit</div>
-                      </div>
-                    </div>
-                    
-                    {/* Financial Resources Dropdown */}
-                    {showFinancialDetails && (
-                      <div className="mt-4 pt-4 border-t border-blue-200">
-                        <div className="text-sm font-medium text-blue-700 mb-3">Financial Resources Breakdown</div>
-                        <div className="overflow-x-auto">
-                          <table className="w-full text-xs">
-                            <thead>
-                              <tr className="border-b border-blue-200">
-                                <th className="text-left py-2 font-medium text-blue-700">Resource</th>
-                                <th className="text-right py-2 font-medium text-blue-700">Available</th>
-                                <th className="text-right py-2 font-medium text-blue-700">Owing</th>
-                                <th className="text-right py-2 font-medium text-blue-700">Limit</th>
-                                <th className="text-right py-2 font-medium text-blue-700">Utilization</th>
-                              </tr>
-                            </thead>
-                            <tbody>
-                              {Array.isArray(creditCardData) && creditCardData.map((account, index) => {
-                                const available = parseFloat(account.available?.toString().replace(/[^0-9.-]+/g, '') || 0);
-                                const owing = parseFloat(account.owing?.toString().replace(/[^0-9.-]+/g, '') || 0);
-                                const limit = parseFloat(account.limit?.toString().replace(/[^0-9.-]+/g, '') || 0);
-                                const utilization = limit > 0 ? (owing / limit) * 100 : 0;
-                                
-                                const getUtilizationColor = (util) => {
-                                  if (util >= 80) return 'text-red-600';
-                                  if (util >= 60) return 'text-yellow-600';
-                                  return 'text-green-600';
-                                };
+                        
+                        {invoicesData && invoicesData.length > 0 ? (
+                          <div className="space-y-2 max-h-[300px] overflow-y-auto">
+                            {invoicesData
+                              .filter(invoice => {
+                                if (!invoice || !invoice.DueDate) return false;
+                                const today = new Date();
+                                const dueDate = new Date(invoice.DueDate);
+                                const twentyDaysAgo = subDays(today, 20);
+                                // Show invoices from 20 days overdue to all future
+                                return dueDate >= twentyDaysAgo;
+                              })
+                              .sort((a, b) => new Date(a.DueDate) - new Date(b.DueDate))
+                              .map((invoice, index) => {
+                                const amount = parseFloat(invoice.AmountDue?.replace(/[^0-9.-]+/g, '') || 0);
+                                const dueDate = new Date(invoice.DueDate);
+                                const daysUntil = Math.ceil((dueDate - new Date()) / (1000 * 60 * 60 * 24));
+                                const isBelowThreshold = amount < 200;
+                                const isOverdue = daysUntil < 0;
                                 
                                 return (
-                                  <tr key={index} className="border-b border-blue-100">
-                                    <td className="py-2 font-medium text-blue-900">{account.account}</td>
-                                    <td className="py-2 text-right font-bold text-green-700">
-                                      {formatCurrency(available)}
-                                    </td>
-                                    <td className="py-2 text-right text-blue-700">
-                                      {formatCurrency(owing)}
-                                    </td>
-                                    <td className="py-2 text-right text-blue-600">
-                                      {limit > 0 ? formatCurrency(limit) : 'N/A'}
-                                    </td>
-                                    <td className={`py-2 text-right font-medium ${getUtilizationColor(utilization)}`}>
-                                      {limit > 0 ? `${utilization.toFixed(1)}%` : 'N/A'}
-                                    </td>
-                                  </tr>
-                                );
-                              })}
-                              {/* Summary Row */}
-                              <tr className="border-t-2 border-blue-300 font-bold bg-blue-50">
-                                <td className="py-2 text-blue-800">TOTAL</td>
-                                <td className="py-2 text-right text-green-700">
-                                  {formatCurrency(totalAvailableFunds)}
-                                </td>
-                                <td className="py-2 text-right text-blue-700">
-                                  {formatCurrency(creditCardMetrics.totalUsed)}
-                                </td>
-                                <td className="py-2 text-right text-blue-600">
-                                  {formatCurrency(creditCardMetrics.totalLimit)}
-                                </td>
-                                <td className="py-2 text-right text-blue-700">
-                                  {creditCardMetrics.totalLimit > 0 ? 
-                                    `${((creditCardMetrics.totalUsed / creditCardMetrics.totalLimit) * 100).toFixed(1)}%` : 
-                                    'N/A'
-                                  }
-                                </td>
-                              </tr>
-                            </tbody>
-                          </table>
-                        </div>
-                        <div className="text-xs text-blue-500 mt-2 text-center">
-                          Click above to collapse this view
-                        </div>
-                      </div>
-                    )}
-                  </CardContent>
-                </Card>
-
-                {/* Spending Scenarios Summary */}
-                <Card>
-                  <CardHeader className="pb-3">
-                    <CardTitle className="text-lg flex items-center space-x-2">
-                      <Target className="h-5 w-5 text-purple-600" />
-                      <span>Spending Scenarios Overview</span>
-                    </CardTitle>
-                  </CardHeader>
-                  <CardContent>
-                    <div className="space-y-4">
-                      {/* Custom Scenario Inputs */}
-                      <div className="space-y-3">
-                        <div className="grid grid-cols-2 gap-3">
-                          <div>
-                            <Label className="text-xs text-gray-500">
-                              Latest Day's Actual 
-                              {yesterdayActualSpend > 0 && yesterdayActualSpend !== customScenarios.yesterdayActual && (
-                                <span className="text-green-600 ml-1">📊 Live</span>
-                              )}
-                            </Label>
-                            <Input
-                              type="text"
-                              value={formatCurrencyForInput(updatedCustomScenarios.yesterdayActual)}
-                              onChange={(e) => updateCustomScenario('yesterdayActual', parseCurrencyInput(e.target.value))}
-                              className="h-8 text-xs"
-                              placeholder={yesterdayActualSpend > 0 ? "Auto-calculated" : "Enter manually"}
-                            />
-                            {yesterdayActualSpend > 0 && yesterdayActualSpend !== customScenarios.yesterdayActual && (
-                              <div className="text-xs text-green-600 mt-1">
-                                Auto: {formatCurrency(yesterdayActualSpend)}
-                              </div>
-                            )}
-                          </div>
-                          <div>
-                            <Label className="text-xs text-gray-500">Target Days Coverage</Label>
-                            <Input
-                              type="number"
-                              value={updatedCustomScenarios.targetDays}
-                              onChange={(e) => updateCustomScenario('targetDays', e.target.value)}
-                              className="h-8 text-xs"
-                              placeholder="Days to last"
-                            />
-                            <div className="text-xs text-gray-500 mt-1">
-                              Daily: {formatScenarioCurrency(totalAvailableFunds / (updatedCustomScenarios.targetDays || 1))}
-                            </div>
-                          </div>
-                        </div>
-                      </div>
-
-                      {/* Scenarios Summary Table */}
-                      <div className="overflow-x-auto">
-                        <table className="w-full text-sm">
-                          <thead>
-                            <tr className="border-b">
-                              <th className="text-left py-2 font-medium">Scenario</th>
-                              <th className="text-right py-2 font-medium">Daily Spend</th>
-                              <th className="text-right py-2 font-medium">Coverage</th>
-                            </tr>
-                          </thead>
-                          <tbody>
-                            {spendingScenarios.map((scenario, index) => {
-                              const getCoverageColor = (days) => {
-                                if (days >= 30) return 'text-green-600';
-                                if (days >= 14) return 'text-yellow-600';
-                                return 'text-red-600';
-                              };
-
-                              return (
-                                <tr key={index} className="border-b border-gray-100">
-                                  <td className="py-2 text-xs font-medium">{scenario.name}</td>
-                                  <td className="py-2 text-right text-xs font-mono">
-                                    {formatScenarioCurrency(scenario.dailySpend)}
-                                  </td>
-                                  <td className={`py-2 text-right text-xs font-bold ${getCoverageColor(scenario.coverage)}`}>
-                                    {scenario.coverage} days
-                                  </td>
-                                </tr>
-                              );
-                            })}
-                          </tbody>
-                        </table>
-                      </div>
-
-                      {/* Quick Summary Cards */}
-                      <div className="grid grid-cols-2 gap-4">
-                        {spendingScenarios.map((scenario, index) => {
-                          const getCoverageColor = (days) => {
-                            if (days >= 30) return 'bg-green-50 border-green-200 text-green-700';
-                            if (days >= 14) return 'bg-yellow-50 border-yellow-200 text-yellow-700';
-                            return 'bg-red-50 border-red-200 text-red-700';
-                          };
-
-                          const getIcon = (type) => {
-                            switch (type) {
-                              case 'conservative': return '🟢';
-                              case 'aggressive': return '🔴';
-                              case 'actual': return '📊';
-                              case 'target': return '🎯';
-                              default: return '📈';
-                            }
-                          };
-
-                          return (
-                            <Card key={index} className={`p-3 ${getCoverageColor(scenario.coverage)}`}>
-                              <div className="text-center space-y-1">
-                                <div className="text-xs font-medium flex items-center justify-center space-x-1">
-                                  <span>{getIcon(scenario.type)}</span>
-                                  <span>{scenario.name}</span>
-                                </div>
-                                <div className="text-lg font-bold">
-                                  {scenario.coverage} days
-                                </div>
-                                <div className="text-xs opacity-75">
-                                  {formatScenarioCurrency(scenario.dailySpend)}
-                                </div>
-                              </div>
-                            </Card>
-                          );
-                        })}
-                      </div>
-                    </div>
-                  </CardContent>
-                </Card>
-
-                {/* Media Buyer Allocations */}
-                <Card className="border-2 border-green-200">
-                  <CardHeader className="pb-2">
-                    <CardTitle className="text-lg flex items-center space-x-2">
-                      <Users className="h-5 w-5 text-green-600" />
-                      <span>Media Buyer Performance & Budget Allocation</span>
-                    </CardTitle>
-                    <div className="text-xs text-gray-600 mt-1">
-                      Set budgets by network-offer combination • Prioritize Weekly payments
-                    </div>
-                    {/* Budget Summary */}
-                    <div className="flex items-center space-x-4 mt-2 text-xs">
-                      <div className="flex items-center space-x-1">
-                        <span className="text-gray-600">Total Budget:</span>
-                        <span className="font-bold text-blue-600">{formatCurrency(totalOfferBudgets)}</span>
-                      </div>
-                      <div className="flex items-center space-x-1">
-                        <span className="text-gray-600">Weekly:</span>
-                        <span className="font-bold text-green-600">{formatCurrency(totalWeeklyOfferBudgets)}</span>
-                        <span className="text-xs text-gray-500">
-                          ({totalOfferBudgets > 0 ? Math.round((totalWeeklyOfferBudgets / totalOfferBudgets) * 100) : 0}%)
-                        </span>
-                      </div>
-                    </div>
-                  </CardHeader>
-                  <CardContent className="pt-0 pb-3">
-                    <div className="overflow-x-auto">
-                      <table className="w-full text-xs">
-                        <thead>
-                          <tr className="border-b">
-                            <th className="text-left py-1 font-medium w-20">Media Buyer</th>
-                            <th className="text-left py-1 font-medium w-48">Network • Offer</th>
-                            <th className="text-center py-1 font-medium w-16">Terms</th>
-                            <th className="text-center py-1 font-medium w-20">Yesterday</th>
-                            <th className="text-center py-1 font-medium w-16">ROI</th>
-                            <th className="text-right py-1 font-medium w-24">New Budget</th>
-                          </tr>
-                        </thead>
-                        <tbody>
-                          {/* Active buyers with offers */}
-                          {Object.entries(mediaBuyerSpend)
-                            .filter(([buyer]) => {
-                              const networkOffers = networkOffersByBuyer[buyer] || {};
-                              return Object.keys(networkOffers).length > 0;
-                            })
-                            .sort(([buyerA], [buyerB]) => {
-                              // Sort by yesterday spend descending
-                              const spendA = yesterdaySpendByBuyer[buyerA] || 0;
-                              const spendB = yesterdaySpendByBuyer[buyerB] || 0;
-                              return spendB - spendA;
-                            })
-                            .flatMap(([buyer]) => {
-                              const displayName = buyer === 'mikeM' ? 'Mike M' : 
-                                                buyer === 'mikeC' ? 'Mike C' : 
-                                                buyer.charAt(0).toUpperCase() + buyer.slice(1);
-                              
-                              const networkOffers = networkOffersByBuyer[buyer] || {};
-                              const buyerOfferBudgets = offerBudgets[buyer] || {};
-                              
-                              const getROIColor = (roi) => {
-                                if (roi >= 20) return 'text-green-600 font-bold';
-                                if (roi >= 0) return 'text-yellow-600 font-medium';
-                                return 'text-red-600 font-bold';
-                              };
-                              
-                              const getPaymentTermColor = (paymentTerms) => {
-                                switch (paymentTerms) {
-                                  case 'Weekly': return 'bg-green-100 text-green-800 border-green-300 font-bold';
-                                  case 'Monthly': return 'bg-yellow-100 text-yellow-700 border-yellow-300';
-                                  case 'Bi-Monthly': return 'bg-red-100 text-red-700 border-red-300';
-                                  default: return 'bg-gray-100 text-gray-700 border-gray-300';
-                                }
-                              };
-                              
-                              const getRowHighlight = (paymentTerms) => {
-                                return paymentTerms === 'Weekly' ? 'bg-green-25' : '';
-                              };
-                              
-                              return Object.entries(networkOffers)
-                                .sort(([,a], [,b]) => {
-                                  // Sort by: 1) Weekly first, 2) Spend descending
-                                  if (a.paymentTerms === 'Weekly' && b.paymentTerms !== 'Weekly') return -1;
-                                  if (b.paymentTerms === 'Weekly' && a.paymentTerms !== 'Weekly') return 1;
-                                  return b.spend - a.spend;
-                                })
-                                .map(([networkOfferKey, data], index) => (
-                                  <tr key={`${buyer}-${networkOfferKey}`} 
-                                      className={`border-b border-gray-100 hover:bg-blue-50 ${getRowHighlight(data.paymentTerms)}`}>
-                                    {/* Media Buyer - only show on first row for each buyer */}
-                                    <td className="py-1">
-                                      {index === 0 ? (
-                                        <span className="font-bold text-blue-700 text-sm">{displayName}</span>
-                                      ) : (
-                                        <span className="text-gray-300">↳</span>
-                                      )}
-                                    </td>
-                                    
-                                    {/* Network • Offer */}
-                                    <td className="py-1">
-                                      <div className="flex items-center space-x-1">
-                                        <span className="font-medium text-blue-700 text-xs">{data.network}</span>
-                                        <span className="text-gray-400">•</span>
-                                        <span className="font-medium text-orange-700 text-xs">{data.offer}</span>
-                                        {data.paymentTerms === 'Weekly' && (
-                                          <span className="text-green-600 text-xs">⭐</span>
+                                  <div 
+                                    key={index} 
+                                    className={`flex justify-between items-start p-2 rounded text-xs ${
+                                      isBelowThreshold 
+                                        ? 'bg-gray-50 border border-gray-200 hover:bg-gray-100' 
+                                        : isOverdue 
+                                          ? 'bg-red-50 hover:bg-red-100'
+                                          : 'hover:bg-green-50'
+                                    }`}
+                                  >
+                                    <div className="flex-1">
+                                      <div className={`font-medium ${isBelowThreshold ? 'text-gray-500' : isOverdue ? 'text-red-800' : 'text-gray-800'}`}>
+                                        {invoice.Network || 'Unknown'}
+                                        {isOverdue && !isBelowThreshold && (
+                                          <span className="ml-2 text-xs text-red-600 font-semibold">
+                                            🔴 Overdue
+                                          </span>
+                                        )}
+                                        {isBelowThreshold && (
+                                          <span className="ml-2 text-xs text-orange-600 font-normal">
+                                            ⚠️ Below threshold
+                                          </span>
                                         )}
                                       </div>
-                                    </td>
-                                    
-                                    {/* Payment Terms */}
-                                    <td className="py-1 text-center">
-                                      <span className={`px-1 py-0.5 rounded border text-xs font-medium ${getPaymentTermColor(data.paymentTerms)}`}>
-                                        {formatPaymentTermsDisplay(data.paymentTerms)}
-                                      </span>
-                                    </td>
-                                    
-                                    {/* Yesterday Spend */}
-                                    <td className="py-1 text-center">
-                                      <span className="text-blue-600 font-medium text-xs">
-                                        {formatCurrency(data.spend)}
-                                      </span>
-                                    </td>
-                                    
-                                    {/* ROI */}
-                                    <td className="py-1 text-center">
-                                      <span className={`${getROIColor(data.roi)} text-xs`}>
-                                        {data.roi.toFixed(1)}%
-                                      </span>
-                                    </td>
-                                    
-                                    {/* Budget Input */}
-                                    <td className="py-1 text-right">
-                                      <Input
-                                        type="text"
-                                        value={formatCurrencyForInput(buyerOfferBudgets[networkOfferKey] || 0)}
-                                        onChange={(e) => updateOfferBudget(buyer, networkOfferKey, parseCurrencyInput(e.target.value))}
-                                        className={`w-24 h-6 text-xs text-right ${
-                                          data.paymentTerms === 'Weekly' 
-                                            ? 'border-green-400 focus:border-green-500 bg-green-25' 
-                                            : 'border-blue-300 focus:border-blue-500'
-                                        }`}
-                                        placeholder="$0"
-                                      />
-                                    </td>
-                                  </tr>
-                                ));
-                            })}
-                          
-                          {/* Inactive buyers section */}
-                          {Object.entries(mediaBuyerSpend)
-                            .filter(([buyer]) => {
-                              const networkOffers = networkOffersByBuyer[buyer] || {};
-                              return Object.keys(networkOffers).length === 0;
-                            })
-                            .sort(([buyerA], [buyerB]) => {
-                              // Put Daniel and Pavan at the bottom
-                              if (buyerA === 'daniel') return 1;
-                              if (buyerB === 'daniel') return -1;
-                              if (buyerA === 'pavan') return 1;
-                              if (buyerB === 'pavan') return -1;
-                              return 0;
-                            })
-                            .flatMap(([buyer]) => {
-                              const displayName = buyer === 'mikeM' ? 'Mike M' : 
-                                                buyer === 'mikeC' ? 'Mike C' : 
-                                                buyer.charAt(0).toUpperCase() + buyer.slice(1);
-                              
-                              const buyerOfferBudgets = offerBudgets[buyer] || {};
-                              const defaultBudget = defaultBudgets[buyer] || 0;
-                              const isToggled = inactiveBuyerToggles[buyer];
-                              
-                              const rows = [];
-                              
-                              // Always show the main buyer row with toggle
-                              rows.push(
-                                <tr key={`${buyer}-header`} className="bg-blue-25 border-l-2 border-blue-400">
-                                  <td className="py-2">
-                                    <div className="flex items-center space-x-2">
-                                      <button
-                                        onClick={() => setInactiveBuyerToggles(prev => ({
-                                          ...prev,
-                                          [buyer]: !prev[buyer]
-                                        }))}
-                                        className="text-blue-600 hover:text-blue-800 transition-colors"
-                                      >
-                                        {isToggled ? '▼' : '▶'}
-                                      </button>
-                                      <span className="font-bold text-blue-700 text-sm">{displayName}</span>
-                                    </div>
-                                    <div className="text-xs text-orange-600 mt-0.5 ml-6">📋 Planning</div>
-                                  </td>
-                                  <td className="py-2">
-                                    <div className="text-xs text-blue-600">
-                                      {allAvailableNetworkOffers.length} team offers available • 
-                                      {allAvailableNetworkOffers.filter(o => o.paymentTerms === 'Weekly').length} weekly priority
-                                    </div>
-                                  </td>
-                                  <td className="py-2 text-center">
-                                    <span className="text-xs text-gray-500">Various</span>
-                                  </td>
-                                  <td className="py-2 text-center">
-                                    <span className="text-gray-400 text-xs">$0</span>
-                                  </td>
-                                  <td className="py-2 text-center">
-                                    <span className="text-gray-400 text-xs">N/A</span>
-                                  </td>
-                                  <td className="py-2 text-right">
-                                    <Input
-                                      type="text"
-                                      value={formatCurrencyForInput(defaultBudget)}
-                                      onChange={(e) => updateDefaultBudget(buyer, parseCurrencyInput(e.target.value))}
-                                      className="w-24 h-6 text-xs text-right border-blue-300 focus:border-blue-500"
-                                      placeholder="Default $"
-                                    />
-                                  </td>
-                                </tr>
-                              );
-                              
-                              // If toggled on, show all available offers
-                              if (isToggled) {
-                                const getPaymentTermColor = (paymentTerms) => {
-                                  switch (paymentTerms) {
-                                    case 'Weekly': return 'bg-green-100 text-green-800 border-green-300 font-bold';
-                                    case 'Monthly': return 'bg-yellow-100 text-yellow-700 border-yellow-300';
-                                    case 'Bi-Monthly': return 'bg-red-100 text-red-700 border-red-300';
-                                    default: return 'bg-gray-100 text-gray-700 border-gray-300';
-                                  }
-                                };
-                                
-                                const getRowHighlight = (paymentTerms) => {
-                                  return paymentTerms === 'Weekly' ? 'bg-green-25' : '';
-                                };
-                                
-                                allActiveNetworkOffers.forEach((offer, index) => {
-                                  rows.push(
-                                    <tr key={`${buyer}-offer-${offer.networkOfferKey}`} 
-                                        className={`border-b border-gray-100 hover:bg-blue-50 ${getRowHighlight(offer.paymentTerms)} bg-blue-50`}>
-                                      {/* Media Buyer - show arrow for sub-rows */}
-                                      <td className="py-1 pl-4">
-                                        <span className="text-gray-400 text-xs">↳</span>
-                                      </td>
-                                      
-                                      {/* Network • Offer */}
-                                      <td className="py-1">
-                                        <div className="flex items-center space-x-1">
-                                          <span className="font-medium text-blue-700 text-xs">{offer.network}</span>
-                                          <span className="text-gray-400">•</span>
-                                          <span className="font-medium text-orange-700 text-xs">{offer.offer}</span>
-                                          {offer.paymentTerms === 'Weekly' && (
-                                            <span className="text-green-600 text-xs">⭐</span>
-                                          )}
-                                          <span className={`text-xs ${offer.isActive ? 'text-green-600' : 'text-gray-500'}`}>
-                                            ({offer.isActive ? 'Active' : 'Available'})
-                                          </span>
+                                      <div className={isBelowThreshold ? 'text-gray-400' : isOverdue ? 'text-red-600' : 'text-gray-500'}>
+                                        {format(dueDate, 'MMM dd, yyyy')}
+                                        <span className={`ml-2 ${
+                                          isOverdue 
+                                            ? 'text-red-600 font-semibold' 
+                                            : daysUntil <= 7 
+                                              ? 'text-green-600 font-semibold' 
+                                              : 'text-gray-400'
+                                        }`}>
+                                          ({Math.abs(daysUntil)} {isOverdue ? 'days overdue' : 'days'})
+                                        </span>
+                                      </div>
+                                      {isBelowThreshold && (
+                                        <div className="text-xs text-orange-600 italic mt-0.5">
+                                          Likely won't be paid out
                                         </div>
-                                      </td>
-                                      
-                                      {/* Payment Terms */}
-                                      <td className="py-1 text-center">
-                                        <span className={`px-1 py-0.5 rounded border text-xs font-medium ${getPaymentTermColor(offer.paymentTerms)}`}>
-                                          {formatPaymentTermsDisplay(offer.paymentTerms)}
-                                        </span>
-                                      </td>
-                                      
-                                      {/* Yesterday - Show actual spend if active, $0 if available */}
-                                      <td className="py-1 text-center">
-                                        <span className={`text-xs ${offer.isActive ? 'text-blue-600' : 'text-gray-400'}`}>
-                                          {offer.isActive && offer.spend > 0 ? formatCurrency(offer.spend) : '$0'}
-                                        </span>
-                                      </td>
-                                      
-                                      {/* ROI - Show actual ROI if active, N/A if available */}
-                                      <td className="py-1 text-center">
-                                        <span className={`text-xs ${offer.isActive && offer.spend > 0 ? 
-                                          (offer.roi >= 20 ? 'text-green-600' : offer.roi >= 0 ? 'text-yellow-600' : 'text-red-600') : 
-                                          'text-gray-400'}`}>
-                                          {offer.isActive && offer.spend > 0 ? `${offer.roi.toFixed(1)}%` : 'N/A'}
-                                        </span>
-                                      </td>
-                                      
-                                      {/* Budget Input */}
-                                      <td className="py-1 text-right">
-                                        <Input
-                                          type="text"
-                                          value={formatCurrencyForInput(buyerOfferBudgets[offer.networkOfferKey] || 0)}
-                                          onChange={(e) => updateOfferBudget(buyer, offer.networkOfferKey, parseCurrencyInput(e.target.value))}
-                                          className={`w-24 h-6 text-xs text-right ${
-                                            offer.paymentTerms === 'Weekly' 
-                                              ? 'border-green-400 focus:border-green-500 bg-green-25' 
-                                              : 'border-blue-300 focus:border-blue-500'
-                                          }`}
-                                          placeholder="$0"
-                                        />
-                                      </td>
-                                    </tr>
-                                  );
-                                });
-                              }
-                              
-                              return rows;
-                            })}
-                          
-                          {/* Overall Total Row */}
-                          <tr className="border-t-2 border-gray-400 font-bold bg-gray-50">
-                            <td className="py-2 text-sm">
-                              <div className="flex items-center space-x-1">
-                                <Calculator className="h-4 w-4 text-gray-700" />
-                                <span>TOTAL</span>
-                              </div>
-                            </td>
-                            <td className="py-2 text-sm text-gray-800">All Network-Offers</td>
-                            <td className="py-2 text-center">
-                              <div className="text-xs text-gray-600">
-                                {Math.round((totalWeeklyOfferBudgets / (totalOfferBudgets || 1)) * 100)}% Wk
-                              </div>
-                            </td>
-                            <td className="py-2 text-center text-blue-600 text-xs font-bold">
-                              {formatCurrency(Object.values(yesterdaySpendByBuyer).reduce((sum, spend) => sum + spend, 0))}
-                            </td>
-                            <td className="py-2 text-center">
-                              {(() => {
-                                const totalSpend = Object.values(yesterdayROIByBuyer).reduce((sum, data) => sum + data.spend, 0);
-                                const totalRevenue = Object.values(yesterdayROIByBuyer).reduce((sum, data) => sum + data.revenue, 0);
-                                const overallROI = totalSpend > 0 ? ((totalRevenue - totalSpend) / totalSpend) * 100 : 0;
-                                const getROIColor = (roi) => {
-                                  if (roi >= 20) return 'text-green-600';
-                                  if (roi >= 0) return 'text-yellow-600';
-                                  return 'text-red-600';
-                                };
-                                return (
-                                  <span className={`font-bold text-xs ${getROIColor(overallROI)}`}>
-                                    {totalSpend > 0 ? `${overallROI.toFixed(1)}%` : 'N/A'}
-                                  </span>
+                                      )}
+                                    </div>
+                                    <div className={`font-bold ${isBelowThreshold ? 'text-gray-400 line-through' : isOverdue ? 'text-red-700' : 'text-green-700'}`}>
+                                      {formatCurrency(amount)}
+                                    </div>
+                                  </div>
                                 );
-                              })()}
-                            </td>
-                            <td className="py-2 text-right font-bold text-blue-600">
-                              <div>
-                                <div className="text-sm">{formatCurrency(totalOfferBudgets)}</div>
-                                <div className="text-xs font-normal text-green-600">
-                                  Weekly: {formatCurrency(totalWeeklyOfferBudgets)}
+                              })}
+                          </div>
+                        ) : (
+                          <div className="text-center py-4 text-gray-400 text-sm">
+                            No invoices (max 20 days overdue, ≥$200 threshold)
+                          </div>
+                        )}
+                      </div>
+                    </CardContent>
+                  </Card>
+
+                  {/* Upcoming Expenses Detail */}
+                  <Card className="border-2 border-purple-200">
+                    <CardHeader className="pb-3">
+                      <CardTitle className="text-lg flex items-center space-x-2">
+                        <Calendar className="h-5 w-5 text-purple-600" />
+                        <span>Upcoming Expenses</span>
+                      </CardTitle>
+                      <div className="text-sm text-gray-600">Scheduled payments in the next 30 days</div>
+                    </CardHeader>
+                    <CardContent>
+                      <div className="space-y-3">
+                        <div className="flex justify-between items-center pb-2 border-b-2 border-purple-200">
+                          <span className="font-semibold text-gray-700">Total Due</span>
+                          <span className="text-xl font-bold text-purple-700">
+                            {formatCurrency(upcomingExpensesMetrics.total)}
+                          </span>
+                        </div>
+                        
+                        {upcomingExpenses && upcomingExpenses.length > 0 ? (
+                          <div className="space-y-2 max-h-[300px] overflow-y-auto">
+                            {upcomingExpenses
+                              .map((expense, index) => {
+                                // Handle both array and object formats
+                                let category, description, amount, dateStr;
+                                
+                                if (Array.isArray(expense)) {
+                                  category = expense[0] || 'Uncategorized';
+                                  description = expense[1] || '';
+                                  amount = parseFloat((expense[2] || '0').toString().replace(/[$,]/g, ''));
+                                  dateStr = expense[3];
+                                } else if (expense && typeof expense === 'object') {
+                                  category = expense.Category || expense.status || 'Uncategorized';
+                                  description = expense.Description || '';
+                                  const amountValue = expense.Amount || expense.amount || 0;
+                                  amount = parseFloat(amountValue.toString().replace(/[$,]/g, ''));
+                                  dateStr = expense.Date || expense.dueDate;
+                                } else {
+                                  return null;
+                                }
+                                
+                                if (!dateStr || isNaN(amount)) return null;
+                                
+                                const dueDate = new Date(dateStr);
+                                if (isNaN(dueDate.getTime())) return null;
+                                
+                                const thirtyDaysFromNow = addDays(new Date(), 30);
+                                if (dueDate > thirtyDaysFromNow) return null;
+                                
+                                const daysUntil = Math.ceil((dueDate - new Date()) / (1000 * 60 * 60 * 24));
+                                
+                                return {
+                                  index,
+                                  category,
+                                  description,
+                                  amount,
+                                  dueDate,
+                                  daysUntil
+                                };
+                              })
+                              .filter(Boolean)
+                              .sort((a, b) => a.dueDate - b.dueDate)
+                              .map((expense) => (
+                                <div key={expense.index} className="flex justify-between items-start p-2 hover:bg-purple-50 rounded text-xs">
+                                  <div className="flex-1">
+                                    <div className="font-medium text-gray-800">{expense.category}</div>
+                                    <div className="text-gray-600 text-xs">{expense.description}</div>
+                                    <div className="text-gray-500">
+                                      {format(expense.dueDate, 'MMM dd, yyyy')}
+                                      <span className={`ml-2 ${expense.daysUntil <= 7 ? 'text-red-600 font-semibold' : 'text-gray-400'}`}>
+                                        ({expense.daysUntil} days)
+                                      </span>
+                                    </div>
+                                  </div>
+                                  <div className="font-bold text-purple-700">
+                                    {formatCurrency(expense.amount)}
+                                  </div>
                                 </div>
+                              ))}
+                          </div>
+                        ) : (
+                          <div className="text-center py-4 text-gray-400 text-sm">
+                            No expenses scheduled in the next 30 days
+                          </div>
+                        )}
+                      </div>
+                    </CardContent>
+                  </Card>
+                </div>
+
+                {/* Calendar View */}
+                <Card className="border-2 border-blue-200">
+                  <CardHeader className="pb-3">
+                    <CardTitle className="text-lg flex items-center space-x-2">
+                      <Calendar className="h-5 w-5 text-blue-600" />
+                      <span>30-Day Cash Flow Calendar</span>
+                    </CardTitle>
+                    <div className="text-sm text-gray-600">Visual timeline of incoming (≥$200, max 20 days overdue) and outgoing cash</div>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="space-y-3">
+                      {/* Calendar Grid */}
+                      <div className="grid grid-cols-7 gap-1">
+                        {/* Day headers */}
+                        {['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map((day) => (
+                          <div key={day} className="text-center text-xs font-semibold text-gray-600 py-2">
+                            {day}
+                          </div>
+                        ))}
+                        
+                        {/* Calendar days */}
+                        {(() => {
+                          const today = new Date();
+                          const startDate = startOfMonth(today);
+                          const endDate = endOfMonth(addDays(today, 30));
+                          const days = eachDayOfInterval({ start: startDate, end: endDate });
+                          
+                          return days.map((day, index) => {
+                            const isInRange = day >= today && day <= addDays(today, 30);
+                            const isCurrentMonth = isSameMonth(day, today);
+                            
+                            // Calculate incoming and outgoing for this day
+                            let incoming = 0;
+                            let outgoing = 0;
+                            
+                            // Check invoices (max 20 days overdue and below $200 threshold excluded)
+                            if (invoicesData) {
+                              const twentyDaysAgo = subDays(new Date(), 20);
+                              invoicesData.forEach(invoice => {
+                                if (invoice && invoice.DueDate) {
+                                  const dueDate = new Date(invoice.DueDate);
+                                  if (isSameDay(dueDate, day) && dueDate >= twentyDaysAgo) {
+                                    const amount = parseFloat(invoice.AmountDue?.replace(/[^0-9.-]+/g, '') || 0);
+                                    // Only count invoices >= $200 threshold
+                                    if (amount >= 200) {
+                                      incoming += amount;
+                                    }
+                                  }
+                                }
+                              });
+                            }
+                            
+                            // Check expenses
+                            if (upcomingExpenses) {
+                              upcomingExpenses.forEach(expense => {
+                                let dateStr;
+                                let amount;
+                                
+                                if (Array.isArray(expense)) {
+                                  dateStr = expense[3];
+                                  amount = parseFloat((expense[2] || '0').toString().replace(/[$,]/g, ''));
+                                } else if (expense && typeof expense === 'object') {
+                                  dateStr = expense.Date || expense.dueDate;
+                                  const amountValue = expense.Amount || expense.amount || 0;
+                                  amount = parseFloat(amountValue.toString().replace(/[$,]/g, ''));
+                                }
+                                
+                                if (dateStr && !isNaN(amount)) {
+                                  const dueDate = new Date(dateStr);
+                                  if (!isNaN(dueDate.getTime()) && isSameDay(dueDate, day)) {
+                                    outgoing += amount;
+                                  }
+                                }
+                              });
+                            }
+                            
+                            const netFlow = incoming - outgoing;
+                            const hasActivity = incoming > 0 || outgoing > 0;
+                            
+                            return (
+                              <div
+                                key={index}
+                                className={`
+                                  min-h-[60px] p-1 border rounded text-xs
+                                  ${!isCurrentMonth ? 'bg-gray-50 text-gray-400' : ''}
+                                  ${isToday(day) ? 'border-2 border-blue-500 bg-blue-50' : 'border-gray-200'}
+                                  ${isInRange && hasActivity && netFlow > 0 ? 'bg-green-50' : ''}
+                                  ${isInRange && hasActivity && netFlow < 0 ? 'bg-red-50' : ''}
+                                  ${isInRange && hasActivity && netFlow === 0 ? 'bg-yellow-50' : ''}
+                                `}
+                              >
+                                <div className={`font-semibold ${isToday(day) ? 'text-blue-700' : ''}`}>
+                                  {format(day, 'd')}
+                                </div>
+                                {hasActivity && isInRange && (
+                                  <div className="mt-1 space-y-0.5">
+                                    {incoming > 0 && (
+                                      <div className="text-green-700 font-bold" title={`Incoming: ${formatCurrency(incoming)}`}>
+                                        +{formatCurrency(incoming).replace('$', '')}
+                                      </div>
+                                    )}
+                                    {outgoing > 0 && (
+                                      <div className="text-red-700 font-bold" title={`Outgoing: ${formatCurrency(outgoing)}`}>
+                                        -{formatCurrency(outgoing).replace('$', '')}
+                                      </div>
+                                    )}
+                                  </div>
+                                )}
                               </div>
-                            </td>
-                          </tr>
-                        </tbody>
-                      </table>
+                            );
+                          });
+                        })()}
+                      </div>
+                      
+                      {/* Legend */}
+                      <div className="flex justify-center space-x-4 text-xs pt-3 border-t">
+                        <div className="flex items-center space-x-1">
+                          <div className="w-4 h-4 bg-green-50 border border-gray-300 rounded"></div>
+                          <span>Positive Net Flow</span>
+                        </div>
+                        <div className="flex items-center space-x-1">
+                          <div className="w-4 h-4 bg-red-50 border border-gray-300 rounded"></div>
+                          <span>Negative Net Flow</span>
+                        </div>
+                        <div className="flex items-center space-x-1">
+                          <div className="w-4 h-4 bg-blue-50 border-2 border-blue-500 rounded"></div>
+                          <span>Today</span>
+                        </div>
+                      </div>
                     </div>
                   </CardContent>
                 </Card>
               </div>
+
+              {/* Cash in Bank Account Balance Projection */}
+              {(() => {
+                // Get Cash in Bank balance from cashFlowData
+                // This comes from B4 cell in Financial Resources sheet
+                let currentBalance = 0;
+                
+                // Try to get from directCells.cashInBank first (B4 specifically)
+                if (cashFlowData?.directCells?.cashInBank) {
+                  currentBalance = parseFloat(cashFlowData.directCells.cashInBank) || 0;
+                  console.log('Using cashInBank from directCells (B4):', currentBalance);
+                } 
+                // Fallback to cashAvailable (B4 + B6)
+                else if (cashFlowData?.directCells?.cashAvailable) {
+                  currentBalance = parseFloat(cashFlowData.directCells.cashAvailable) || 0;
+                  console.log('Using cashAvailable from directCells:', currentBalance);
+                }
+                // Try cashAccounts array
+                else if (cashFlowData?.financialResources?.cashAccounts?.length > 0) {
+                  const cashAccount = cashFlowData.financialResources.cashAccounts.find(
+                    acc => acc.account && acc.account.toLowerCase().includes('cash in bank')
+                  );
+                  if (cashAccount) {
+                    currentBalance = parseFloat(cashAccount.available?.toString().replace(/[^0-9.-]+/g, '') || 0);
+                    console.log('Using Cash in Bank from cashAccounts:', currentBalance);
+                  }
+                }
+                // Fallback to totalCash
+                else if (cashFlowData?.financialResources?.totalCash) {
+                  currentBalance = parseFloat(cashFlowData.financialResources.totalCash) || 0;
+                  console.log('Using totalCash:', currentBalance);
+                }
+                
+                console.log('Final currentBalance for projection:', currentBalance);
+
+                if (currentBalance === 0 || !cashFlowData) {
+                  return (
+                    <Card className="border-2 border-orange-200">
+                      <CardHeader>
+                        <CardTitle className="text-lg flex items-center space-x-2">
+                          <TrendingUp className="h-5 w-5 text-orange-600" />
+                          <span>Cash in Bank Balance Projection</span>
+                        </CardTitle>
+                      </CardHeader>
+                      <CardContent>
+                        <div className="text-center py-8 text-gray-500">
+                          <div className="mb-4">Unable to load Cash in Bank balance</div>
+                          <div className="text-sm text-gray-600">
+                            Please check that the Financial Resources sheet has data in cell B4
+                          </div>
+                        </div>
+                      </CardContent>
+                    </Card>
+                  );
+                }
+
+                // Build daily projection for next 30 days
+                const projectionData = [];
+                const today = new Date();
+                let runningBalance = currentBalance;
+
+                for (let i = 0; i <= 30; i++) {
+                  const projectionDate = addDays(today, i);
+                  let dailyIncoming = 0;
+                  let dailyOutgoing = 0;
+
+                  // Calculate incoming for this day (from invoices ≥$200)
+                  if (invoicesData) {
+                    const twentyDaysAgo = subDays(today, 20);
+                    invoicesData.forEach(invoice => {
+                      if (invoice && invoice.DueDate) {
+                        const dueDate = new Date(invoice.DueDate);
+                        if (isSameDay(dueDate, projectionDate) && dueDate >= twentyDaysAgo) {
+                          const amount = parseFloat(invoice.AmountDue?.replace(/[^0-9.-]+/g, '') || 0);
+                          if (amount >= 200) {
+                            dailyIncoming += amount;
+                          }
+                        }
+                      }
+                    });
+                  }
+
+                  // Calculate outgoing for this day (from expenses)
+                  if (upcomingExpenses) {
+                    upcomingExpenses.forEach(expense => {
+                      let dateStr;
+                      let amount;
+
+                      if (Array.isArray(expense)) {
+                        dateStr = expense[3];
+                        amount = parseFloat((expense[2] || '0').toString().replace(/[$,]/g, ''));
+                      } else if (expense && typeof expense === 'object') {
+                        dateStr = expense.Date || expense.dueDate;
+                        const amountValue = expense.Amount || expense.amount || 0;
+                        amount = parseFloat(amountValue.toString().replace(/[$,]/g, ''));
+                      }
+
+                      if (dateStr && !isNaN(amount)) {
+                        const dueDate = new Date(dateStr);
+                        if (!isNaN(dueDate.getTime()) && isSameDay(dueDate, projectionDate)) {
+                          dailyOutgoing += amount;
+                        }
+                      }
+                    });
+                  }
+
+                  // Update running balance
+                  runningBalance += dailyIncoming - dailyOutgoing;
+
+                  projectionData.push({
+                    date: format(projectionDate, 'MMM dd'),
+                    fullDate: format(projectionDate, 'MMM dd, yyyy'),
+                    balance: Math.round(runningBalance),
+                    incoming: Math.round(dailyIncoming),
+                    outgoing: Math.round(dailyOutgoing),
+                    netChange: Math.round(dailyIncoming - dailyOutgoing),
+                    dayNumber: i
+                  });
+                }
+
+                const lowestBalance = Math.min(...projectionData.map(d => d.balance));
+                const highestBalance = Math.max(...projectionData.map(d => d.balance));
+
+                return (
+                  <Card className="border-2 border-blue-200">
+                    <CardHeader>
+                      <CardTitle className="text-lg flex items-center space-x-2">
+                        <TrendingUp className="h-5 w-5 text-blue-600" />
+                        <span>Cash in Bank Balance Projection</span>
+                      </CardTitle>
+                      <div className="text-sm text-gray-600 mt-1">
+                        30-day projection based on incoming invoices (≥$200) and upcoming expenses
+                      </div>
+                      <div className="flex items-center space-x-6 mt-3">
+                        <div>
+                          <div className="text-xs text-gray-600">Current Balance</div>
+                          <div className="text-xl font-bold text-blue-700">{formatCurrency(currentBalance)}</div>
+                        </div>
+                        <div>
+                          <div className="text-xs text-gray-600">Projected (Day 30)</div>
+                          <div className={`text-xl font-bold ${projectionData[30].balance >= currentBalance ? 'text-green-700' : 'text-red-700'}`}>
+                            {formatCurrency(projectionData[30].balance)}
+                          </div>
+                        </div>
+                        <div>
+                          <div className="text-xs text-gray-600">Net Change</div>
+                          <div className={`text-xl font-bold ${projectionData[30].netChange >= 0 ? 'text-green-700' : 'text-red-700'}`}>
+                            {projectionData[30].balance >= currentBalance ? '+' : ''}{formatCurrency(projectionData[30].balance - currentBalance)}
+                          </div>
+                        </div>
+                        <div>
+                          <div className="text-xs text-gray-600">Lowest Point</div>
+                          <div className={`text-lg font-bold ${lowestBalance < 0 ? 'text-red-700' : 'text-orange-700'}`}>
+                            {formatCurrency(lowestBalance)}
+                          </div>
+                        </div>
+                      </div>
+                    </CardHeader>
+                    <CardContent>
+                      <ResponsiveContainer width="100%" height={400}>
+                        <LineChart data={projectionData} margin={{ top: 5, right: 30, left: 20, bottom: 5 }}>
+                          <CartesianGrid strokeDasharray="3 3" stroke="#e0e0e0" />
+                          <XAxis 
+                            dataKey="date" 
+                            stroke="#666"
+                            style={{ fontSize: '12px' }}
+                          />
+                          <YAxis 
+                            stroke="#666"
+                            style={{ fontSize: '12px' }}
+                            tickFormatter={(value) => `$${(value / 1000).toFixed(0)}k`}
+                          />
+                          <Tooltip 
+                            contentStyle={{ 
+                              backgroundColor: 'white', 
+                              border: '1px solid #ccc',
+                              borderRadius: '8px',
+                              padding: '12px'
+                            }}
+                            formatter={(value, name) => {
+                              if (name === 'balance') return [formatCurrency(value), 'Balance'];
+                              if (name === 'incoming') return [formatCurrency(value), 'Incoming'];
+                              if (name === 'outgoing') return [formatCurrency(value), 'Outgoing'];
+                              return [formatCurrency(value), name];
+                            }}
+                            labelFormatter={(label) => {
+                              const dataPoint = projectionData.find(d => d.date === label);
+                              return dataPoint ? dataPoint.fullDate : label;
+                            }}
+                          />
+                          <Legend 
+                            wrapperStyle={{ paddingTop: '20px' }}
+                            iconType="line"
+                          />
+                          <ReferenceLine 
+                            y={0} 
+                            stroke="red" 
+                            strokeDasharray="3 3" 
+                            label={{ value: 'Zero', position: 'right', fill: 'red', fontSize: 12 }}
+                          />
+                          <ReferenceLine 
+                            y={currentBalance} 
+                            stroke="blue" 
+                            strokeDasharray="3 3"
+                            label={{ value: 'Current', position: 'right', fill: 'blue', fontSize: 12 }}
+                          />
+                          <Line 
+                            type="monotone" 
+                            dataKey="balance" 
+                            stroke="#2563eb" 
+                            strokeWidth={3}
+                            dot={{ fill: '#2563eb', r: 4 }}
+                            activeDot={{ r: 6 }}
+                            name="Account Balance"
+                          />
+                          <Line 
+                            type="monotone" 
+                            dataKey="incoming" 
+                            stroke="#16a34a" 
+                            strokeWidth={2}
+                            strokeDasharray="5 5"
+                            dot={false}
+                            name="Incoming"
+                          />
+                          <Line 
+                            type="monotone" 
+                            dataKey="outgoing" 
+                            stroke="#dc2626" 
+                            strokeWidth={2}
+                            strokeDasharray="5 5"
+                            dot={false}
+                            name="Outgoing"
+                          />
+                        </LineChart>
+                      </ResponsiveContainer>
+
+                      {/* Warning if balance goes negative */}
+                      {lowestBalance < 0 && (
+                        <div className="mt-4 p-4 bg-red-50 border border-red-200 rounded-lg">
+                          <div className="flex items-start space-x-2">
+                            <AlertTriangle className="h-5 w-5 text-red-600 mt-0.5" />
+                            <div>
+                              <div className="font-semibold text-red-800">Cash Flow Warning</div>
+                              <div className="text-sm text-red-700">
+                                Account balance is projected to go negative (lowest: {formatCurrency(lowestBalance)}) during this period. 
+                                Consider adjusting spending or accelerating collections.
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+                      )}
+
+                      {/* Info about projection */}
+                      <div className="mt-4 text-xs text-gray-500 text-center">
+                        <p>Projection includes invoices ≥$200 (max 20 days overdue) and all scheduled expenses.</p>
+                        <p>Actual balance may vary based on payment timing and unscheduled transactions.</p>
+                      </div>
+                    </CardContent>
+                  </Card>
+                );
+              })()}
             </div>
           )}
         </CardContent>

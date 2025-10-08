@@ -384,7 +384,10 @@ export default function DashboardLayout({
               tradeshiftData={tradeshiftData} 
             />
             <CreditCardLimits 
-              financialResources={cashFlowData?.financialResources || []}
+              financialResources={[
+                ...(cashFlowData?.financialResources?.cashAccounts || []),
+                ...(cashFlowData?.financialResources?.creditCards || [])
+              ]}
             />
           </div>
         );
@@ -413,7 +416,7 @@ export default function DashboardLayout({
               startingBalance: cashFlowData?.currentBalance || 0,
               invoices: invoiceData || [],
               payrollData: expenseData || [],
-              creditCards: cashFlowData?.financialResources?.filter(r => r.owing > 0) || [],
+              creditCards: [...(cashFlowData?.financialResources?.cashAccounts || []), ...(cashFlowData?.financialResources?.creditCards || [])].filter(r => r.owing > 0),
               mediaBuyerData: performanceData
             }}
           />

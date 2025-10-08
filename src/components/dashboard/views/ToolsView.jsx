@@ -11,6 +11,7 @@ import NetworkCapsTab from '../NetworkCapsTab';
 import ScheduledTasksManager from '../ScheduledTasksManager';
 import MediaBuyerEODManager from '../MediaBuyerEODManager';
 import ActiveFanpagesManager from '../ActiveFanpagesManager';
+import DailySpendCalculatorTab from '../DailySpendCalculatorTab';
 
 
 const ToolsView = ({ 
@@ -89,6 +90,13 @@ const ToolsView = ({
           >
             Cash Flow Planner
           </Button>
+          <Button
+            variant={toolsSubview === 'daily-spend-calculator' ? 'default' : 'outline'}
+            onClick={() => setToolsSubview('daily-spend-calculator')}
+            className="text-sm"
+          >
+            Daily Spend Calculator
+          </Button>
           
           {/* Task Management */}
           <Button
@@ -123,13 +131,24 @@ const ToolsView = ({
         {toolsSubview === 'cash-flow-planner' && (
           <CashFlowPlanner 
             performanceData={performanceData?.data ? { data: performanceData.data } : { data: [] }}
-            creditCardData={cashFlowData?.financialResources || []}
+            creditCardData={[
+              ...(cashFlowData?.financialResources?.cashAccounts || []),
+              ...(cashFlowData?.financialResources?.creditCards || [])
+            ]}
             upcomingExpenses={expenseData || []}
             invoicesData={invoiceData || []}
             networkExposureData={networkTermsData || []}
+            cashFlowData={cashFlowData}
           />
         )}
         {toolsSubview === 'network-pay-terms' && <NetworkPayTerms performanceData={performanceData} />}
+        {toolsSubview === 'daily-spend-calculator' && (
+          <DailySpendCalculatorTab 
+            cashManagementData={cashFlowData}
+            performanceData={performanceData?.data || []}
+            offerCaps={networkTermsData || []}
+          />
+        )}
         {toolsSubview === 'scheduled-tasks' && <ScheduledTasksManager />}
         {toolsSubview === 'media-buyer-eod' && <MediaBuyerEODManager />}
         {toolsSubview === 'active-fanpages' && <ActiveFanpagesManager />}
