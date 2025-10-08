@@ -8,7 +8,7 @@ import { format, addDays, isSameDay, isToday, startOfMonth, endOfMonth, eachDayO
 import { parseCampaignName } from '@/lib/campaign-utils';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, ReferenceLine } from 'recharts';
 
-const CashFlowPlanner = ({ performanceData, creditCardData, upcomingExpenses, invoicesData, networkExposureData, cashFlowData }) => {
+const CashFlowPlanner = ({ performanceData, creditCardData, upcomingExpenses, invoicesData, networkExposureData, networkTermsData, cashFlowData }) => {
   const [dailySpend, setDailySpend] = useState(0);
   const [networkData, setNetworkData] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -188,12 +188,12 @@ const CashFlowPlanner = ({ performanceData, creditCardData, upcomingExpenses, in
 
     const today = new Date();
     const twentyDaysAgo = subDays(today, 20);
-    
+
     return invoicesData.reduce((acc, invoice) => {
       if (!invoice || !invoice.DueDate) return acc;
-      
+
       const dueDate = new Date(invoice.DueDate);
-      
+
       // Only include invoices that are:
       // 1. Not more than 20 days overdue (>= twentyDaysAgo), AND
       // 2. Any future date (no upper limit)
@@ -201,10 +201,10 @@ const CashFlowPlanner = ({ performanceData, creditCardData, upcomingExpenses, in
       if (dueDate >= twentyDaysAgo) {
         const amount = parseFloat(invoice.AmountDue?.replace(/[^0-9.-]+/g, '') || 0);
         const weekNumber = Math.floor((dueDate - today) / (7 * 24 * 60 * 60 * 1000));
-        
+
         // Track total including below threshold
         acc.totalWithBelowThreshold += amount;
-        
+
         // Only add to main total if above $200 threshold
         if (amount >= 200) {
           acc.total += amount;
@@ -216,6 +216,98 @@ const CashFlowPlanner = ({ performanceData, creditCardData, upcomingExpenses, in
       return acc;
     }, { total: 0, totalWithBelowThreshold: 0, byWeek: {}, belowThresholdCount: 0 });
   }, [invoicesData]);
+
+  // Calculate network exposure (pending revenue not yet invoiced)
+  const networkExposure = useMemo(() => {
+    console.log('Network Exposure Data Debug:', {
+      isArray: Array.isArray(networkExposureData),
+      length: networkExposureData?.length,
+      sample: networkExposureData?.slice(0, 2)
+    });
+
+    if (!Array.isArray(networkExposureData)) {
+      console.log('Invalid network exposure data format');
+      return { total: 0, byWeek: {}, byNetwork: {} };
+    }
+
+    const today = new Date();
+    
+    return networkExposureData.reduce((acc, exposure) => {
+      console.log('Processing exposure:', exposure);
+      
+      // Try different possible field names for the amount
+      let amount = 0;
+      let networkName = 'Unknown';
+      
+      if (exposure) {
+        // The actual amounts are in the lastUpdated field, not exposureAmount
+        const amountValue = exposure.lastUpdated || exposure.exposureAmount || exposure.amount || exposure.Amount || exposure.c2fAmountDue || exposure.availableBudget || 0;
+        amount = parseFloat(amountValue?.toString().replace(/[^0-9.-]+/g, '') || 0);
+        
+        // Try different possible field names for network
+        networkName = exposure.network || exposure.Network || exposure.name || 'Unknown';
+        
+        console.log('Parsed exposure:', { amount, networkName, original: exposure });
+      }
+      
+      if (amount > 0) {
+        // For network exposure, we don't have specific due dates yet
+        // We'll estimate based on typical payment terms (30-60 days from period end)
+        // For now, we'll distribute it across the next 4-8 weeks
+        const estimatedWeeksFromNow = 6; // Default to 6 weeks
+        const weekNumber = estimatedWeeksFromNow;
+
+        acc.total += amount;
+        acc.byWeek[weekNumber] = (acc.byWeek[weekNumber] || 0) + amount;
+        acc.byNetwork[networkName] = (acc.byNetwork[networkName] || 0) + amount;
+      }
+
+      return acc;
+    }, { total: 0, byWeek: {}, byNetwork: {} });
+  }, [networkExposureData]);
+
+  // Enhanced network exposure with additional data from networkTermsData
+  const enhancedNetworkExposure = useMemo(() => {
+    if (!Array.isArray(networkExposureData) || !Array.isArray(networkTermsData)) {
+      return networkExposureData || [];
+    }
+
+    // Create a map of network terms for quick lookup
+    const networkTermsMap = {};
+    networkTermsData.forEach(term => {
+      if (term.network || term.Network || term.name) {
+        const networkName = term.network || term.Network || term.name;
+        networkTermsMap[networkName] = term;
+      }
+    });
+
+    // For Network Exposure, we typically want the CURRENT period (not future periods)
+    // Since this is pending revenue that hasn't been invoiced yet, it's likely from the current month
+    const today = new Date();
+    const currentMonthStart = format(startOfMonth(today), 'yyyy-MM-dd');
+    const currentMonthEnd = format(endOfMonth(today), 'yyyy-MM-dd');
+
+    // Enhance network exposure data with terms data
+    return networkExposureData.map(exposure => {
+      const networkName = exposure.network || exposure.Network || exposure.name || 'Unknown';
+      const termsData = networkTermsMap[networkName] || {};
+      
+      console.log('Enhancing exposure for', networkName, ':', {
+        original: exposure,
+        termsData: termsData
+      });
+      
+      return {
+        ...exposure,
+        // Use the actual data from the Network Exposure sheet columns
+        // Column mapping: Network | Invoice Number | C2F Amount Due | Period Start | Period End | Network Amount Due | Pay Period | Net Terms
+        periodStart: exposure.periodStart || exposure.startDate || currentMonthStart,
+        periodEnd: exposure.periodEnd || exposure.endDate || currentMonthEnd,
+        payPeriod: exposure.payPeriod || exposure.paymentTerms || termsData.paymentTerms || 'Monthly',
+        netTerms: exposure.netTerms || exposure.netTermsDays || termsData.netTerms || termsData.netTermsDays || 30
+      };
+    });
+  }, [networkExposureData, networkTermsData]);
 
   // Calculate spending distribution based on net terms
   const spendingDistribution = useMemo(() => {
@@ -1210,6 +1302,21 @@ const CashFlowPlanner = ({ performanceData, creditCardData, upcomingExpenses, in
                   </CardContent>
                 </Card>
 
+                <Card className="bg-blue-50">
+                  <CardContent className="pt-6">
+                    <div className="flex items-center space-x-2">
+                      <Target className="h-5 w-5 text-blue-600" />
+                      <div className="text-sm text-blue-600 font-medium">Network Exposure</div>
+                    </div>
+                    <div className="text-2xl font-bold text-blue-700">
+                      {formatCurrency(networkExposure.total)}
+                    </div>
+                    <div className="text-sm text-blue-600 mt-1">
+                      Pending revenue • Not yet invoiced • {Object.keys(networkExposure.byNetwork).length} networks
+                    </div>
+                  </CardContent>
+                </Card>
+
                 <Card className="bg-purple-50">
                   <CardContent className="pt-6">
                     <div className="flex items-center space-x-2">
@@ -1226,10 +1333,10 @@ const CashFlowPlanner = ({ performanceData, creditCardData, upcomingExpenses, in
                 </Card>
               </div>
 
-              {/* Incoming Money & Upcoming Expenses Details */}
+              {/* Incoming Money, Network Exposure & Upcoming Expenses Details */}
               <div className="space-y-4">
                 <h3 className="text-lg font-semibold">Cash Flow Details</h3>
-                <p className="text-sm text-gray-600">Showing from 20 days overdue through all future invoices</p>
+                <p className="text-sm text-gray-600">Showing from 20 days overdue through all future invoices, plus pending network exposure</p>
                 
                 <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
                   {/* Incoming Money Detail */}
@@ -1417,14 +1524,107 @@ const CashFlowPlanner = ({ performanceData, creditCardData, upcomingExpenses, in
                   </Card>
                 </div>
 
+                {/* Network Exposure Detail */}
+                <Card className="border-2 border-blue-200">
+                  <CardHeader className="pb-3">
+                    <CardTitle className="text-lg flex items-center space-x-2">
+                      <Target className="h-5 w-5 text-blue-600" />
+                      <span>Network Exposure</span>
+                    </CardTitle>
+                    <div className="text-sm text-gray-600">Pending revenue from networks not yet invoiced with payment projections</div>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="space-y-3">
+                      <div className="flex justify-between items-center pb-2 border-b-2 border-blue-200">
+                        <span className="font-semibold text-gray-700">Total Exposure</span>
+                        <span className="text-xl font-bold text-blue-700">
+                          {formatCurrency(networkExposure.total)}
+                        </span>
+                      </div>
+                      
+                      {enhancedNetworkExposure && enhancedNetworkExposure.length > 0 ? (
+                        <div className="overflow-x-auto">
+                          <table className="w-full text-sm">
+                            <thead>
+                              <tr className="border-b border-gray-200 bg-gray-50">
+                                <th className="text-left py-3 px-4 font-semibold text-gray-700">Network</th>
+                                <th className="text-right py-3 px-4 font-semibold text-gray-700">C2F Amount Due</th>
+                                <th className="text-left py-3 px-4 font-semibold text-gray-700">Period Start</th>
+                                <th className="text-left py-3 px-4 font-semibold text-gray-700">Period End</th>
+                                <th className="text-left py-3 px-4 font-semibold text-gray-700">Pay Period</th>
+                                <th className="text-left py-3 px-4 font-semibold text-gray-700">Net Terms</th>
+                                <th className="text-left py-3 px-4 font-semibold text-gray-700">Likely Received</th>
+                              </tr>
+                            </thead>
+                            <tbody>
+                              {enhancedNetworkExposure
+                                .filter(exposure => {
+                                  if (!exposure) return false;
+                                  const amountValue = exposure.lastUpdated || exposure.exposureAmount || exposure.amount || exposure.Amount || exposure.c2fAmountDue || exposure.availableBudget || 0;
+                                  return parseFloat(amountValue?.toString().replace(/[^0-9.-]+/g, '') || 0) > 0;
+                                })
+                                .sort((a, b) => {
+                                  const amountA = parseFloat((a.lastUpdated || a.exposureAmount || a.amount || a.Amount || a.c2fAmountDue || a.availableBudget || 0)?.toString().replace(/[^0-9.-]+/g, '') || 0);
+                                  const amountB = parseFloat((b.lastUpdated || b.exposureAmount || b.amount || b.Amount || b.c2fAmountDue || b.availableBudget || 0)?.toString().replace(/[^0-9.-]+/g, '') || 0);
+                                  return amountB - amountA;
+                                })
+                                .map((exposure, index) => {
+                                  const amount = parseFloat((exposure.lastUpdated || exposure.exposureAmount || exposure.amount || exposure.Amount || exposure.c2fAmountDue || exposure.availableBudget || 0)?.toString().replace(/[^0-9.-]+/g, '') || 0);
+                                  const networkName = exposure.network || exposure.Network || exposure.name || 'Unknown';
+                                  
+                                  // Extract period dates and terms (now from enhanced data)
+                                  const periodStart = exposure.periodStart || 'N/A';
+                                  const periodEnd = exposure.periodEnd || 'N/A';
+                                  const payPeriod = exposure.payPeriod || 'N/A';
+                                  const netTerms = exposure.netTerms || 'N/A';
+                                  
+                                  // Calculate likely received date
+                                  let likelyReceived = 'N/A';
+                                  if (periodEnd && periodEnd !== 'N/A' && netTerms && netTerms !== 'N/A') {
+                                    try {
+                                      const endDate = new Date(periodEnd);
+                                      const termsDays = parseInt(netTerms.toString().replace(/\D/g, '')) || 0;
+                                      if (!isNaN(endDate.getTime()) && termsDays > 0) {
+                                        const receivedDate = addDays(endDate, termsDays);
+                                        likelyReceived = format(receivedDate, 'MMM dd, yyyy');
+                                      }
+                                    } catch (e) {
+                                      likelyReceived = 'Invalid date';
+                                    }
+                                  }
+                                  
+                                  return (
+                                    <tr key={index} className="border-b border-gray-100 hover:bg-blue-50">
+                                      <td className="py-3 px-4 font-medium text-gray-800">{networkName}</td>
+                                      <td className="py-3 px-4 text-right font-bold text-blue-700">{formatCurrency(amount)}</td>
+                                      <td className="py-3 px-4 text-gray-600">{periodStart}</td>
+                                      <td className="py-3 px-4 text-gray-600">{periodEnd}</td>
+                                      <td className="py-3 px-4 text-gray-600">{payPeriod}</td>
+                                      <td className="py-3 px-4 text-gray-600">{netTerms} days</td>
+                                      <td className="py-3 px-4 text-gray-600 font-medium">{likelyReceived}</td>
+                                    </tr>
+                                  );
+                                })}
+                            </tbody>
+                          </table>
+                        </div>
+                      ) : (
+                        <div className="text-center py-4 text-gray-400 text-sm">
+                          No network exposure data available
+                        </div>
+                      )}
+                    </div>
+                  </CardContent>
+                </Card>
+
                 {/* Calendar View */}
                 <Card className="border-2 border-blue-200">
                   <CardHeader className="pb-3">
                     <CardTitle className="text-lg flex items-center space-x-2">
                       <Calendar className="h-5 w-5 text-blue-600" />
-                      <span>30-Day Cash Flow Calendar</span>
+                      <span>Extended Cash Flow Calendar</span>
                     </CardTitle>
-                    <div className="text-sm text-gray-600">Visual timeline of incoming (≥$200, max 20 days overdue) and outgoing cash</div>
+                    <div className="text-sm text-gray-600">Visual timeline including Network Exposure payments through their calculated due dates</div>
                   </CardHeader>
                   <CardContent>
                     <div className="space-y-3">
@@ -1440,12 +1640,38 @@ const CashFlowPlanner = ({ performanceData, creditCardData, upcomingExpenses, in
                         {/* Calendar days */}
                         {(() => {
                           const today = new Date();
+                          
+                          // Calculate the latest Network Exposure payment date
+                          let latestExposureDate = addDays(today, 30); // Default to 30 days
+                          
+                          if (enhancedNetworkExposure && enhancedNetworkExposure.length > 0) {
+                            enhancedNetworkExposure.forEach(exposure => {
+                              const amount = parseFloat((exposure.lastUpdated || exposure.exposureAmount || exposure.amount || exposure.Amount || exposure.c2fAmountDue || exposure.availableBudget || 0)?.toString().replace(/[^0-9.-]+/g, '') || 0);
+                              
+                              if (amount > 0 && exposure.periodEnd && exposure.netTerms) {
+                                try {
+                                  const endDate = new Date(exposure.periodEnd);
+                                  const termsDays = parseInt(exposure.netTerms.toString().replace(/\D/g, '')) || 0;
+                                  
+                                  if (!isNaN(endDate.getTime()) && termsDays > 0) {
+                                    const receivedDate = addDays(endDate, termsDays);
+                                    if (receivedDate > latestExposureDate) {
+                                      latestExposureDate = receivedDate;
+                                    }
+                                  }
+                                } catch (e) {
+                                  // Ignore invalid dates
+                                }
+                              }
+                            });
+                          }
+                          
                           const startDate = startOfMonth(today);
-                          const endDate = endOfMonth(addDays(today, 30));
+                          const endDate = endOfMonth(latestExposureDate);
                           const days = eachDayOfInterval({ start: startDate, end: endDate });
                           
                           return days.map((day, index) => {
-                            const isInRange = day >= today && day <= addDays(today, 30);
+                            const isInRange = day >= today && day <= latestExposureDate;
                             const isCurrentMonth = isSameMonth(day, today);
                             
                             // Calculate incoming and outgoing for this day
@@ -1464,6 +1690,30 @@ const CashFlowPlanner = ({ performanceData, creditCardData, upcomingExpenses, in
                                     if (amount >= 200) {
                                       incoming += amount;
                                     }
+                                  }
+                                }
+                              });
+                            }
+
+                            // Check Network Exposure payments
+                            if (enhancedNetworkExposure && enhancedNetworkExposure.length > 0) {
+                              enhancedNetworkExposure.forEach(exposure => {
+                                const amount = parseFloat((exposure.lastUpdated || exposure.exposureAmount || exposure.amount || exposure.Amount || exposure.c2fAmountDue || exposure.availableBudget || 0)?.toString().replace(/[^0-9.-]+/g, '') || 0);
+                                
+                                if (amount > 0 && exposure.periodEnd && exposure.netTerms) {
+                                  try {
+                                    const endDate = new Date(exposure.periodEnd);
+                                    const termsDays = parseInt(exposure.netTerms.toString().replace(/\D/g, '')) || 0;
+                                    
+                                    if (!isNaN(endDate.getTime()) && termsDays > 0) {
+                                      const receivedDate = addDays(endDate, termsDays);
+                                      
+                                      if (isSameDay(receivedDate, day)) {
+                                        incoming += amount;
+                                      }
+                                    }
+                                  } catch (e) {
+                                    // Ignore invalid dates
                                   }
                                 }
                               });
@@ -1606,12 +1856,38 @@ const CashFlowPlanner = ({ performanceData, creditCardData, upcomingExpenses, in
                   );
                 }
 
-                // Build daily projection for next 30 days
+                // Calculate the latest Network Exposure payment date to extend projection
+                let latestExposureDate = addDays(new Date(), 30); // Default to 30 days
+                
+                if (enhancedNetworkExposure && enhancedNetworkExposure.length > 0) {
+                  enhancedNetworkExposure.forEach(exposure => {
+                    const amount = parseFloat((exposure.lastUpdated || exposure.exposureAmount || exposure.amount || exposure.Amount || exposure.c2fAmountDue || exposure.availableBudget || 0)?.toString().replace(/[^0-9.-]+/g, '') || 0);
+                    
+                    if (amount > 0 && exposure.periodEnd && exposure.netTerms) {
+                      try {
+                        const endDate = new Date(exposure.periodEnd);
+                        const termsDays = parseInt(exposure.netTerms.toString().replace(/\D/g, '')) || 0;
+                        
+                        if (!isNaN(endDate.getTime()) && termsDays > 0) {
+                          const receivedDate = addDays(endDate, termsDays);
+                          if (receivedDate > latestExposureDate) {
+                            latestExposureDate = receivedDate;
+                          }
+                        }
+                      } catch (e) {
+                        // Ignore invalid dates
+                      }
+                    }
+                  });
+                }
+
+                // Build daily projection from today to latest exposure date
                 const projectionData = [];
                 const today = new Date();
                 let runningBalance = currentBalance;
+                const totalDays = Math.ceil((latestExposureDate - today) / (1000 * 60 * 60 * 24));
 
-                for (let i = 0; i <= 30; i++) {
+                for (let i = 0; i <= totalDays; i++) {
                   const projectionDate = addDays(today, i);
                   let dailyIncoming = 0;
                   let dailyOutgoing = 0;
@@ -1625,6 +1901,45 @@ const CashFlowPlanner = ({ performanceData, creditCardData, upcomingExpenses, in
                         if (isSameDay(dueDate, projectionDate) && dueDate >= twentyDaysAgo) {
                           const amount = parseFloat(invoice.AmountDue?.replace(/[^0-9.-]+/g, '') || 0);
                           if (amount >= 200) {
+                            dailyIncoming += amount;
+                          }
+                        }
+                      }
+                    });
+                  }
+
+                  // Add Network Exposure based on calculated likely received dates
+                  if (enhancedNetworkExposure && enhancedNetworkExposure.length > 0) {
+                    enhancedNetworkExposure.forEach(exposure => {
+                      const amount = parseFloat((exposure.lastUpdated || exposure.exposureAmount || exposure.amount || exposure.Amount || exposure.c2fAmountDue || exposure.availableBudget || 0)?.toString().replace(/[^0-9.-]+/g, '') || 0);
+                      
+                      if (amount > 0) {
+                        // Calculate likely received date using enhanced data
+                        const periodEnd = exposure.periodEnd;
+                        const netTerms = exposure.netTerms;
+                        
+                        if (periodEnd && netTerms && periodEnd !== 'N/A' && netTerms !== 'N/A') {
+                          try {
+                            const endDate = new Date(periodEnd);
+                            const termsDays = parseInt(netTerms.toString().replace(/\D/g, '')) || 0;
+                            
+                            if (!isNaN(endDate.getTime()) && termsDays > 0) {
+                              const receivedDate = addDays(endDate, termsDays);
+                              
+                              // Check if this payment falls on the current projection day
+                              if (isSameDay(receivedDate, projectionDate)) {
+                                dailyIncoming += amount;
+                              }
+                            }
+                          } catch (e) {
+                            // If date calculation fails, fall back to day 30 for this exposure
+                            if (i === 30) {
+                              dailyIncoming += amount;
+                            }
+                          }
+                        } else {
+                          // If no period end or net terms, fall back to day 30
+                          if (i === 30) {
                             dailyIncoming += amount;
                           }
                         }
@@ -1681,7 +1996,7 @@ const CashFlowPlanner = ({ performanceData, creditCardData, upcomingExpenses, in
                         <span>Cash in Bank Balance Projection</span>
                       </CardTitle>
                       <div className="text-sm text-gray-600 mt-1">
-                        30-day projection based on incoming invoices (≥$200) and upcoming expenses
+                        Extended projection through {format(latestExposureDate, 'MMM dd, yyyy')} based on incoming invoices (≥$200), network exposure (calculated payment dates), and upcoming expenses
                       </div>
                       <div className="flex items-center space-x-6 mt-3">
                         <div>
@@ -1689,15 +2004,15 @@ const CashFlowPlanner = ({ performanceData, creditCardData, upcomingExpenses, in
                           <div className="text-xl font-bold text-blue-700">{formatCurrency(currentBalance)}</div>
                         </div>
                         <div>
-                          <div className="text-xs text-gray-600">Projected (Day 30)</div>
-                          <div className={`text-xl font-bold ${projectionData[30].balance >= currentBalance ? 'text-green-700' : 'text-red-700'}`}>
-                            {formatCurrency(projectionData[30].balance)}
+                          <div className="text-xs text-gray-600">Projected ({format(latestExposureDate, 'MMM dd')})</div>
+                          <div className={`text-xl font-bold ${projectionData[totalDays].balance >= currentBalance ? 'text-green-700' : 'text-red-700'}`}>
+                            {formatCurrency(projectionData[totalDays].balance)}
                           </div>
                         </div>
                         <div>
                           <div className="text-xs text-gray-600">Net Change</div>
-                          <div className={`text-xl font-bold ${projectionData[30].netChange >= 0 ? 'text-green-700' : 'text-red-700'}`}>
-                            {projectionData[30].balance >= currentBalance ? '+' : ''}{formatCurrency(projectionData[30].balance - currentBalance)}
+                          <div className={`text-xl font-bold ${projectionData[totalDays].netChange >= 0 ? 'text-green-700' : 'text-red-700'}`}>
+                            {projectionData[totalDays].balance >= currentBalance ? '+' : ''}{formatCurrency(projectionData[totalDays].balance - currentBalance)}
                           </div>
                         </div>
                         <div>
@@ -1802,11 +2117,11 @@ const CashFlowPlanner = ({ performanceData, creditCardData, upcomingExpenses, in
                         </div>
                       )}
 
-                      {/* Info about projection */}
-                      <div className="mt-4 text-xs text-gray-500 text-center">
-                        <p>Projection includes invoices ≥$200 (max 20 days overdue) and all scheduled expenses.</p>
-                        <p>Actual balance may vary based on payment timing and unscheduled transactions.</p>
-                      </div>
+            {/* Info about projection */}
+            <div className="mt-4 text-xs text-gray-500 text-center">
+              <p>Extended projection through {format(latestExposureDate, 'MMM dd, yyyy')} includes invoices ≥$200 (max 20 days overdue), network exposure (calculated payment dates), and all scheduled expenses.</p>
+              <p>Actual balance may vary based on payment timing, unscheduled transactions, and network payment terms.</p>
+            </div>
                     </CardContent>
                   </Card>
                 );

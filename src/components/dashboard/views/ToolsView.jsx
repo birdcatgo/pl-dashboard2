@@ -21,7 +21,8 @@ const ToolsView = ({
   cashFlowData,
   expenseData,
   invoiceData,
-  networkTermsData
+  networkTermsData,
+  networkExposureData
 }) => {
   return (
     <div className="space-y-8">
@@ -137,7 +138,8 @@ const ToolsView = ({
             ]}
             upcomingExpenses={expenseData || []}
             invoicesData={invoiceData || []}
-            networkExposureData={networkTermsData || []}
+            networkExposureData={networkExposureData || []}
+            networkTermsData={networkTermsData || []}
             cashFlowData={cashFlowData}
           />
         )}

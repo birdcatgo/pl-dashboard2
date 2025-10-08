@@ -782,14 +782,28 @@ export default async function handler(req, res) {
 
       // Process network exposure data
       if (networkExposureResponse?.values && networkExposureResponse.values.length > 1) {
-        processedData.networkExposure = networkExposureResponse.values.slice(1)
+        const headers = networkExposureResponse.values[0];
+        const dataRows = networkExposureResponse.values.slice(1);
+        
+        console.log('Network Exposure Headers:', headers);
+        console.log('Network Exposure Sample Row:', dataRows[0]);
+        
+        processedData.networkExposure = dataRows
           .filter(row => row && row.length >= 3)
           .map(row => ({
+            // Column mapping: Network | Invoice Number | C2F Amount Due | Period Start | Period End | Network Amount Due | Pay Period | Net Terms
             network: row[0]?.trim() || '',
-            exposureAmount: parseFloat(row[1]?.replace(/[$,]/g, '')) || 0,
-            lastUpdated: row[2]?.trim() || ''
+            invoiceNumber: row[1]?.trim() || '',
+            exposureAmount: parseFloat(row[2]?.replace(/[$,]/g, '')) || 0, // C2F Amount Due
+            lastUpdated: row[2]?.trim() || '', // Keep this for backward compatibility
+            periodStart: row[3]?.trim() || '',
+            periodEnd: row[4]?.trim() || '',
+            networkAmountDue: parseFloat(row[5]?.replace(/[$,]/g, '')) || 0,
+            payPeriod: row[6]?.trim() || '',
+            netTerms: row[7]?.trim() || ''
           }));
         console.log('Processed network exposure:', processedData.networkExposure.length);
+        console.log('Sample processed exposure:', processedData.networkExposure[0]);
       }
 
       // Process Summary sheet data

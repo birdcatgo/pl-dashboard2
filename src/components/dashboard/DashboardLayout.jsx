@@ -80,6 +80,7 @@ export default function DashboardLayout({
   expenseData, 
   cashFlowData,
   networkTermsData,
+  networkExposureData,
   tradeshiftData: initialTradeshiftData,
   plData: initialPlData,
   employeeData
@@ -357,6 +358,7 @@ export default function DashboardLayout({
             expenseData={expenseData}
             invoiceData={invoiceData}
             networkTermsData={networkTermsData}
+            networkExposureData={networkExposureData}
           />
         );
 

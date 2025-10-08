@@ -7,6 +7,7 @@ export default function DashboardPage() {
   const [payrollData, setPayrollData] = useState([]);
   const [cashFlowData, setCashFlowData] = useState(null);
   const [networkTermsData, setNetworkTermsData] = useState(null);
+  const [networkExposureData, setNetworkExposureData] = useState([]);
   const [tradeshiftData, setTradeshiftData] = useState([]);
   const [plData, setPlData] = useState(null);
   const [employeeData, setEmployeeData] = useState([]);
@@ -80,6 +81,7 @@ export default function DashboardPage() {
       setPayrollData(data.rawData?.payroll || []);
       setCashFlowData(data.cashFlowData || {});
       setNetworkTermsData(data.networkTerms || []);
+      setNetworkExposureData(data.networkExposure || []);
       setTradeshiftData(data.tradeshiftData || []);
       setPlData(data.plData || {});
       setEmployeeData(data.employeeData || []);
@@ -91,6 +93,7 @@ export default function DashboardPage() {
         payrollData: data.rawData?.payroll?.length || 0,
         hasCashFlowData: !!data.cashFlowData,
         networkTermsCount: data.networkTerms?.length || 0,
+        networkExposureCount: data.networkExposure?.length || 0,
         tradeshiftDataCount: data.tradeshiftData?.length || 0,
         hasPlData: !!data.plData,
         employeeDataCount: data.employeeData?.length || 0
@@ -123,6 +126,7 @@ export default function DashboardPage() {
       expenseData={payrollData}
       cashFlowData={cashFlowData}
       networkTermsData={networkTermsData}
+      networkExposureData={networkExposureData}
       tradeshiftData={tradeshiftData}
       plData={plData}
       employeeData={employeeData}
