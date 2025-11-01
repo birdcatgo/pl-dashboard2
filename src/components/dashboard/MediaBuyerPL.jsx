@@ -237,7 +237,7 @@ const MediaBuyerPL = ({ performanceData, commissions = [] }) => {
         const date = new Date(dateKey);
         const cutoffDate = new Date('2024-04-01');
         const ringbaExpense = date >= cutoffDate ? 0 : acaRevenue * 0.02; // 2% of ACA-ACA revenue before April 2024
-        const dailyExpenses = 2819.81; // Fixed daily expenses amount (Payroll and General $59,217) / 21 working days
+        const dailyExpenses = 1998.90; // Fixed daily expenses amount (Payroll and General $41,976.98) / 21 working days
         const totalExpenses = mediaBuyerCommission + ringbaExpense; // Removed dailyExpenses from daily breakdown
         // Calculate final profit and ROI
         const finalProfit = baseProfit - totalExpenses;
@@ -278,8 +278,8 @@ const MediaBuyerPL = ({ performanceData, commissions = [] }) => {
           // Calculate daily expenses based on whether it's the current month
           const isCurrentMonth = format(monthStart, 'yyyy-MM') === format(new Date(), 'yyyy-MM');
           const daysInData = days.length;
-          const dailyExpenseAmount = isCurrentMonth ? 59217 / daysInData : 59217 / 21; // For current month, divide by actual days. For past months, divide by 21
-          const totalDailyExpenses = isCurrentMonth ? 59217 : 59217; // Current month shows actual total, past months show full amount
+          const dailyExpenseAmount = isCurrentMonth ? 41976.98 / daysInData : 41976.98 / 21; // For current month, divide by actual days. For past months, divide by 21
+          const totalDailyExpenses = isCurrentMonth ? 41976.98 : 41976.98; // Current month shows actual total, past months show full amount
           
           const monthTotal = {
             monthStart,
@@ -892,7 +892,7 @@ const MediaBuyerPL = ({ performanceData, commissions = [] }) => {
               </tbody>
             </table>
             <div className="mt-4 text-sm text-gray-500 italic">
-              * MB Comm based on individual commission rates per media buyer | ** Daily Exp total $59,217 per month (prorated for current month based on days of data)
+              * MB Comm based on individual commission rates per media buyer | ** Daily Exp total $41,976.98 per month (prorated for current month based on days of data)
             </div>
           </div>
         </div>

@@ -19,7 +19,9 @@ export default async function handler(req, res) {
       { name: 'Rutvik', boardId: '8758397188' },
       { name: 'Aakash', boardId: '8758417073' },
       { name: 'Emil', boardId: '8758377191' },
-      { name: 'Ishaan', boardId: '8723210527' }
+      { name: 'Ishaan', boardId: '8723210527' },
+      { name: 'Will', boardId: 'TBD' },
+      { name: 'Zohaib', boardId: 'TBD' }
     ];
 
     // First, get the EOD report data for comparison

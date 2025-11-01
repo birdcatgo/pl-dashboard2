@@ -30,6 +30,8 @@ const MEDIA_BUYERS = [
   'Omar',
   'Bikki',
   'Emil',
+  'Will',
+  'Zohaib',
 ];
 
 // Add this helper function for row grouping

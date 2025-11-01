@@ -46,7 +46,7 @@ export const parseCampaignName = (name) => {
   // Complete list of media buyers
   const knownMediaBuyers = [
     'Aakash', 'Asheesh', 'Bikki', 'Daniel', 'Edwin', 'Emil', 'Gagan',
-    'Isha', 'Ishaan', 'Mike', 'Mike C', 'Nick N', 'Pavan', 'Zel'
+    'Isha', 'Ishaan', 'Mike', 'Mike C', 'Nick N', 'Pavan', 'Will', 'Zel', 'Zohaib'
   ];
 
   // Split by " - " or " | " to extract components

@@ -24,7 +24,9 @@ const CashFlowPlanner = ({ performanceData, creditCardData, upcomingExpenses, in
     rutvik: { conservative: 5000, aggressive: 10000 },
     bikki: { conservative: 5000, aggressive: 10000 },
     aakash: { conservative: 5000, aggressive: 10000 },
-    ishaan: { conservative: 5000, aggressive: 10000 }
+    ishaan: { conservative: 5000, aggressive: 10000 },
+    will: { conservative: 5000, aggressive: 10000 },
+    zohaib: { conservative: 5000, aggressive: 10000 }
   });
   
   // New budget tracking for each media buyer
